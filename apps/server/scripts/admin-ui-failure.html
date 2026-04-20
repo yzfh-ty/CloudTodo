@@ -1,0 +1,79 @@
+<!DOCTYPE html><html lang="zh-CN"><head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CloudTodo Admin Login</title>
+    <style>
+      :root {
+        --bg: #eef2f7;
+        --card: #ffffff;
+        --line: #d8e0eb;
+        --ink: #16202a;
+        --muted: #637084;
+        --accent: #0f766e;
+        --danger: #b91c1c;
+      }
+      * { box-sizing: border-box; }
+      body { min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at top left, #dff5f2 0%, #eef2f7 45%, #f7f8fb 100%); color: var(--ink); font-family: "Segoe UI", "PingFang SC", sans-serif; }
+      main { width: min(100%, 460px); background: var(--card); padding: 32px; border-radius: 22px; border: 1px solid var(--line); box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08); }
+      h1 { margin: 0 0 10px; }
+      p { margin: 0 0 20px; color: var(--muted); }
+      form { display: grid; gap: 14px; }
+      label { display: grid; gap: 8px; font-size: 14px; }
+      input { width: 100%; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: 14px; }
+      button { border: 0; background: var(--accent); color: #fff; padding: 12px 14px; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; }
+      .hint { margin-top: 16px; font-size: 13px; color: var(--muted); }
+      .error { margin-top: 12px; color: var(--danger); font-size: 13px; min-height: 20px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>管理员登录</h1>
+      <p>支持用用户名或邮箱登录后台。</p>
+      <form id="loginForm">
+        <label>
+          账号
+          <input id="accountInput" name="account" autocomplete="username" placeholder="邮箱或用户名" required="">
+        </label>
+        <label>
+          密码
+          <input id="passwordInput" name="password" type="password" autocomplete="current-password" placeholder="输入管理员密码" required="">
+        </label>
+        <button type="submit">登录后台</button>
+      </form>
+      <div class="error" id="errorBox"></div>
+      <div class="hint">管理员可使用用户名或邮箱登录。默认示例：<code>admin@example.com / admin123456</code></div>
+    </main>
+    <script>
+      const form = document.getElementById('loginForm');
+      const errorBox = document.getElementById('errorBox');
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        errorBox.textContent = '';
+
+        const account = document.getElementById('accountInput').value.trim();
+        const password = document.getElementById('passwordInput').value;
+
+        try {
+          const res = await fetch('/api/admin/auth/login', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ account, password })
+          });
+
+          const json = await res.json();
+          if (!res.ok) {
+            throw new Error(json?.message || '登录失败');
+          }
+
+          location.href = '/admin';
+        } catch (error) {
+          errorBox.textContent = error.message || '登录失败';
+        }
+      });
+    </script>
+  
+</body></html>

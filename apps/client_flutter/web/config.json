@@ -1,0 +1,5 @@
+{
+  "appName": "CloudTodo Web",
+  "appEnv": "local",
+  "apiBaseUrl": "http://localhost:3000/api"
+}

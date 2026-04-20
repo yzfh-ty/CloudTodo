@@ -1,0 +1,69 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
+!.env.*.example
+
+# Node / NestJS
+node_modules/
+dist/
+coverage/
+.nest/
+*.tsbuildinfo
+
+# Prisma local artifacts
+prisma/dev.db
+prisma/dev.db-journal
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub/
+.pub-cache/
+build/
+
+# Flutter platform outputs
+android/.gradle/
+android/app/debug/
+android/app/profile/
+android/app/release/
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/.last_build_id
+macos/Pods/
+linux/flutter/ephemeral/
+windows/flutter/ephemeral/
+web/flutter_bootstrap.js
+
+# Package manager caches
+.npm/
+.pnpm-store/
+.yarn/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+docs/
