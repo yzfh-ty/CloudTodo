@@ -80,6 +80,29 @@ flutter pub get
 flutter run -d chrome --web-hostname localhost
 ```
 
+### Docker 部署
+
+当前仓库采用“后端 / Web 分开 compose”的方式：
+
+- 后端 compose：`apps/server/docker-compose.yml`
+- Web compose：`apps/client_flutter/docker-compose.yml`
+
+后端启动：
+
+```powershell
+cd apps/server
+docker compose up --build
+```
+
+Web 启动：
+
+```powershell
+cd apps/client_flutter
+docker compose up --build
+```
+
+当前 Web 容器使用 `nginx` 托管 Flutter Web 静态资源，并在容器启动时生成运行时 `config.json`。
+
 ## 仓库入口
 
 - [后端说明](apps/server/README.md)

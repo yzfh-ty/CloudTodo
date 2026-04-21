@@ -118,6 +118,25 @@ flutter run -d chrome --web-hostname localhost
 flutter run -d windows
 ```
 
+## Docker
+
+当前仓库已经提供：
+
+- [Web Dockerfile](Dockerfile.web)
+- [nginx 配置](nginx.conf)
+- [docker-compose.yml](docker-compose.yml)
+
+在当前目录执行：
+
+```powershell
+docker compose up --build
+```
+
+默认访问地址：
+
+- Web：`http://localhost:8080`
+- 当前 Web 容器使用 `nginx` 托管 Flutter Web 静态资源
+
 ## 后端地址
 
 客户端支持两种方式配置后端地址：

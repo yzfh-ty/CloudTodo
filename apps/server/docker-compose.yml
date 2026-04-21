@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cloudtodo-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cloudtodo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cloudtodo}
+      POSTGRES_DB: ${POSTGRES_DB:-cloudtodo}
+    volumes:
+      - cloudtodo-postgres-data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cloudtodo} -d ${POSTGRES_DB:-cloudtodo}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cloudtodo-server
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      APP_NAME: CloudTodo Server
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cloudtodo}:${POSTGRES_PASSWORD:-cloudtodo}@postgres:5432/${POSTGRES_DB:-cloudtodo}?schema=public
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me-access-secret}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-refresh-secret}
+      WEBHOOK_SIGNING_SECRET: ${WEBHOOK_SIGNING_SECRET:-change-me-webhook-secret}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-change-me-admin-session-secret}
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-true}
+      SCHEDULER_SCAN_INTERVAL_MS: ${SCHEDULER_SCAN_INTERVAL_MS:-5000}
+      DELIVERY_SCAN_INTERVAL_MS: ${DELIVERY_SCAN_INTERVAL_MS:-5000}
+      DELIVERY_MAX_ATTEMPTS: ${DELIVERY_MAX_ATTEMPTS:-3}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${SERVER_PORT:-3000}:3000"
+
+volumes:
+  cloudtodo-postgres-data:

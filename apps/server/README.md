@@ -110,6 +110,25 @@ npm run prisma:generate
 npm run start:dev
 ```
 
+## Docker 部署
+
+当前仓库已经提供：
+
+- [Dockerfile](Dockerfile)
+- [docker-compose.yml](docker-compose.yml)
+
+在当前目录执行：
+
+```powershell
+docker compose up --build
+```
+
+默认入口：
+
+- 后端接口：`http://localhost:3000`
+- 管理后台：`http://localhost:3000/admin`
+- 健康检查：`http://localhost:3000/health`
+
 ## 常用命令
 
 ```bash
