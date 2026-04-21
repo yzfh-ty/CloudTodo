@@ -21,6 +21,7 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
   final _backendUrlController = TextEditingController();
   bool _backendInitialized = false;
+  bool _showAdvanced = false;
 
   @override
   void didChangeDependencies() {
@@ -73,13 +74,50 @@ class _LoginPageState extends State<LoginPage> {
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 const SizedBox(height: 20),
-                TextFormField(
-                  controller: _backendUrlController,
-                  decoration: const InputDecoration(
-                    labelText: '后端地址',
-                    helperText: '输入 http://localhost:3000 或完整的 /api 地址',
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF6F0E6),
+                    borderRadius: BorderRadius.circular(18),
                   ),
-                  validator: (value) => appController.validateApiBaseUrl(value ?? ''),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '高级连接设置',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _showAdvanced = !_showAdvanced;
+                              });
+                            },
+                            child: Text(_showAdvanced ? '收起' : '展开'),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        '当前后端：${_backendUrlController.text}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      if (_showAdvanced) ...[
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _backendUrlController,
+                          decoration: const InputDecoration(
+                            labelText: '后端地址',
+                            helperText: '输入 http://localhost:3000 或完整的 /api 地址',
+                          ),
+                          validator: (value) => appController.validateApiBaseUrl(value ?? ''),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 16),
                 TextFormField(

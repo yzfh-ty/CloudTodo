@@ -7,6 +7,8 @@ class NotificationEndpoint {
     required this.payloadTemplate,
     required this.isEnabled,
     required this.createdAt,
+    this.lastResponseCode,
+    this.lastResponseSummary,
     this.lastSuccessAt,
     this.lastFailureAt,
   });
@@ -18,6 +20,8 @@ class NotificationEndpoint {
   final String? payloadTemplate;
   final bool isEnabled;
   final DateTime createdAt;
+  final int? lastResponseCode;
+  final String? lastResponseSummary;
   final DateTime? lastSuccessAt;
   final DateTime? lastFailureAt;
 
@@ -30,6 +34,8 @@ class NotificationEndpoint {
       payloadTemplate: json['payloadTemplate'] as String?,
       isEnabled: json['isEnabled'] as bool? ?? false,
       createdAt: DateTime.parse(json['createdAt'] as String),
+      lastResponseCode: json['lastResponseCode'] as int?,
+      lastResponseSummary: json['lastResponseSummary'] as String?,
       lastSuccessAt: json['lastSuccessAt'] == null
           ? null
           : DateTime.parse(json['lastSuccessAt'] as String),

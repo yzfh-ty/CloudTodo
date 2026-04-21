@@ -49,7 +49,7 @@ class _NotificationEndpointsPageState extends State<NotificationEndpointsPage> {
         return ListView(
           children: [
             Text(
-              '通知端点',
+              '通知方式',
               style: theme.textTheme.headlineMedium,
             ),
             const SizedBox(height: 12),
@@ -58,7 +58,7 @@ class _NotificationEndpointsPageState extends State<NotificationEndpointsPage> {
                 FilledButton.icon(
                   onPressed: _controller.isLoading ? null : _createEndpoint,
                   icon: const Icon(Icons.add_link_rounded),
-                  label: const Text('新增端点'),
+                  label: const Text('新增方式'),
                 ),
                 const SizedBox(width: 12),
                 OutlinedButton(
@@ -69,7 +69,7 @@ class _NotificationEndpointsPageState extends State<NotificationEndpointsPage> {
             ),
             const SizedBox(height: 12),
             Text(
-              '该模块对应通知端点接口。当前已经补到列表、创建、编辑、删除和模拟测试，三端可共用这套端点配置流。',
+              '这里用于管理通知方式。当前已经补到列表、创建、编辑、删除和模拟测试，三端可共用这套通知配置流。',
               style: theme.textTheme.bodyLarge,
             ),
             const SizedBox(height: 20),
@@ -94,7 +94,7 @@ class _NotificationEndpointsPageState extends State<NotificationEndpointsPage> {
               const Card(
                 child: Padding(
                   padding: EdgeInsets.all(24),
-                  child: Text('当前还没有通知端点。'),
+                  child: Text('当前还没有通知方式。'),
                 ),
               )
             else
@@ -171,10 +171,10 @@ class _NotificationEndpointsPageState extends State<NotificationEndpointsPage> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          '端点 ${payload['endpoint_id']} 已完成一次模拟测试，状态：${payload['status']}',
+          '通知方式 ${payload['endpoint_id']} 已完成一次模拟测试，状态：${payload['status']}',
         ),
       ),
     );
@@ -184,17 +184,9 @@ class _NotificationEndpointsPageState extends State<NotificationEndpointsPage> {
     final draft = await showDialog<NotificationEndpointFormData>(
       context: context,
       builder: (context) {
-        return const NotificationEndpointEditorDialog(
-          initialValue: NotificationEndpointFormData(
-            deliveryKind: 'standard_webhook',
-            name: '',
-            targetUrl: '',
-            payloadTemplate: '',
-            isEnabled: true,
-            secret: '',
-            clearSecret: false,
-          ),
-          title: '创建端点',
+        return NotificationEndpointEditorDialog(
+          initialValue: NotificationEndpointFormData.createDraft(),
+          title: '创建通知方式',
           submitLabel: '保存',
           isEditing: false,
         );
@@ -212,7 +204,7 @@ class _NotificationEndpointsPageState extends State<NotificationEndpointsPage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(created ? '端点已创建' : (_controller.errorMessage ?? '端点创建失败')),
+        content: Text(created ? '通知方式已创建' : (_controller.errorMessage ?? '通知方式创建失败')),
       ),
     );
   }
@@ -233,7 +225,7 @@ class _NotificationEndpointsPageState extends State<NotificationEndpointsPage> {
             secret: '',
             clearSecret: false,
           ),
-          title: '编辑端点',
+          title: '编辑通知方式',
           submitLabel: '更新',
           isEditing: true,
         );
@@ -251,7 +243,7 @@ class _NotificationEndpointsPageState extends State<NotificationEndpointsPage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(updated ? '端点已更新' : (_controller.errorMessage ?? '端点更新失败')),
+        content: Text(updated ? '通知方式已更新' : (_controller.errorMessage ?? '通知方式更新失败')),
       ),
     );
   }
@@ -261,8 +253,8 @@ class _NotificationEndpointsPageState extends State<NotificationEndpointsPage> {
           context: context,
           builder: (context) {
             return AlertDialog(
-              title: const Text('删除端点'),
-              content: Text('确认删除端点“${item.name}”？'),
+              title: const Text('删除通知方式'),
+              content: Text('确认删除通知方式“${item.name}”？'),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(false),
@@ -289,7 +281,7 @@ class _NotificationEndpointsPageState extends State<NotificationEndpointsPage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(deleted ? '端点已删除' : (_controller.errorMessage ?? '端点删除失败')),
+        content: Text(deleted ? '通知方式已删除' : (_controller.errorMessage ?? '通知方式删除失败')),
       ),
     );
   }

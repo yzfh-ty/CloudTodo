@@ -360,6 +360,8 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
             where: { id: delivery.endpointId },
             data: {
               lastSuccessAt: new Date(),
+              lastResponseCode: response.status,
+              lastResponseSummary: responseBody.slice(0, 255),
             },
           }),
           this.prisma.reminderEvent.update({
@@ -425,6 +427,8 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
         where: { id: endpointId },
         data: {
           lastFailureAt: new Date(),
+          lastResponseCode: responseCode ?? null,
+          lastResponseSummary: (responseBody ?? lastError).slice(0, 255),
         },
       }),
     ]);

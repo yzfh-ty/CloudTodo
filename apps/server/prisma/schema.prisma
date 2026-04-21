@@ -321,6 +321,8 @@ model NotificationEndpoint {
   isEnabled       Boolean                  @default(true) @map("is_enabled")
   lastSuccessAt   DateTime?                @map("last_success_at") @db.Timestamptz(6)
   lastFailureAt   DateTime?                @map("last_failure_at") @db.Timestamptz(6)
+  lastResponseCode Int?                    @map("last_response_code")
+  lastResponseSummary String?              @map("last_response_summary") @db.VarChar(255)
   createdAt       DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt       DateTime?                @map("deleted_at") @db.Timestamptz(6)

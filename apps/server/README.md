@@ -1,28 +1,47 @@
 # CloudTodo Server
 
-CloudTodo 后端服务当前采用：
+CloudTodo Server 是项目的后端服务，提供：
+
+- 用户接口
+- Todo / Reminder / Notification Endpoint 接口
+- 后端内置管理后台
+- Reminder 调度
+- Webhook 投递
+
+## 技术栈
 
 - Node.js
 - TypeScript
 - NestJS 风格模块化结构
-- Prisma + PostgreSQL
+- Prisma
+- PostgreSQL
 
 ## 当前能力
 
-目前后端已经具备以下真实能力：
+### 用户侧
 
-- 管理员登录、会话与鉴权守卫
-- 管理员用户列表、用户详情、资料更新
-- 管理员禁用/启用用户
-- 管理员重置用户密码
-- 管理员操作日志
-- 管理后台页面：`/admin`、`/admin/login`
-- 普通用户注册 / 登录 / refresh / 登出
-- 普通用户资料接口：`/api/users/me`
+- 注册 / 登录 / refresh / 登出
+- 用户资料接口：`/api/users/me`
 - Todo 基础 CRUD
 - Reminder CRUD
 - Notification Endpoint CRUD
-- 调度器扫描提醒
+- Notification Endpoint 测试投递
+- Notification Endpoint 请求体模板渲染
+
+### 管理侧
+
+- 管理员登录与会话鉴权
+- 用户列表
+- 用户详情
+- 用户资料更新
+- 用户禁用 / 启用
+- 用户密码重置
+- 操作日志
+- 管理后台页面：`/admin`、`/admin/login`
+
+### 调度与投递
+
+- Reminder 扫描调度器
 - Webhook 投递 worker
 
 ## 目录
@@ -59,45 +78,7 @@ apps/server/
 - npm 10+
 - PostgreSQL 16+
 
-推荐本地数据库方案：
-
-- 使用 WSL Docker 启动 PostgreSQL 容器
-
-## 环境变量
-
-建议将 `.env.example` 视为生产占位模板：
-
-- 包含完整字段
-- 使用生产场景的占位值
-- 不包含任何真实生产密钥
-
-本地开发时，复制为 `.env` 后再改成本机可运行的值。
-
-示例：
-
-```env
-NODE_ENV=production
-PORT=3000
-APP_NAME=CloudTodo Server
-APP_BASE_URL=https://todo.example.com
-DATABASE_URL=postgresql://cloudtodo:change-me-db-password@db.example.com:5432/cloudtodo?schema=public
-JWT_ACCESS_SECRET=change-me-access-secret
-JWT_REFRESH_SECRET=change-me-refresh-secret
-WEBHOOK_SIGNING_SECRET=change-me-webhook-secret
-ADMIN_SESSION_SECRET=change-me-admin-session-secret
-SCHEDULER_ENABLED=true
-SCHEDULER_SCAN_INTERVAL_MS=5000
-DELIVERY_SCAN_INTERVAL_MS=5000
-DELIVERY_MAX_ATTEMPTS=3
-```
-
-说明：
-
-- 本地开发时建议把 `APP_BASE_URL` 改成 `http://127.0.0.1:3000`
-- 本地开发时建议把 `DATABASE_URL` 改成指向本机 PostgreSQL，例如 `127.0.0.1:5432`
-- 当前 `.env.example` 是生产占位模板，不是本地开发直连模板
-
-## 首次启动
+## 快速开始
 
 ### 1. 安装依赖
 
@@ -123,129 +104,10 @@ Copy-Item .env.example .env
 npm run prisma:generate
 ```
 
-### 4. 确认 migration 状态
-
-当前仓库已经建立正式 Prisma migration 基线。
-
-检查状态：
-
-```bash
-npx prisma migrate status
-```
-
-预期结果：
-
-- `Database schema is up to date!`
-
-### 5. 初始化测试账号
-
-```bash
-npm run seed:admin
-```
-
-默认测试账号：
-
-- 管理员：`admin@example.com / admin123456`
-- 默认不创建普通演示用户
-
-管理员默认账号可以通过环境变量覆盖：
-
-- `ADMIN_SEED_USERNAME`
-- `ADMIN_SEED_EMAIL`
-- `ADMIN_SEED_PASSWORD`
-- `ADMIN_SEED_NICKNAME`
-- `ADMIN_SEED_TIMEZONE`
-
-### 6. 启动开发服务
+### 4. 启动开发服务
 
 ```bash
 npm run start:dev
-```
-
-或启动编译后服务：
-
-```bash
-npm run build
-npm run start
-```
-
-## 本地数据库流程
-
-### 启动 PostgreSQL 容器
-
-如果使用 WSL Docker：
-
-```powershell
-wsl.exe bash -lc "docker run -d --name cloudtodo-postgres -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=cloudtodo -p 5432:5432 -v cloudtodo-postgres-data:/var/lib/postgresql/data --restart unless-stopped postgres:16-alpine"
-```
-
-检查状态：
-
-```powershell
-wsl.exe bash -lc "docker ps --filter name=cloudtodo-postgres"
-```
-
-### 后续数据库变更
-
-从现在开始，数据库结构变更应走正式 migration 流程，不再继续把 `db push` 当主流程使用。
-
-开发新增变更：
-
-```bash
-npm run prisma:migrate:dev -- --name your_change_name
-```
-
-部署环境应用迁移：
-
-```bash
-npm run prisma:migrate:deploy
-```
-
-查看数据库：
-
-```bash
-npm run prisma:studio
-```
-
-## Seed 流程
-
-当前 seed 脚本位置：
-
-- `prisma/seed.ts`
-
-执行命令：
-
-```bash
-npm run seed:admin
-```
-
-默认会 upsert：
-
-- 管理员账号
-
-可选行为：
-
-- 当 `DEMO_USER_ENABLED=true` 时，额外创建演示普通用户
-
-可通过环境变量覆盖：
-
-- `ADMIN_SEED_USERNAME`
-- `ADMIN_SEED_EMAIL`
-- `ADMIN_SEED_PASSWORD`
-- `ADMIN_SEED_NICKNAME`
-- `ADMIN_SEED_TIMEZONE`
-- `DEMO_USER_ENABLED`
-- `DEMO_USER_EMAIL`
-- `DEMO_USER_PASSWORD`
-
-示例：
-
-```env
-ADMIN_SEED_USERNAME=root_admin
-ADMIN_SEED_EMAIL=root@example.com
-ADMIN_SEED_PASSWORD=change-this-password
-ADMIN_SEED_NICKNAME=Root Admin
-ADMIN_SEED_TIMEZONE=UTC
 ```
 
 ## 常用命令
@@ -255,7 +117,7 @@ npm install
 npm run build
 npm run start:dev
 npm run prisma:generate
-npm run prisma:migrate:dev -- --name init_xxx
+npm run prisma:migrate:dev -- --name your_change_name
 npm run prisma:migrate:deploy
 npm run prisma:studio
 npm run seed:admin
@@ -269,21 +131,47 @@ npm run seed:admin
 - 管理员接口：`/api/admin/*`
 - 普通用户接口：`/api/auth/*`、`/api/users/*`、`/api/todos/*`
 
-## 调度与投递说明
+## 通知方式与投递
 
-当前服务进程内已经包含：
+当前通知方式链路支持：
 
-- Reminder 扫描调度器
-- Webhook 投递 worker
+- 企业微信机器人
+- 标准 Webhook
 
-相关配置：
+当前行为：
 
-- `SCHEDULER_ENABLED`
-- `SCHEDULER_SCAN_INTERVAL_MS`
-- `DELIVERY_SCAN_INTERVAL_MS`
-- `DELIVERY_MAX_ATTEMPTS`
+- 测试通知方式时，后端会真实向目标地址发送一次请求
+- 正常提醒触发后，调度器会按 Notification Endpoint 配置真实投递
+- 请求体模板同时作用于：
+  - 手动测试通知方式
+  - 调度器真实投递
 
-本地测试 Webhook 回调入口：
+请求体模板支持的典型占位符：
+
+- `{{todo_title}}`
+- `{{todo_status}}`
+- `{{todo_priority}}`
+- `{{scheduled_for}}`
+- `{{triggered_at}}`
+- `{{endpoint_name}}`
+- `{{user_timezone}}`
+- `{{payload_text}}`
+- `{{payload_json}}`
+
+Notification Endpoint 当前还会记录以下最近一次结果字段：
+
+- 最近成功时间
+- 最近失败时间
+- 最近响应码
+- 最近返回摘要
+
+企业微信机器人测试说明：
+
+- 如果目标地址包含 `weixin.qq.com/cgi-bin/webhook/send`，后端会按企业微信机器人格式发送测试消息
+- 如果机器人启用了签名校验，可在 Notification Endpoint 的 `secret` 中填写签名密钥
+- 后端会校验企业微信返回体中的 `errcode`
+
+## 本地测试 Webhook 回调入口
 
 - `POST /api/webhook-test/echo`
 
@@ -293,17 +181,17 @@ npm run seed:admin
 
 优先检查：
 
-- PostgreSQL 容器是否启动
-- `DATABASE_URL` 是否指向 `127.0.0.1:5432`
+- PostgreSQL 是否启动
+- `DATABASE_URL` 是否指向本地可访问数据库
 - `npx prisma migrate status` 是否正常
 
-### 服务启动了但接口访问不到
+### 服务启动后接口访问不到
 
 优先检查：
 
 - `PORT` 是否为 `3000`
-- 本地端口是否被其他进程占用
-- 是否使用了 `npm run start` 或 `npm run start:dev`
+- 本地端口是否被占用
+- 是否使用了 `npm run start:dev`
 
 ### 登录后立刻失效
 
@@ -312,9 +200,3 @@ npm run seed:admin
 - 是否刚执行了改密
 - 是否执行了退出所有会话
 - 浏览器是否携带了正确 Cookie
-
-## 相关文档
-
-- [后端管理后台接口详细设计](D:\project\CloudTodo\docs\api\后端管理后台接口详细设计.md)
-- [数据库表结构设计](D:\project\CloudTodo\docs\architecture\数据库表结构设计.md)
-- [Docker部署设计](D:\project\CloudTodo\docs\architecture\Docker部署设计.md)

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/utils/display_texts.dart';
+import '../../../core/utils/timezone_options.dart';
 import '../../app/application/app_scope.dart';
 import '../../app/presentation/app_shell.dart';
 
@@ -24,6 +26,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final _timezoneController = TextEditingController(text: 'Asia/Shanghai');
   final _passwordController = TextEditingController();
   bool _backendInitialized = false;
+  bool _showAdvanced = false;
 
   @override
   void didChangeDependencies() {
@@ -79,13 +82,50 @@ class _RegisterPageState extends State<RegisterPage> {
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 const SizedBox(height: 20),
-                TextFormField(
-                  controller: _backendUrlController,
-                  decoration: const InputDecoration(
-                    labelText: '后端地址',
-                    helperText: '输入 http://localhost:3000 或完整的 /api 地址',
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF6F0E6),
+                    borderRadius: BorderRadius.circular(18),
                   ),
-                  validator: (value) => appController.validateApiBaseUrl(value ?? ''),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '高级连接设置',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _showAdvanced = !_showAdvanced;
+                              });
+                            },
+                            child: Text(_showAdvanced ? '收起' : '展开'),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        '当前后端：${_backendUrlController.text}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      if (_showAdvanced) ...[
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _backendUrlController,
+                          decoration: const InputDecoration(
+                            labelText: '后端地址',
+                            helperText: '输入 http://localhost:3000 或完整的 /api 地址',
+                          ),
+                          validator: (value) => appController.validateApiBaseUrl(value ?? ''),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -115,14 +155,22 @@ class _RegisterPageState extends State<RegisterPage> {
                   decoration: const InputDecoration(labelText: '昵称'),
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
-                  controller: _timezoneController,
+                DropdownButtonFormField<String>(
+                  value: _timezoneController.text,
                   decoration: const InputDecoration(labelText: '时区'),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return '请输入时区';
+                  items: kCommonTimezones
+                      .map(
+                        (timezone) => DropdownMenuItem<String>(
+                          value: timezone,
+                          child: Text(timezoneText(timezone)),
+                        ),
+                      )
+                      .toList(growable: false),
+                  onChanged: (value) {
+                    if (value == null) {
+                      return;
                     }
-                    return null;
+                    _timezoneController.text = value;
                   },
                 ),
                 const SizedBox(height: 12),

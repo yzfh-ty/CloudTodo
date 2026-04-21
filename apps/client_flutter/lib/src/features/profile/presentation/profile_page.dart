@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/utils/date_time_formatter.dart';
 import '../../../core/utils/display_texts.dart';
+import '../../../core/utils/timezone_options.dart';
 import '../../app/application/app_scope.dart';
 import '../application/profile_controller.dart';
 import '../domain/profile_user.dart';
@@ -127,12 +128,26 @@ class _ProfilePageState extends State<ProfilePage> {
                           },
                         ),
                         const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _timezoneController,
+                        DropdownButtonFormField<String>(
+                          value: _timezoneController.text.isEmpty ? null : _timezoneController.text,
                           decoration: const InputDecoration(labelText: '时区'),
+                          items: kCommonTimezones
+                              .map(
+                                (timezone) => DropdownMenuItem<String>(
+                                  value: timezone,
+                                  child: Text(timezoneText(timezone)),
+                                ),
+                              )
+                              .toList(growable: false),
+                          onChanged: (value) {
+                            if (value == null) {
+                              return;
+                            }
+                            _timezoneController.text = value;
+                          },
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
-                              return '请输入时区';
+                              return '请选择时区';
                             }
                             return null;
                           },

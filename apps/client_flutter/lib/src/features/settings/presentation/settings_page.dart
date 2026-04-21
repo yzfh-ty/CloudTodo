@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import '../../../core/config/app_config.dart';
 import '../../../core/utils/date_time_formatter.dart';
 import '../../../core/utils/display_texts.dart';
+import '../../../core/utils/timezone_options.dart';
+import '../../../core/widgets/empty_state_card.dart';
 import '../../app/application/app_scope.dart';
 import '../../notification_endpoints/application/notification_endpoints_controller.dart';
 import '../../notification_endpoints/domain/notification_endpoint.dart';
@@ -27,10 +31,12 @@ class _SettingsPageState extends State<SettingsPage> {
   final _nicknameController = TextEditingController();
   final _emailController = TextEditingController();
   final _timezoneController = TextEditingController();
+  final _backendUrlController = TextEditingController();
 
   late final ProfileController _profileController;
   late final NotificationEndpointsController _endpointsController;
   bool _initialized = false;
+  bool _backendUrlInitialized = false;
 
   @override
   void didChangeDependencies() {
@@ -40,6 +46,10 @@ class _SettingsPageState extends State<SettingsPage> {
     }
 
     final services = AppScope.of(context).services;
+    if (!_backendUrlInitialized) {
+      _backendUrlController.text = AppScope.of(context).controller.currentApiBaseUrl;
+      _backendUrlInitialized = true;
+    }
     _profileController = ProfileController(
       repository: services.profileRepository,
       sessionController: services.sessionController,
@@ -55,6 +65,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _nicknameController.dispose();
     _emailController.dispose();
     _timezoneController.dispose();
+    _backendUrlController.dispose();
     _profileController.dispose();
     _endpointsController.dispose();
     super.dispose();
@@ -69,7 +80,8 @@ class _SettingsPageState extends State<SettingsPage> {
       ]),
       builder: (context, _) {
         final theme = Theme.of(context);
-        final currentUser = AppScope.of(context).services.sessionController.currentUser;
+        final appScope = AppScope.of(context);
+        final currentUser = appScope.services.sessionController.currentUser;
         final profile = _profileController.profile;
         if (profile != null) {
           _bindProfile(profile);
@@ -115,6 +127,52 @@ class _SettingsPageState extends State<SettingsPage> {
                       onPressed: widget.onLogout,
                       icon: const Icon(Icons.logout_rounded),
                       label: const Text('退出登录'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '高级设置',
+                      style: theme.textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      '这里可以切换当前客户端连接的后端地址。切换后会重新进入登录页。',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _backendUrlController,
+                      decoration: const InputDecoration(
+                        labelText: '后端地址',
+                        helperText: '输入 http://localhost:3000 或完整的 /api 地址',
+                      ),
+                      validator: (value) => appScope.controller.validateApiBaseUrl(value ?? ''),
+                    ),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        FilledButton.tonal(
+                          onPressed: () => _applyBackendUrl(appScope),
+                          child: const Text('应用后端地址'),
+                        ),
+                        OutlinedButton(
+                          onPressed: () {
+                            _backendUrlController.text = AppConfig.defaults().apiBaseUrl;
+                          },
+                          child: const Text('恢复默认地址'),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -178,12 +236,26 @@ class _SettingsPageState extends State<SettingsPage> {
                         },
                       ),
                       const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _timezoneController,
+                      DropdownButtonFormField<String>(
+                        value: _timezoneController.text.isEmpty ? null : _timezoneController.text,
                         decoration: const InputDecoration(labelText: '时区'),
+                        items: kCommonTimezones
+                            .map(
+                              (timezone) => DropdownMenuItem<String>(
+                                value: timezone,
+                                child: Text(timezoneText(timezone)),
+                              ),
+                            )
+                            .toList(growable: false),
+                        onChanged: (value) {
+                          if (value == null) {
+                            return;
+                          }
+                          _timezoneController.text = value;
+                        },
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
-                            return '请输入时区';
+                            return '请选择时区';
                           }
                           return null;
                         },
@@ -250,7 +322,15 @@ class _SettingsPageState extends State<SettingsPage> {
                         child: Center(child: CircularProgressIndicator()),
                       )
                     else if (_endpointsController.items.isEmpty)
-                      const Text('当前还没有通知方式。')
+                      EmptyStateCard(
+                        icon: Icons.notifications_off_rounded,
+                        title: '当前还没有通知方式',
+                        description: '如果你希望把提醒推送到企业微信机器人或自己的服务，可以先新增一种通知方式。',
+                        action: FilledButton.tonal(
+                          onPressed: _endpointsController.isLoading ? null : _createEndpoint,
+                          child: const Text('新增通知方式'),
+                        ),
+                      )
                     else
                       ..._endpointsController.items.map(
                         (item) => Padding(
@@ -259,6 +339,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             item: item,
                             busy: _endpointsController.submittingId == item.id ||
                                 _endpointsController.testingId == item.id,
+                            onCopyUrl: () => _copyEndpointUrl(item),
                             onTest: () => _testEndpoint(item),
                             onEdit: () => _editEndpoint(item),
                             onDelete: () => _deleteEndpoint(item),
@@ -297,20 +378,72 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  Future<void> _applyBackendUrl(AppScope appScope) async {
+    final validation = appScope.controller.validateApiBaseUrl(_backendUrlController.text);
+    if (validation != null) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(validation)),
+      );
+      return;
+    }
+
+    final nextUrl = appScope.controller.normalizeApiBaseUrl(_backendUrlController.text);
+    if (nextUrl == appScope.controller.currentApiBaseUrl) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('当前已经在使用这个后端地址')),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: const Text('切换后端地址'),
+              content: Text(
+                '将后端地址切换为：\n${_backendUrlController.text.trim()}\n\n切换后会退出当前登录，并重新回到登录页。是否继续？',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('取消'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('继续'),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
+
+    if (!mounted || !confirmed) {
+      return;
+    }
+
+    await appScope.controller.updateApiBaseUrl(nextUrl);
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('后端地址已更新，请重新登录')),
+    );
+  }
+
   Future<void> _createEndpoint() async {
     final draft = await showDialog<NotificationEndpointFormData>(
       context: context,
       builder: (context) {
-        return const NotificationEndpointEditorDialog(
-          initialValue: NotificationEndpointFormData(
-            deliveryKind: 'standard_webhook',
-            name: '',
-            targetUrl: '',
-            payloadTemplate: '',
-            isEnabled: true,
-            secret: '',
-            clearSecret: false,
-          ),
+        return NotificationEndpointEditorDialog(
+          initialValue: NotificationEndpointFormData.createDraft(),
           title: '添加通知方式',
           submitLabel: '保存',
           isEditing: false,
@@ -417,12 +550,101 @@ class _SettingsPageState extends State<SettingsPage> {
       return;
     }
 
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        final provider = payload['provider'] as String?;
+        final providerText = switch (provider) {
+          'wecom_robot' => '企业微信机器人',
+          'standard_webhook' => '标准 Webhook',
+          _ => '未识别方式',
+        };
+        final responseCode = payload['response_code']?.toString() ?? '-';
+        final responseBody = payload['response_body']?.toString() ?? '无返回内容';
+        final renderedBody = payload['rendered_body']?.toString() ?? '无请求体预览';
+        final testedAt = payload['tested_at']?.toString();
+
+        return AlertDialog(
+          title: const Text('测试结果'),
+          content: SizedBox(
+            width: 560,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('通知方式：${item.name}'),
+                  Text('类型：$providerText'),
+                  Text('状态：${endpointTestStatusText(payload['status']?.toString() ?? '-')}'),
+                  Text('响应码：$responseCode'),
+                  Text('测试时间：${testedAt == null ? '-' : formatDateTime(DateTime.tryParse(testedAt))}'),
+                  const SizedBox(height: 12),
+                  const Text(
+                    '返回内容',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF6F0E6),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: SelectableText(
+                      responseBody,
+                      style: const TextStyle(
+                        fontFamily: 'Consolas',
+                        fontSize: 12,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    '本次请求体',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF5F3),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: SelectableText(
+                      renderedBody,
+                      style: const TextStyle(
+                        fontFamily: 'Consolas',
+                        fontSize: 12,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('知道了'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _copyEndpointUrl(NotificationEndpoint item) async {
+    await Clipboard.setData(ClipboardData(text: item.targetUrl));
+    if (!mounted) {
+      return;
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '通知方式 ${item.name} 已完成一次模拟测试，状态：${payload['status']}',
-        ),
-      ),
+      const SnackBar(content: Text('通知方式地址已复制')),
     );
   }
 
@@ -459,6 +681,7 @@ class _EndpointCard extends StatelessWidget {
   const _EndpointCard({
     required this.item,
     required this.busy,
+    required this.onCopyUrl,
     required this.onTest,
     required this.onEdit,
     required this.onDelete,
@@ -466,6 +689,7 @@ class _EndpointCard extends StatelessWidget {
 
   final NotificationEndpoint item;
   final bool busy;
+  final VoidCallback onCopyUrl;
   final VoidCallback onTest;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -495,6 +719,11 @@ class _EndpointCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               FilledButton.tonal(
+                onPressed: busy ? null : onCopyUrl,
+                child: const Text('复制地址'),
+              ),
+              const SizedBox(width: 8),
+              FilledButton.tonal(
                 onPressed: busy ? null : onEdit,
                 child: const Text('编辑'),
               ),
@@ -519,13 +748,69 @@ class _EndpointCard extends StatelessWidget {
                     : '标准 Webhook',
               ),
               _MetaChip(label: '状态', value: enabledStatusText(item.isEnabled)),
+              _MetaChip(label: '最近结果', value: _latestResultText(item)),
+              _MetaChip(label: '上次测试', value: _latestTestedAtText(item)),
+              _MetaChip(
+                label: '最近响应码',
+                value: item.lastResponseCode?.toString() ?? '无',
+              ),
               _MetaChip(label: '创建时间', value: formatDateTime(item.createdAt)),
               _MetaChip(label: '最近成功', value: formatDateTime(item.lastSuccessAt)),
               _MetaChip(label: '最近失败', value: formatDateTime(item.lastFailureAt)),
             ],
           ),
+          if (item.lastResponseSummary?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.65),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Text(
+                '最近返回摘要：${item.lastResponseSummary}',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
+}
+
+String _latestResultText(NotificationEndpoint item) {
+  if (item.lastSuccessAt == null && item.lastFailureAt == null) {
+    return '未测试';
+  }
+
+  if (item.lastSuccessAt != null && item.lastFailureAt == null) {
+    return '最近成功';
+  }
+
+  if (item.lastSuccessAt == null && item.lastFailureAt != null) {
+    return '最近失败';
+  }
+
+  return item.lastSuccessAt!.isAfter(item.lastFailureAt!) ? '最近成功' : '最近失败';
+}
+
+String _latestTestedAtText(NotificationEndpoint item) {
+  if (item.lastSuccessAt == null && item.lastFailureAt == null) {
+    return '未测试';
+  }
+
+  if (item.lastSuccessAt == null) {
+    return formatDateTime(item.lastFailureAt);
+  }
+
+  if (item.lastFailureAt == null) {
+    return formatDateTime(item.lastSuccessAt);
+  }
+
+  final latest = item.lastSuccessAt!.isAfter(item.lastFailureAt!)
+      ? item.lastSuccessAt
+      : item.lastFailureAt;
+  return formatDateTime(latest);
 }

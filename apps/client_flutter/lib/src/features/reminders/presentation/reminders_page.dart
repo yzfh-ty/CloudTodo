@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/utils/date_time_formatter.dart';
 import '../../../core/utils/display_texts.dart';
+import '../../../core/widgets/empty_state_card.dart';
 import '../../app/application/app_scope.dart';
 import '../application/reminders_controller.dart';
 import '../domain/reminder_form_data.dart';
@@ -80,8 +81,8 @@ class _RemindersPageState extends State<RemindersPage> {
                       children: [
                         SizedBox(
                           width: 320,
-                            child: DropdownButtonFormField<String>(
-                              value: _controller.selectedTodoId,
+                          child: DropdownButtonFormField<String>(
+                            value: _controller.selectedTodoId,
                             decoration: const InputDecoration(
                               labelText: '选择任务',
                             ),
@@ -132,10 +133,15 @@ class _RemindersPageState extends State<RemindersPage> {
                 ),
               )
             else if (_controller.reminders.isEmpty)
-              const Card(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Text('当前没有近期提醒。'),
+              EmptyStateCard(
+                icon: Icons.alarm_off_rounded,
+                title: '当前没有近期提醒',
+                description: '先选择一个任务并添加提醒，之后这里会统一显示近期提醒。',
+                action: FilledButton.tonal(
+                  onPressed: _controller.isLoading || _controller.selectedTodoId == null
+                      ? null
+                      : _createReminder,
+                  child: const Text('添加提醒'),
                 ),
               )
             else

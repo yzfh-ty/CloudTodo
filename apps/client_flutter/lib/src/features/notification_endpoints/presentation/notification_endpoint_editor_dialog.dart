@@ -102,13 +102,10 @@ class _NotificationEndpointEditorDialogState
                       setState(() {
                         _deliveryKind = value;
                         if (_nameController.text.trim().isEmpty) {
-                          _nameController.text =
-                              value == 'wecom_robot' ? '企业微信机器人' : '标准 Webhook';
+                          _nameController.text = defaultNameForKind(value);
                         }
                         if (_payloadTemplateController.text.trim().isEmpty) {
-                          _payloadTemplateController.text = value == 'wecom_robot'
-                              ? '{\n  "msgtype": "text",\n  "text": {\n    "content": "CloudTodo 提醒通知\\n任务：{{todo_title}}\\n状态：{{todo_status}}\\n优先级：{{todo_priority}}\\n提醒时间：{{scheduled_for}}\\n触发时间：{{triggered_at}}\\n补充信息：{{payload_text}}"\n  }\n}'
-                              : '{\n  "source": "cloudtodo",\n  "endpoint_id": "{{endpoint_id}}",\n  "endpoint_name": "{{endpoint_name}}",\n  "delivery_id": "{{delivery_id}}",\n  "reminder_event_id": "{{reminder_event_id}}",\n  "channel": "{{channel}}",\n  "scheduled_for": "{{scheduled_for}}",\n  "triggered_at": "{{triggered_at}}",\n  "user": {\n    "id": "{{user_id}}",\n    "timezone": "{{user_timezone}}"\n  },\n  "payload": {{payload_json}}\n}';
+                          _payloadTemplateController.text = defaultPayloadTemplateForKind(value);
                         }
                       });
                     },
@@ -180,6 +177,84 @@ class _NotificationEndpointEditorDialogState
                       return null;
                     },
                   ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      FilledButton.tonal(
+                        onPressed: () {
+                          setState(() {
+                            _payloadTemplateController.text =
+                                defaultPayloadTemplateForKind(_deliveryKind);
+                            if (_nameController.text.trim().isEmpty) {
+                              _nameController.text = defaultNameForKind(_deliveryKind);
+                            }
+                          });
+                        },
+                        child: const Text('恢复默认模板'),
+                      ),
+                      Text(
+                        '模板里的占位符会在测试通知和真实提醒投递时自动替换。',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF6F0E6),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          '可用占位符',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        SizedBox(height: 8),
+                        Text('{{todo_title}}：任务标题'),
+                        Text('{{todo_status}}：任务状态'),
+                        Text('{{todo_priority}}：任务优先级'),
+                        Text('{{scheduled_for}}：计划提醒时间'),
+                        Text('{{triggered_at}}：实际触发时间'),
+                        Text('{{endpoint_name}}：通知方式名称'),
+                        Text('{{user_timezone}}：用户时区'),
+                        Text('{{payload_text}}：提醒内容文本'),
+                        Text('{{payload_json}}：提醒内容 JSON 对象'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF5F3),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          '示例预览',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 8),
+                        SelectableText(
+                          _buildPreview(),
+                          style: const TextStyle(
+                            fontFamily: 'Consolas',
+                            fontSize: 12,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   if (widget.isEditing) ...[
                     const SizedBox(height: 8),
                     CheckboxListTile(
@@ -244,5 +319,35 @@ class _NotificationEndpointEditorDialogState
         clearSecret: _clearSecret,
       ),
     );
+  }
+
+  String _buildPreview() {
+    final sample = <String, String>{
+      'todo_title': '完成毕业设计开题报告',
+      'todo_status': 'pending',
+      'todo_priority': 'high',
+      'scheduled_for': '2026-04-21T18:00:00Z',
+      'triggered_at': '2026-04-21T18:00:05Z',
+      'endpoint_name': _nameController.text.trim().isEmpty ? defaultNameForKind(_deliveryKind) : _nameController.text.trim(),
+      'user_timezone': 'Asia/Shanghai',
+      'payload_text': '请及时处理该任务，避免错过提交时间。',
+      'payload_json': '{"todo_id":"demo_todo","channel":"webhook"}',
+      'endpoint_id': 'demo_endpoint',
+      'delivery_id': 'demo_delivery',
+      'reminder_event_id': 'demo_event',
+      'channel': 'webhook',
+      'user_id': 'demo_user',
+    };
+
+    var rendered = _payloadTemplateController.text.trim();
+    if (rendered.isEmpty) {
+      rendered = defaultPayloadTemplateForKind(_deliveryKind);
+    }
+
+    sample.forEach((key, value) {
+      rendered = rendered.replaceAll('{{$key}}', value);
+    });
+
+    return rendered;
   }
 }

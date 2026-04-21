@@ -183,6 +183,8 @@ export class NotificationEndpointsService {
           where: { id: endpoint.id },
           data: {
             lastFailureAt: testedAt,
+            lastResponseCode: response.status,
+            lastResponseSummary: responseBody.slice(0, 255),
           },
         });
 
@@ -204,6 +206,8 @@ export class NotificationEndpointsService {
         where: { id: endpoint.id },
         data: {
           lastSuccessAt: testedAt,
+          lastResponseCode: response.status,
+          lastResponseSummary: responseBody.slice(0, 255),
         },
       });
 
@@ -231,6 +235,8 @@ export class NotificationEndpointsService {
         where: { id: endpoint.id },
         data: {
           lastFailureAt: testedAt,
+          lastResponseCode: null,
+          lastResponseSummary: error instanceof Error ? error.message.slice(0, 255) : 'request failed',
         },
       });
 
@@ -316,6 +322,8 @@ export class NotificationEndpointsService {
       isEnabled: true,
       lastSuccessAt: true,
       lastFailureAt: true,
+      lastResponseCode: true,
+      lastResponseSummary: true,
       createdAt: true,
       updatedAt: true,
       deletedAt: true,

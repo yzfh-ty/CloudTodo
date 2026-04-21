@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../../../core/utils/date_time_formatter.dart';
 import '../../../core/utils/display_texts.dart';
+import '../../../core/widgets/empty_state_card.dart';
 import '../../app/application/app_scope.dart';
 import '../../reminders/domain/reminder_form_data.dart';
 import '../../reminders/domain/reminder_item.dart';
+import '../../reminders/presentation/reminder_detail_dialog.dart';
 import '../../reminders/presentation/reminder_editor_dialog.dart';
 import '../application/todo_list_controller.dart';
+import 'todo_detail_dialog.dart';
 import '../domain/todo_form_data.dart';
 import '../domain/todo_item.dart';
 import 'todo_editor_dialog.dart';
@@ -228,10 +231,15 @@ class _TodoPageState extends State<TodoPage> {
                           ),
                         )
                       else if (_controller.items.isEmpty)
-                        const Card(
-                          child: Padding(
-                            padding: EdgeInsets.all(24),
-                            child: Text('当前筛选条件下没有任务。'),
+                        EmptyStateCard(
+                          icon: Icons.inbox_rounded,
+                          title: '当前没有任务',
+                          description: _controller.keyword.isNotEmpty || _controller.statusFilter != null
+                              ? '当前筛选条件下没有匹配的任务，试试切换筛选条件或清空搜索词。'
+                              : '先创建第一条任务，再逐步补充提醒和通知方式。',
+                          action: FilledButton.tonal(
+                            onPressed: _controller.isSubmitting ? null : _openCreateDialog,
+                            child: const Text('新建任务'),
                           ),
                         )
                       else
@@ -240,6 +248,7 @@ class _TodoPageState extends State<TodoPage> {
                             padding: const EdgeInsets.only(bottom: 12),
                             child: _TodoCard(
                               item: item,
+                              onViewDetail: () => _openTodoDetail(item),
                               onEdit: () => _openEditDialog(item),
                               onManageReminder: () => _openCreateReminderDialog(item),
                               onComplete: item.status == 'pending'
@@ -277,13 +286,18 @@ class _TodoPageState extends State<TodoPage> {
                           ),
                           const SizedBox(height: 16),
                           if (_controller.upcomingReminders.isEmpty)
-                            const Text('暂无近期提醒')
+                            const EmptyStateCard(
+                              icon: Icons.alarm_off_rounded,
+                              title: '暂无近期提醒',
+                              description: '你可以在任务卡片里添加提醒，之后这里会显示最近即将触发的提醒。',
+                            )
                           else
                             ..._controller.upcomingReminders.map(
                               (item) => Padding(
                                 padding: const EdgeInsets.only(bottom: 10),
                                 child: _ReminderCard(
                                   item: item,
+                                  onViewDetail: () => _openReminderDetail(item),
                                   onEdit: () => _openEditReminderDialog(item),
                                   onDelete: () => _deleteReminder(item),
                                 ),
@@ -365,6 +379,20 @@ class _TodoPageState extends State<TodoPage> {
     }
   }
 
+  Future<void> _openTodoDetail(TodoItem item) async {
+    final relatedReminders = _controller.upcomingReminders
+        .where((reminder) => reminder.todoId == item.id)
+        .toList(growable: false);
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) => TodoDetailDialog(
+        item: item,
+        relatedReminders: relatedReminders,
+      ),
+    );
+  }
+
   Future<void> _openCreateReminderDialog(TodoItem item) async {
     final user = AppScope.of(context).services.sessionController.currentUser;
     final draft = await showDialog<ReminderFormData>(
@@ -419,6 +447,17 @@ class _TodoPageState extends State<TodoPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(updated ? '提醒已更新' : (_controller.errorMessage ?? '提醒更新失败')),
+      ),
+    );
+  }
+
+  Future<void> _openReminderDetail(ReminderItem item) async {
+    final relatedTodo = _controller.items.where((todo) => todo.id == item.todoId).firstOrNull;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => ReminderDetailDialog(
+        item: item,
+        todoTitle: relatedTodo?.title,
       ),
     );
   }
@@ -560,6 +599,7 @@ class _StatusFilterChip extends StatelessWidget {
 class _TodoCard extends StatelessWidget {
   const _TodoCard({
     required this.item,
+    required this.onViewDetail,
     required this.onEdit,
     required this.onManageReminder,
     required this.onDelete,
@@ -569,6 +609,7 @@ class _TodoCard extends StatelessWidget {
   });
 
   final TodoItem item;
+  final VoidCallback onViewDetail;
   final VoidCallback onEdit;
   final VoidCallback onManageReminder;
   final VoidCallback? onComplete;
@@ -646,6 +687,10 @@ class _TodoCard extends StatelessWidget {
                     child: const Text('归档'),
                   ),
                 FilledButton.tonal(
+                  onPressed: onViewDetail,
+                  child: const Text('详情'),
+                ),
+                FilledButton.tonal(
                   onPressed: onEdit,
                   child: const Text('编辑'),
                 ),
@@ -691,11 +736,13 @@ class _InfoTag extends StatelessWidget {
 class _ReminderCard extends StatelessWidget {
   const _ReminderCard({
     required this.item,
+    required this.onViewDetail,
     required this.onEdit,
     required this.onDelete,
   });
 
   final ReminderItem item;
+  final VoidCallback onViewDetail;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
@@ -724,6 +771,10 @@ class _ReminderCard extends StatelessWidget {
           Wrap(
             spacing: 8,
             children: [
+              FilledButton.tonal(
+                onPressed: onViewDetail,
+                child: const Text('详情'),
+              ),
               FilledButton.tonal(
                 onPressed: onEdit,
                 child: const Text('编辑'),

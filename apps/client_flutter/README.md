@@ -1,27 +1,78 @@
 # CloudTodo Flutter Client
 
-CloudTodo 客户端当前已完成三端统一骨架初始化，约束来自现有仓库文档：
+CloudTodo Flutter Client 是面向 Web、Android、Windows 的统一客户端实现。
 
-- Web、Android、Windows 共用同一套客户端方向
-- 管理后台不进入客户端，仍由后端 `/admin` 独立承载
-- Web 优先走同域部署，通过 Cookie 会话访问 `/api/*`
-- 原生端默认直连本机后端地址
-- 运行时配置优先从 `/config.json` 读取
+## 当前状态
 
-## 当前范围
-
-本次初始化已落地：
+当前客户端已经具备可联调、可预览的基础能力：
 
 - Flutter Web / Android / Windows 工程骨架
-- 分层目录：`core` / `features` / `routing`
-- 运行时配置加载
-- 基于 Cookie 的 API 客户端与会话恢复
-- 登录 / 注册页
-- 应用主壳与四个一级模块入口
-- Todo 列表页、完整表单创建、编辑与状态切换
-- Reminder 独立模块页，以及创建、编辑、删除
-- 用户资料页
-- Notification Endpoint 列表、创建、编辑、删除、测试
+- 统一分层结构：`core` / `features` / `routing`
+- Cookie 会话恢复
+- 应用级运行时后端地址切换
+- 登录 / 注册
+- 任务 / 提醒 / 设置 三个一级入口
+
+## 当前信息架构
+
+一级导航：
+
+- 任务
+- 提醒
+- 设置
+
+设置页当前承载：
+
+- 账户信息
+- 个人资料
+- 时区设置
+- 通知方式管理
+- 高级连接设置
+- 退出登录
+
+## 已实现功能
+
+### 任务
+
+- 列表
+- 搜索
+- 筛选
+- 创建
+- 编辑
+- 完成 / 重新打开 / 归档 / 删除
+- 详情弹窗
+- 近期提醒侧栏
+
+### 提醒
+
+- 独立页面
+- 创建 / 编辑 / 删除
+- 详情弹窗
+
+### 设置
+
+- 资料修改
+- 时区选择
+- 通知方式配置
+- 后端地址切换
+- 退出登录
+
+### 通知方式
+
+当前支持：
+
+- 企业微信机器人
+- 标准 Webhook
+
+当前能力：
+
+- 创建 / 编辑 / 删除 / 测试
+- 请求体模板编辑
+- 恢复默认模板
+- 占位符说明
+- 模板示例预览
+- 最近结果与上次测试时间展示
+- 测试结果查看返回内容与本次请求体
 
 ## 目录
 
@@ -42,16 +93,40 @@ apps/client_flutter/
 
 ## 本地启动
 
+### 安装依赖
+
 ```bash
 flutter pub get
-flutter run -d chrome
 ```
 
-如果后端按仓库推荐通过同域代理部署，默认配置无需改动。
+### 静态检查与测试
 
-本地直连其他地址时，修改 `web/config.json` 中的 `apiBaseUrl`。
+```bash
+flutter analyze
+flutter test
+```
 
-原生端默认地址：
+### 运行 Web
 
-- Android：`http://10.0.2.2:3000/api`
+```bash
+flutter run -d chrome --web-hostname localhost
+```
+
+### 运行 Windows
+
+```bash
+flutter run -d windows
+```
+
+## 后端地址
+
+客户端支持两种方式配置后端地址：
+
+- 登录 / 注册页中的高级连接设置
+- 设置页中的高级设置
+
+常见本地地址：
+
+- Web：`http://localhost:3000`
 - Windows：`http://127.0.0.1:3000/api`
+- Android 模拟器：`http://10.0.2.2:3000/api`
