@@ -7,6 +7,7 @@ import '../../app/application/app_scope.dart';
 import '../application/reminders_controller.dart';
 import '../domain/reminder_form_data.dart';
 import '../domain/reminder_item.dart';
+import 'reminder_detail_dialog.dart';
 import 'reminder_editor_dialog.dart';
 
 class RemindersPage extends StatefulWidget {
@@ -175,6 +176,13 @@ class _RemindersPageState extends State<RemindersPage> {
                               FilledButton.tonal(
                                 onPressed: _controller.submittingId == item.id
                                     ? null
+                                    : () => _openReminderDetail(item, todoTitleById[item.todoId]),
+                                child: const Text('详情'),
+                              ),
+                              const SizedBox(width: 8),
+                              FilledButton.tonal(
+                                onPressed: _controller.submittingId == item.id
+                                    ? null
                                     : () => _editReminder(item),
                                 child: const Text('编辑'),
                               ),
@@ -270,6 +278,16 @@ class _RemindersPageState extends State<RemindersPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(updated ? '提醒已更新' : (_controller.errorMessage ?? '提醒更新失败')),
+      ),
+    );
+  }
+
+  Future<void> _openReminderDetail(ReminderItem item, String? todoTitle) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => ReminderDetailDialog(
+        item: item,
+        todoTitle: todoTitle,
       ),
     );
   }
