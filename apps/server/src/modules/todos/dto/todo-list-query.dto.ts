@@ -16,6 +16,10 @@ export class TodoListQueryDto {
   tag_id?: string;
 
   @IsOptional()
+  @IsString()
+  list_id?: string;
+
+  @IsOptional()
   @IsDateString()
   due_start?: string;
 

@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/errors/app_exception.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/utils/date_time_formatter.dart';
 import '../../../core/utils/display_texts.dart';
 import '../../../core/utils/timezone_options.dart';
 import '../../../core/widgets/empty_state_card.dart';
 import '../../app/application/app_scope.dart';
+import '../../devices/domain/device_item.dart';
 import '../../notification_endpoints/application/notification_endpoints_controller.dart';
 import '../../notification_endpoints/domain/notification_endpoint.dart';
 import '../../notification_endpoints/domain/notification_endpoint_form_data.dart';
 import '../../notification_endpoints/presentation/notification_endpoint_editor_dialog.dart';
 import '../../profile/application/profile_controller.dart';
 import '../../profile/domain/profile_user.dart';
+import '../../sync/data/sync_repository.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
@@ -32,11 +35,24 @@ class _SettingsPageState extends State<SettingsPage> {
   final _emailController = TextEditingController();
   final _timezoneController = TextEditingController();
   final _backendUrlController = TextEditingController();
+  final _currentPasswordController = TextEditingController();
+  final _newPasswordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
 
   late final ProfileController _profileController;
   late final NotificationEndpointsController _endpointsController;
   bool _initialized = false;
   bool _backendUrlInitialized = false;
+  bool _isChangingPassword = false;
+  bool _isLoadingDevices = false;
+  bool _isDeletingDevice = false;
+  bool _isSyncing = false;
+  String? _passwordError;
+  String? _deviceError;
+  String? _syncError;
+  String? _syncCursor;
+  String? _syncSummary;
+  List<DeviceItem> _devices = const [];
 
   @override
   void didChangeDependencies() {
@@ -57,6 +73,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _endpointsController = NotificationEndpointsController(
       repository: services.notificationEndpointsRepository,
     )..load();
+    _loadDevices();
     _initialized = true;
   }
 
@@ -66,6 +83,9 @@ class _SettingsPageState extends State<SettingsPage> {
     _emailController.dispose();
     _timezoneController.dispose();
     _backendUrlController.dispose();
+    _currentPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
     _profileController.dispose();
     _endpointsController.dispose();
     super.dispose();
@@ -116,6 +136,8 @@ class _SettingsPageState extends State<SettingsPage> {
                       children: [
                         _MetaChip(label: '昵称', value: currentUser?.nickname ?? '-'),
                         _MetaChip(label: '邮箱', value: currentUser?.email ?? '-'),
+                        if (currentUser?.forcePasswordChange == true)
+                          const _MetaChip(label: '安全状态', value: '需要修改密码'),
                         _MetaChip(
                           label: '时区',
                           value: currentUser == null ? '-' : timezoneText(currentUser.timezone),
@@ -127,6 +149,156 @@ class _SettingsPageState extends State<SettingsPage> {
                       onPressed: widget.onLogout,
                       icon: const Icon(Icons.logout_rounded),
                       label: const Text('退出登录'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '同步',
+                      style: theme.textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 12),
+                    if (_syncError != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Text(
+                          _syncError!,
+                          style: const TextStyle(color: Color(0xFFA12E2E)),
+                        ),
+                      ),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        FilledButton.tonal(
+                          onPressed: _isSyncing ? null : _syncBootstrap,
+                          child: Text(_isSyncing ? '同步中...' : '首次同步'),
+                        ),
+                        OutlinedButton(
+                          onPressed: _isSyncing || _syncCursor == null ? null : _syncChanges,
+                          child: const Text('拉取增量'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text('游标：${_syncCursor ?? '-'}'),
+                    if (_syncSummary != null) ...[
+                      const SizedBox(height: 8),
+                      Text(_syncSummary!),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '设备',
+                            style: theme.textTheme.titleLarge,
+                          ),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: _isLoadingDevices ? null : _loadDevices,
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: const Text('刷新'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (_deviceError != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Text(
+                          _deviceError!,
+                          style: const TextStyle(color: Color(0xFFA12E2E)),
+                        ),
+                      ),
+                    if (_isLoadingDevices)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (_devices.isEmpty)
+                      const EmptyStateCard(
+                        icon: Icons.devices_other_rounded,
+                        title: '暂无设备',
+                        description: '登录成功后客户端会自动注册当前设备。',
+                      )
+                    else
+                      ..._devices.map(
+                        (device) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _DeviceCard(
+                            item: device,
+                            busy: _isDeletingDevice,
+                            onDelete: () => _deleteDevice(device),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '密码',
+                      style: theme.textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 12),
+                    if (_passwordError != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Text(
+                          _passwordError!,
+                          style: const TextStyle(color: Color(0xFFA12E2E)),
+                        ),
+                      ),
+                    TextFormField(
+                      controller: _currentPasswordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(labelText: '当前密码'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _newPasswordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(labelText: '新密码'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _confirmPasswordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(labelText: '确认新密码'),
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: _isChangingPassword ? null : _changePassword,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        child: Text(_isChangingPassword ? '修改中...' : '修改密码'),
+                      ),
                     ),
                   ],
                 ),
@@ -376,6 +548,199 @@ class _SettingsPageState extends State<SettingsPage> {
         content: Text(updated ? '资料已更新' : (_profileController.errorMessage ?? '资料更新失败')),
       ),
     );
+  }
+
+  Future<void> _changePassword() async {
+    final currentPassword = _currentPasswordController.text;
+    final newPassword = _newPasswordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+    if (currentPassword.isEmpty || newPassword.length < 8 || newPassword != confirmPassword) {
+      setState(() {
+        _passwordError = '请检查当前密码、新密码长度和确认密码是否一致';
+      });
+      return;
+    }
+
+    setState(() {
+      _isChangingPassword = true;
+      _passwordError = null;
+    });
+
+    try {
+      await AppScope.of(context).services.authRepository.changePassword(
+            currentPassword: currentPassword,
+            newPassword: newPassword,
+            confirmPassword: confirmPassword,
+          );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('密码已修改，请重新登录')),
+      );
+      await widget.onLogout();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _passwordError = AppException.describe(error);
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isChangingPassword = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadDevices() async {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingDevices = true;
+      _deviceError = null;
+    });
+
+    try {
+      final devices = await AppScope.of(context).services.deviceRepository.getDevices();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _devices = devices;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _deviceError = AppException.describe(error);
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingDevices = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _deleteDevice(DeviceItem device) async {
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: const Text('删除设备'),
+              content: Text('确认删除设备“${device.deviceName}”？'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('取消'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('删除'),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
+
+    if (!mounted || !confirmed) {
+      return;
+    }
+
+    setState(() {
+      _isDeletingDevice = true;
+      _deviceError = null;
+    });
+
+    try {
+      await AppScope.of(context).services.deviceRepository.deleteDevice(device.id);
+      await _loadDevices();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _deviceError = AppException.describe(error);
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDeletingDevice = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _syncBootstrap() {
+    return _runSync(() => AppScope.of(context).services.syncRepository.bootstrap());
+  }
+
+  Future<void> _syncChanges() {
+    final cursor = _syncCursor;
+    if (cursor == null) {
+      return Future.value();
+    }
+
+    return _runSync(() => AppScope.of(context).services.syncRepository.changes(cursor: cursor));
+  }
+
+  Future<void> _runSync(Future<SyncSnapshot> Function() action) async {
+    setState(() {
+      _isSyncing = true;
+      _syncError = null;
+    });
+
+    try {
+      final snapshot = await action();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _syncCursor = snapshot.cursor;
+        _syncSummary = _buildSyncSummary(snapshot.raw);
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _syncError = AppException.describe(error);
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSyncing = false;
+        });
+      }
+    }
+  }
+
+  String _buildSyncSummary(Map<String, dynamic> raw) {
+    final names = {
+      'todo_lists': '清单',
+      'tags': '标签',
+      'todo_tags': '任务标签关系',
+      'todos': '任务',
+      'reminders': '提醒',
+      'reminder_events': '提醒事件',
+      'notification_endpoints': '通知方式',
+      'notification_deliveries': '通知投递',
+      'devices': '设备',
+    };
+
+    return names.entries.map((entry) {
+      final value = raw[entry.key];
+      final count = value is List ? value.length : 0;
+      return '${entry.value}: $count';
+    }).join('  ');
   }
 
   Future<void> _applyBackendUrl(AppScope appScope) async {
@@ -774,6 +1139,58 @@ class _EndpointCard extends StatelessWidget {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DeviceCard extends StatelessWidget {
+  const _DeviceCard({
+    required this.item,
+    required this.busy,
+    required this.onDelete,
+  });
+
+  final DeviceItem item;
+  final bool busy;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF6F0E6),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.devices_rounded),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.deviceName.isEmpty ? item.platform : item.deviceName,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '平台：${item.platform}  版本：${item.appVersion ?? '-'}  最近活跃：${formatDateTime(item.lastActiveAt)}',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          _MetaChip(label: '状态', value: item.isOnline ? '在线' : '离线'),
+          const SizedBox(width: 8),
+          TextButton(
+            onPressed: busy ? null : onDelete,
+            child: const Text('删除'),
+          ),
         ],
       ),
     );

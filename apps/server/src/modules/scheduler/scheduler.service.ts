@@ -191,15 +191,6 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
                 },
               });
             }
-          } else {
-            await tx.reminderEvent.update({
-              where: {
-                id: event.id,
-              },
-              data: {
-                status: ReminderEventStatus.processed,
-              },
-            });
           }
         });
       }

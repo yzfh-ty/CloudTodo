@@ -19,6 +19,7 @@ export interface AuthenticatedUser {
   role: UserRole;
   status: UserStatus;
   timezone: string;
+  forcePasswordChange: boolean;
 }
 
 @Injectable()
@@ -67,6 +68,7 @@ export class UserSessionService {
         role: true,
         status: true,
         timezone: true,
+        forcePasswordChange: true,
         passwordChangedAt: true,
       },
     });
@@ -96,6 +98,7 @@ export class UserSessionService {
       role: user.role,
       status: user.status,
       timezone: user.timezone,
+      forcePasswordChange: user.forcePasswordChange,
     };
   }
 

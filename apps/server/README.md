@@ -80,6 +80,24 @@ apps/server/
 
 ## 快速开始
 
+### 一键启动
+
+从仓库根目录执行：
+
+```powershell
+.\scripts\start-server.ps1 -UseDockerDb -SeedAdmin
+```
+
+常用参数：
+
+- `-UseDockerDb`：启动 `apps/server/docker-compose.yml` 中的 PostgreSQL
+- `-SeedAdmin`：执行 `npm run seed:admin`
+- `-SkipInstall`：跳过 `npm install`
+- `-SkipPrismaGenerate`：跳过 Prisma Client 生成
+- `-SkipMigrate`：跳过数据库迁移
+- `-Port 3001`：指定后端端口
+- `-DatabaseUrl "postgresql://..."`：指定数据库连接串
+
 ### 1. 安装依赖
 
 ```bash

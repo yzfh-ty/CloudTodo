@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'features/app/application/app_controller.dart';
 import 'features/app/application/app_scope.dart';
+import 'features/app/application/app_session_controller.dart';
 import 'routing/app_router.dart';
 
 class App extends StatefulWidget {
@@ -17,12 +20,20 @@ class _AppState extends State<App> {
   late AppRouterDelegate _routerDelegate;
   final AppRouteInformationParser _routeInformationParser =
       const AppRouteInformationParser();
+  late AppSessionController _listenedSessionController;
+  Timer? _reminderPoller;
 
   @override
   void initState() {
     super.initState();
     _routerDelegate = AppRouterDelegate(widget.controller.services);
+    _listenedSessionController = widget.controller.services.sessionController;
     widget.controller.addListener(_handleControllerChanged);
+    _listenedSessionController.addListener(_handleSessionChanged);
+    _reminderPoller = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _pollReminderEvents(),
+    );
   }
 
   @override
@@ -30,7 +41,10 @@ class _AppState extends State<App> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_handleControllerChanged);
+      _listenedSessionController.removeListener(_handleSessionChanged);
       widget.controller.addListener(_handleControllerChanged);
+      _listenedSessionController = widget.controller.services.sessionController;
+      _listenedSessionController.addListener(_handleSessionChanged);
       _recreateRouterDelegate();
     }
   }
@@ -38,6 +52,8 @@ class _AppState extends State<App> {
   @override
   void dispose() {
     widget.controller.removeListener(_handleControllerChanged);
+    _listenedSessionController.removeListener(_handleSessionChanged);
+    _reminderPoller?.cancel();
     _routerDelegate.dispose();
     super.dispose();
   }
@@ -64,13 +80,44 @@ class _AppState extends State<App> {
       return;
     }
 
+    _listenedSessionController.removeListener(_handleSessionChanged);
+    _listenedSessionController = widget.controller.services.sessionController;
+    _listenedSessionController.addListener(_handleSessionChanged);
     _recreateRouterDelegate();
+  }
+
+  void _handleSessionChanged() {
+    if (widget.controller.services.sessionController.isAuthenticated) {
+      _pollReminderEvents();
+    }
   }
 
   void _recreateRouterDelegate() {
     _routerDelegate.dispose();
     _routerDelegate = AppRouterDelegate(widget.controller.services);
     setState(() {});
+  }
+
+  Future<void> _pollReminderEvents() async {
+    final services = widget.controller.services;
+    if (!services.sessionController.isAuthenticated || !mounted) {
+      return;
+    }
+
+    try {
+      final events = await services.remindersRepository.getPendingLocalEvents();
+      for (final event in events) {
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('提醒触发：${event.todoId}')),
+        );
+        await services.remindersRepository.ackReminderEvent(event.id);
+      }
+    } catch (_) {
+      // 提醒轮询失败不打断主流程。
+    }
   }
 
   ThemeData _buildTheme() {

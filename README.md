@@ -63,6 +63,32 @@ CloudTodo/
 
 ## 快速开始
 
+### 一键启动开发环境
+
+Windows PowerShell:
+
+```powershell
+.\scripts\start-dev.ps1 -UseDockerDb -SeedAdmin
+```
+
+该命令会打开两个终端窗口：
+
+- 后端服务：`http://localhost:3000`
+- Flutter Web：`http://localhost:8080`
+
+如果已经有本地 PostgreSQL，可改用：
+
+```powershell
+.\scripts\start-dev.ps1 -DatabaseUrl "postgresql://cloudtodo:cloudtodo@localhost:5432/cloudtodo?schema=public"
+```
+
+也可以拆开启动：
+
+```powershell
+.\scripts\start-server.ps1 -UseDockerDb -SeedAdmin
+.\scripts\start-client-web.ps1
+```
+
 ### 后端
 
 ```powershell

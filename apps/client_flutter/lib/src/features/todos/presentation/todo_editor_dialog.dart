@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../../core/utils/date_time_formatter.dart';
 import '../../../core/utils/display_texts.dart';
+import '../domain/tag_item.dart';
 import '../domain/todo_form_data.dart';
+import '../domain/todo_list_item.dart';
 
 class TodoEditorDialog extends StatefulWidget {
   const TodoEditorDialog({
@@ -10,11 +12,15 @@ class TodoEditorDialog extends StatefulWidget {
     required this.initialValue,
     required this.title,
     required this.submitLabel,
+    this.todoLists = const [],
+    this.tags = const [],
   });
 
   final TodoFormData initialValue;
   final String title;
   final String submitLabel;
+  final List<TodoListItem> todoLists;
+  final List<TagItem> tags;
 
   @override
   State<TodoEditorDialog> createState() => _TodoEditorDialogState();
@@ -26,6 +32,8 @@ class _TodoEditorDialogState extends State<TodoEditorDialog> {
   late final TextEditingController _descriptionController;
   late String _priority;
   late bool _isAllDay;
+  late String? _listId;
+  late Set<String> _tagIds;
   DateTime? _dueAt;
 
   @override
@@ -35,6 +43,9 @@ class _TodoEditorDialogState extends State<TodoEditorDialog> {
     _descriptionController = TextEditingController(text: widget.initialValue.description);
     _priority = widget.initialValue.priority;
     _isAllDay = widget.initialValue.isAllDay;
+    final listIds = widget.todoLists.map((list) => list.id).toSet();
+    _listId = listIds.contains(widget.initialValue.listId) ? widget.initialValue.listId : null;
+    _tagIds = widget.initialValue.tagIds.toSet();
     _dueAt = widget.initialValue.dueAt;
   }
 
@@ -90,6 +101,51 @@ class _TodoEditorDialogState extends State<TodoEditorDialog> {
                     minLines: 3,
                     maxLines: 5,
                   ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: _listId,
+                    decoration: const InputDecoration(labelText: '清单'),
+                    items: [
+                      const DropdownMenuItem<String>(
+                        value: '',
+                        child: Text('不指定清单'),
+                      ),
+                      ...widget.todoLists.map(
+                        (list) => DropdownMenuItem<String>(
+                          value: list.id,
+                          child: Text(list.name),
+                        ),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _listId = value == null || value.isEmpty ? null : value;
+                      });
+                    },
+                  ),
+                  if (widget.tags.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: widget.tags.map((tag) {
+                        final selected = _tagIds.contains(tag.id);
+                        return FilterChip(
+                          label: Text(tag.name),
+                          selected: selected,
+                          onSelected: (value) {
+                            setState(() {
+                              if (value) {
+                                _tagIds.add(tag.id);
+                              } else {
+                                _tagIds.remove(tag.id);
+                              }
+                            });
+                          },
+                        );
+                      }).toList(growable: false),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     value: _priority,
@@ -254,6 +310,8 @@ class _TodoEditorDialogState extends State<TodoEditorDialog> {
         priority: _priority,
         dueAt: _dueAt,
         isAllDay: _isAllDay,
+        listId: _listId,
+        tagIds: _tagIds.toList(growable: false),
       ),
     );
   }

@@ -93,6 +93,23 @@ apps/client_flutter/
 
 ## 本地启动
 
+### 一键启动 Web
+
+从仓库根目录执行：
+
+```powershell
+.\scripts\start-client-web.ps1
+```
+
+默认访问地址：
+
+- Web：`http://localhost:8080`
+
+常用参数：
+
+- `-WebPort 8081`：指定 Flutter Web 端口
+- `-SkipPubGet`：跳过 `flutter pub get`
+
 ### 安装依赖
 
 ```bash

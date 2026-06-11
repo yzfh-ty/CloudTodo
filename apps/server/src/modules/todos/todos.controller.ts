@@ -4,6 +4,7 @@ import type { AuthenticatedUser } from '../auth/user-session.service';
 import { UserApiSessionGuard } from '../auth/guards/user-api-session.guard';
 import { CreateTodoDto } from './dto/create-todo.dto';
 import { TodoListQueryDto } from './dto/todo-list-query.dto';
+import { UpdateTodoTagsDto } from './dto/update-todo-tags.dto';
 import { UpdateTodoDto } from './dto/update-todo.dto';
 import { TodosService } from './todos.service';
 
@@ -54,5 +55,14 @@ export class TodosController {
   @Post(':id/archive')
   archiveTodo(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.todosService.archiveTodo(user, id);
+  }
+
+  @Patch(':id/tags')
+  setTodoTags(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateTodoTagsDto,
+  ) {
+    return this.todosService.setTodoTags(user, id, dto);
   }
 }

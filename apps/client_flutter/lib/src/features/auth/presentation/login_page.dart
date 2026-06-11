@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/errors/app_exception.dart';
 import '../../app/application/app_scope.dart';
 import '../../app/presentation/app_shell.dart';
 
@@ -146,6 +147,13 @@ class _LoginPageState extends State<LoginPage> {
                     return null;
                   },
                 ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: sessionController.isBusy ? null : _openPasswordResetDialog,
+                    child: const Text('使用重置令牌设置新密码'),
+                  ),
+                ),
                 if (sessionController.lastError != null) ...[
                   const SizedBox(height: 16),
                   Text(
@@ -181,5 +189,113 @@ class _LoginPageState extends State<LoginPage> {
       account: _accountController.text,
       password: _passwordController.text,
     );
+  }
+
+  Future<void> _openPasswordResetDialog() async {
+    final tokenController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    String? errorMessage;
+    bool isSubmitting = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('设置新密码'),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: tokenController,
+                      decoration: const InputDecoration(labelText: '重置令牌'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: newPasswordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(labelText: '新密码'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: confirmPasswordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(labelText: '确认新密码'),
+                    ),
+                    if (errorMessage != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        errorMessage!,
+                        style: const TextStyle(color: Color(0xFFA12E2E)),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting ? null : () => Navigator.of(context).pop(),
+                  child: const Text('取消'),
+                ),
+                FilledButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          final token = tokenController.text.trim();
+                          final newPassword = newPasswordController.text;
+                          final confirmPassword = confirmPasswordController.text;
+                          if (token.isEmpty ||
+                              newPassword.length < 8 ||
+                              newPassword != confirmPassword) {
+                            setDialogState(() {
+                              errorMessage = '请检查令牌、新密码长度和确认密码是否一致';
+                            });
+                            return;
+                          }
+
+                          setDialogState(() {
+                            isSubmitting = true;
+                            errorMessage = null;
+                          });
+
+                          try {
+                            await AppScope.of(context).services.authRepository.confirmPasswordReset(
+                                  token: token,
+                                  newPassword: newPassword,
+                                  confirmPassword: confirmPassword,
+                                );
+                            if (!dialogContext.mounted) {
+                              return;
+                            }
+                            Navigator.of(dialogContext).pop();
+                            if (!mounted) {
+                              return;
+                            }
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('新密码已设置，请登录')),
+                            );
+                          } catch (error) {
+                            setDialogState(() {
+                              errorMessage = AppException.describe(error);
+                              isSubmitting = false;
+                            });
+                          }
+                        },
+                  child: Text(isSubmitting ? '提交中...' : '确认'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    tokenController.dispose();
+    newPasswordController.dispose();
+    confirmPasswordController.dispose();
   }
 }

@@ -7,6 +7,8 @@ class TodoFormData {
     required this.priority,
     required this.dueAt,
     required this.isAllDay,
+    required this.listId,
+    required this.tagIds,
   });
 
   final String title;
@@ -14,6 +16,8 @@ class TodoFormData {
   final String priority;
   final DateTime? dueAt;
   final bool isAllDay;
+  final String? listId;
+  final List<String> tagIds;
 
   factory TodoFormData.createDraft() {
     return const TodoFormData(
@@ -22,6 +26,8 @@ class TodoFormData {
       priority: 'medium',
       dueAt: null,
       isAllDay: false,
+      listId: null,
+      tagIds: [],
     );
   }
 
@@ -32,6 +38,8 @@ class TodoFormData {
       priority: item.priority,
       dueAt: item.dueAt?.toLocal(),
       isAllDay: item.isAllDay,
+      listId: item.listId,
+      tagIds: item.tagIds,
     );
   }
 
@@ -41,6 +49,9 @@ class TodoFormData {
     String? priority,
     DateTime? dueAt,
     bool? isAllDay,
+    String? listId,
+    List<String>? tagIds,
+    bool clearList = false,
   }) {
     return TodoFormData(
       title: title ?? this.title,
@@ -48,6 +59,8 @@ class TodoFormData {
       priority: priority ?? this.priority,
       dueAt: dueAt ?? this.dueAt,
       isAllDay: isAllDay ?? this.isAllDay,
+      listId: clearList ? null : listId ?? this.listId,
+      tagIds: tagIds ?? this.tagIds,
     );
   }
 }

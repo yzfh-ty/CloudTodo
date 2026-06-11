@@ -9,6 +9,7 @@ class ProfileUser {
     required this.role,
     required this.status,
     required this.timezone,
+    required this.forcePasswordChange,
     required this.createdAt,
     required this.updatedAt,
     this.lastLoginAt,
@@ -21,6 +22,7 @@ class ProfileUser {
   final String role;
   final String status;
   final String timezone;
+  final bool forcePasswordChange;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? lastLoginAt;
@@ -34,6 +36,7 @@ class ProfileUser {
       role: json['role'] as String? ?? 'user',
       status: json['status'] as String? ?? 'active',
       timezone: json['timezone'] as String? ?? 'Asia/Shanghai',
+      forcePasswordChange: json['forcePasswordChange'] as bool? ?? false,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
       lastLoginAt: json['lastLoginAt'] == null
@@ -51,6 +54,7 @@ class ProfileUser {
       role: role,
       status: status,
       timezone: timezone,
+      forcePasswordChange: forcePasswordChange,
       lastLoginAt: lastLoginAt,
     );
   }

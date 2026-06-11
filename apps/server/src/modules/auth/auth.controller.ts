@@ -1,6 +1,11 @@
-import { Body, Controller, Headers, Post, Res } from '@nestjs/common';
+import { Body, Controller, Headers, Post, Res, UseGuards } from '@nestjs/common';
 import { parseCookies, serializeCookie } from '../../common/http/cookie.util';
 import { Public } from '../admin/decorators/public.decorator';
+import { CurrentUser } from './decorators/current-user.decorator';
+import { UserApiSessionGuard } from './guards/user-api-session.guard';
+import type { AuthenticatedUser } from './user-session.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { ConfirmPasswordResetDto } from './dto/confirm-password-reset.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { AuthService } from './auth.service';
@@ -100,6 +105,21 @@ export class AuthController {
       message: 'success',
       data: null,
     };
+  }
+
+  @Post('change-password')
+  @UseGuards(UserApiSessionGuard)
+  changePassword(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    return this.authService.changePassword(user, dto);
+  }
+
+  @Post('password-reset/confirm')
+  @Public()
+  confirmPasswordReset(@Body() dto: ConfirmPasswordResetDto) {
+    return this.authService.confirmPasswordReset(dto);
   }
 
   private createAuthCookies(sessionToken: string, refreshToken: string): string[] {

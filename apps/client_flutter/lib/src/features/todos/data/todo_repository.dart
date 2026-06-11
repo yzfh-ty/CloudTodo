@@ -10,6 +10,8 @@ class TodoRepository {
   Future<PagedResponse<TodoItem>> getTodos({
     String? status,
     String? keyword,
+    String? listId,
+    String? tagId,
     int page = 1,
     int pageSize = 20,
   }) {
@@ -18,6 +20,8 @@ class TodoRepository {
       queryParameters: {
         'status': status,
         'keyword': keyword,
+        'list_id': listId,
+        'tag_id': tagId,
         'page': '$page',
         'page_size': '$pageSize',
       },
@@ -36,6 +40,8 @@ class TodoRepository {
     String priority = 'medium',
     DateTime? dueAt,
     bool isAllDay = false,
+    String? listId,
+    List<String> tagIds = const [],
   }) {
     return _apiClient.post(
       '/todos',
@@ -45,6 +51,8 @@ class TodoRepository {
         'priority': priority,
         'due_at': dueAt?.toUtc().toIso8601String(),
         'is_all_day': isAllDay,
+        'list_id': listId,
+        'tag_ids': tagIds,
       },
       parser: (data) => TodoItem.fromJson(data as Map<String, dynamic>),
     );
@@ -57,6 +65,8 @@ class TodoRepository {
     required String priority,
     required DateTime? dueAt,
     required bool isAllDay,
+    required String? listId,
+    required List<String> tagIds,
   }) {
     return _apiClient.patch(
       '/todos/$id',
@@ -66,6 +76,8 @@ class TodoRepository {
         'priority': priority,
         'due_at': dueAt?.toUtc().toIso8601String(),
         'is_all_day': isAllDay,
+        'list_id': listId,
+        'tag_ids': tagIds,
       },
       parser: (data) => TodoItem.fromJson(data as Map<String, dynamic>),
     );

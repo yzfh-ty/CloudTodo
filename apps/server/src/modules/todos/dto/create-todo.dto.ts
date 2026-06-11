@@ -1,5 +1,14 @@
 import { PlatformType, TodoPriority } from '@prisma/client';
-import { IsBoolean, IsDateString, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsEnum,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
 export class CreateTodoDto {
   @IsString()
@@ -29,4 +38,10 @@ export class CreateTodoDto {
   @IsEnum(PlatformType)
   @IsOptional()
   source_platform?: PlatformType;
+
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  @IsOptional()
+  tag_ids?: string[];
 }

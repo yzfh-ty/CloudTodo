@@ -66,4 +66,37 @@ class AuthRepository {
       allowRefresh: false,
     );
   }
+
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String confirmPassword,
+  }) {
+    return _apiClient.post(
+      '/auth/change-password',
+      body: {
+        'current_password': currentPassword,
+        'new_password': newPassword,
+        'confirm_password': confirmPassword,
+      },
+      parser: (_) => null,
+    );
+  }
+
+  Future<void> confirmPasswordReset({
+    required String token,
+    required String newPassword,
+    required String confirmPassword,
+  }) {
+    return _apiClient.post(
+      '/auth/password-reset/confirm',
+      body: {
+        'token': token.trim(),
+        'new_password': newPassword,
+        'confirm_password': confirmPassword,
+      },
+      parser: (_) => null,
+      allowRefresh: false,
+    );
+  }
 }

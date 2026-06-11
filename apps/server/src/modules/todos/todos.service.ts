@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/database/prisma.service';
 import type { AuthenticatedUser } from '../auth/user-session.service';
 import { CreateTodoDto } from './dto/create-todo.dto';
 import { TodoListQueryDto } from './dto/todo-list-query.dto';
+import { UpdateTodoTagsDto } from './dto/update-todo-tags.dto';
 import { UpdateTodoDto } from './dto/update-todo.dto';
 
 @Injectable()
@@ -51,6 +52,10 @@ export class TodosService {
       };
     }
 
+    if (query.list_id) {
+      where.listId = query.list_id;
+    }
+
     const [items, total] = await this.prisma.$transaction([
       this.prisma.todo.findMany({
         where,
@@ -80,20 +85,33 @@ export class TodosService {
     if (listId) {
       await this.ensureListBelongsToUser(listId, user.id);
     }
+    const tagIds = this.normalizeTagIds(dto.tag_ids);
+    if (tagIds.length > 0) {
+      await this.ensureTagsBelongToUser(tagIds, user.id);
+    }
 
-    const todo = await this.prisma.todo.create({
-      data: {
-        userId: user.id,
-        listId: listId ?? null,
-        title: dto.title.trim(),
-        description: dto.description?.trim() || null,
-        status: TodoStatus.pending,
-        priority: dto.priority ?? TodoPriority.medium,
-        dueAt: dto.due_at ? new Date(dto.due_at) : null,
-        isAllDay: dto.is_all_day ?? false,
-        sourcePlatform: dto.source_platform ?? null,
-      },
-      select: this.todoSelect(),
+    const todo = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.todo.create({
+        data: {
+          userId: user.id,
+          listId: listId ?? null,
+          title: dto.title.trim(),
+          description: dto.description?.trim() || null,
+          status: TodoStatus.pending,
+          priority: dto.priority ?? TodoPriority.medium,
+          dueAt: dto.due_at ? new Date(dto.due_at) : null,
+          isAllDay: dto.is_all_day ?? false,
+          sourcePlatform: dto.source_platform ?? null,
+        },
+        select: { id: true },
+      });
+
+      await this.replaceTodoTagsTx(tx, created.id, tagIds);
+
+      return tx.todo.findUniqueOrThrow({
+        where: { id: created.id },
+        select: this.todoSelect(),
+      });
     });
 
     return {
@@ -138,17 +156,35 @@ export class TodosService {
     }
     if (dto.status !== undefined) data.status = dto.status;
 
-    if (Object.keys(data).length === 0) {
+    const tagIds = dto.tag_ids === undefined ? undefined : this.normalizeTagIds(dto.tag_ids);
+    if (tagIds && tagIds.length > 0) {
+      await this.ensureTagsBelongToUser(tagIds, user.id);
+    }
+
+    if (Object.keys(data).length === 0 && tagIds === undefined) {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message: 'no todo fields to update',
       });
     }
 
-    const todo = await this.prisma.todo.update({
-      where: { id },
-      data,
-      select: this.todoSelect(),
+    const todo = await this.prisma.$transaction(async (tx) => {
+      if (Object.keys(data).length > 0) {
+        await tx.todo.update({
+          where: { id },
+          data,
+          select: { id: true },
+        });
+      }
+
+      if (tagIds !== undefined) {
+        await this.replaceTodoTagsTx(tx, id, tagIds, Object.keys(data).length === 0);
+      }
+
+      return tx.todo.findUniqueOrThrow({
+        where: { id },
+        select: this.todoSelect(),
+      });
     });
 
     return {
@@ -235,6 +271,28 @@ export class TodosService {
     };
   }
 
+  async setTodoTags(user: AuthenticatedUser, id: string, dto: UpdateTodoTagsDto) {
+    await this.findTodoOrThrow(user.id, id);
+    const tagIds = this.normalizeTagIds(dto.tag_ids);
+    if (tagIds.length > 0) {
+      await this.ensureTagsBelongToUser(tagIds, user.id);
+    }
+
+    const todo = await this.prisma.$transaction(async (tx) => {
+      await this.replaceTodoTagsTx(tx, id, tagIds, true);
+      return tx.todo.findUniqueOrThrow({
+        where: { id },
+        select: this.todoSelect(),
+      });
+    });
+
+    return {
+      code: 'OK',
+      message: 'success',
+      data: todo,
+    };
+  }
+
   private async ensureListBelongsToUser(listId: string, userId: string) {
     const list = await this.prisma.todoList.findFirst({
       where: {
@@ -249,6 +307,24 @@ export class TodosService {
       throw new NotFoundException({
         code: 'TODO_LIST_NOT_FOUND',
         message: 'todo list not found',
+      });
+    }
+  }
+
+  private async ensureTagsBelongToUser(tagIds: string[], userId: string) {
+    const tags = await this.prisma.tag.findMany({
+      where: {
+        id: { in: tagIds },
+        userId,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (tags.length !== tagIds.length) {
+      throw new NotFoundException({
+        code: 'TAG_NOT_FOUND',
+        message: 'one or more tags were not found',
       });
     }
   }
@@ -290,6 +366,55 @@ export class TodosService {
       createdAt: true,
       updatedAt: true,
       deletedAt: true,
+      tags: {
+        select: {
+          tagId: true,
+          tag: {
+            select: {
+              id: true,
+              name: true,
+              color: true,
+            },
+          },
+        },
+      },
     } satisfies Prisma.TodoSelect;
+  }
+
+  private normalizeTagIds(tagIds?: string[]) {
+    return [...new Set((tagIds ?? []).map((tagId) => tagId.trim()).filter(Boolean))];
+  }
+
+  private async replaceTodoTagsTx(
+    tx: Prisma.TransactionClient,
+    todoId: string,
+    tagIds: string[],
+    touchTodo = false,
+  ) {
+    await tx.todoTag.deleteMany({
+      where: { todoId },
+    });
+
+    if (tagIds.length > 0) {
+      await tx.todoTag.createMany({
+        data: tagIds.map((tagId) => ({
+          todoId,
+          tagId,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    if (touchTodo) {
+      await tx.todo.update({
+        where: { id: todoId },
+        data: {
+          version: {
+            increment: 1,
+          },
+        },
+        select: { id: true },
+      });
+    }
   }
 }

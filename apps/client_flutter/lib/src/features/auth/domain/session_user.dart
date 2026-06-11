@@ -7,6 +7,7 @@ class SessionUser {
     required this.role,
     required this.status,
     required this.timezone,
+    required this.forcePasswordChange,
     this.lastLoginAt,
   });
 
@@ -17,6 +18,7 @@ class SessionUser {
   final String role;
   final String status;
   final String timezone;
+  final bool forcePasswordChange;
   final DateTime? lastLoginAt;
 
   factory SessionUser.fromJson(Map<String, dynamic> json) {
@@ -28,6 +30,7 @@ class SessionUser {
       role: json['role'] as String? ?? 'user',
       status: json['status'] as String? ?? 'active',
       timezone: json['timezone'] as String? ?? 'Asia/Shanghai',
+      forcePasswordChange: json['forcePasswordChange'] as bool? ?? false,
       lastLoginAt: json['lastLoginAt'] == null
           ? null
           : DateTime.parse(json['lastLoginAt'] as String),

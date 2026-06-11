@@ -7,7 +7,9 @@ class TodoItem {
     required this.isAllDay,
     required this.createdAt,
     required this.updatedAt,
+    required this.tagIds,
     this.description,
+    this.listId,
     this.dueAt,
     this.completedAt,
     this.archivedAt,
@@ -19,6 +21,8 @@ class TodoItem {
   final String status;
   final String priority;
   final bool isAllDay;
+  final String? listId;
+  final List<String> tagIds;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? dueAt;
@@ -33,6 +37,8 @@ class TodoItem {
       status: json['status'] as String? ?? 'pending',
       priority: json['priority'] as String? ?? 'medium',
       isAllDay: json['isAllDay'] as bool? ?? false,
+      listId: json['listId'] as String?,
+      tagIds: _parseTagIds(json['tags']),
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
       dueAt: json['dueAt'] == null ? null : DateTime.parse(json['dueAt'] as String),
@@ -43,5 +49,17 @@ class TodoItem {
           ? null
           : DateTime.parse(json['archivedAt'] as String),
     );
+  }
+
+  static List<String> _parseTagIds(Object? raw) {
+    if (raw is! List) {
+      return const [];
+    }
+
+    return raw
+        .whereType<Map<String, dynamic>>()
+        .map((item) => item['tagId'] as String?)
+        .whereType<String>()
+        .toList(growable: false);
   }
 }

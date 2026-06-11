@@ -5,26 +5,36 @@ import '../../../core/models/paged_response.dart';
 import '../../reminders/data/reminders_repository.dart';
 import '../../reminders/domain/reminder_form_data.dart';
 import '../../reminders/domain/reminder_item.dart';
+import '../data/todo_metadata_repository.dart';
 import '../data/todo_repository.dart';
+import '../domain/tag_item.dart';
 import '../domain/todo_form_data.dart';
 import '../domain/todo_item.dart';
+import '../domain/todo_list_item.dart';
 
 class TodoListController extends ChangeNotifier {
   TodoListController({
     required TodoRepository todoRepository,
+    required TodoMetadataRepository todoMetadataRepository,
     required RemindersRepository remindersRepository,
   })  : _todoRepository = todoRepository,
+        _todoMetadataRepository = todoMetadataRepository,
         _remindersRepository = remindersRepository;
 
   final TodoRepository _todoRepository;
+  final TodoMetadataRepository _todoMetadataRepository;
   final RemindersRepository _remindersRepository;
 
   List<TodoItem> items = const [];
+  List<TodoListItem> todoLists = const [];
+  List<TagItem> tags = const [];
   List<ReminderItem> upcomingReminders = const [];
   bool isLoading = true;
   bool isSubmitting = false;
   String? errorMessage;
   String? statusFilter = 'pending';
+  String? listFilter;
+  String? tagFilter;
   String keyword = '';
   int total = 0;
   bool _initialized = false;
@@ -48,16 +58,24 @@ class TodoListController extends ChangeNotifier {
         _todoRepository.getTodos(
           status: statusFilter,
           keyword: keyword.isEmpty ? null : keyword,
+          listId: listFilter,
+          tagId: tagFilter,
         ),
         _remindersRepository.getUpcomingReminders(),
+        _todoMetadataRepository.getTodoLists(),
+        _todoMetadataRepository.getTags(),
       ]);
 
       final todosPage = results[0] as PagedResponse<TodoItem>;
       final reminders = results[1] as List<ReminderItem>;
+      final lists = results[2] as List<TodoListItem>;
+      final loadedTags = results[3] as List<TagItem>;
 
       items = todosPage.items;
       total = todosPage.total;
       upcomingReminders = reminders;
+      todoLists = lists;
+      tags = loadedTags;
     } catch (error) {
       errorMessage = AppException.describe(error);
     } finally {
@@ -76,6 +94,16 @@ class TodoListController extends ChangeNotifier {
     await refresh();
   }
 
+  Future<void> setListFilter(String? nextListId) async {
+    listFilter = nextListId;
+    await refresh();
+  }
+
+  Future<void> setTagFilter(String? nextTagId) async {
+    tagFilter = nextTagId;
+    await refresh();
+  }
+
   Future<bool> createTodo(TodoFormData draft) async {
     if (draft.title.trim().isEmpty) {
       return false;
@@ -88,6 +116,8 @@ class TodoListController extends ChangeNotifier {
         priority: draft.priority,
         dueAt: draft.dueAt,
         isAllDay: draft.isAllDay,
+        listId: draft.listId,
+        tagIds: draft.tagIds,
       );
       await refresh();
     });
@@ -106,6 +136,8 @@ class TodoListController extends ChangeNotifier {
         priority: draft.priority,
         dueAt: draft.dueAt,
         isAllDay: draft.isAllDay,
+        listId: draft.listId,
+        tagIds: draft.tagIds,
       );
       await refresh();
     });
@@ -146,6 +178,7 @@ class TodoListController extends ChangeNotifier {
         channel: draft.channel,
         remindAt: draft.remindAt,
         repeatType: draft.repeatType,
+        repeatRule: draft.repeatRule,
         timezone: draft.timezone,
       );
       await refresh();
@@ -159,6 +192,7 @@ class TodoListController extends ChangeNotifier {
         channel: draft.channel,
         remindAt: draft.remindAt,
         repeatType: draft.repeatType,
+        repeatRule: draft.repeatRule,
         timezone: draft.timezone,
       );
       await refresh();
@@ -168,6 +202,70 @@ class TodoListController extends ChangeNotifier {
   Future<bool> deleteReminder(String reminderId) {
     return _runMutation(() async {
       await _remindersRepository.deleteReminder(reminderId);
+      await refresh();
+    });
+  }
+
+  Future<bool> createTodoList(String name) {
+    if (name.trim().isEmpty) {
+      return Future.value(false);
+    }
+
+    return _runMutation(() async {
+      await _todoMetadataRepository.createTodoList(name: name);
+      await refresh();
+    });
+  }
+
+  Future<bool> updateTodoList(String id, String name) {
+    if (name.trim().isEmpty) {
+      return Future.value(false);
+    }
+
+    return _runMutation(() async {
+      await _todoMetadataRepository.updateTodoList(id: id, name: name);
+      await refresh();
+    });
+  }
+
+  Future<bool> deleteTodoList(String id) {
+    return _runMutation(() async {
+      await _todoMetadataRepository.deleteTodoList(id);
+      if (listFilter == id) {
+        listFilter = null;
+      }
+      await refresh();
+    });
+  }
+
+  Future<bool> createTag(String name) {
+    if (name.trim().isEmpty) {
+      return Future.value(false);
+    }
+
+    return _runMutation(() async {
+      await _todoMetadataRepository.createTag(name: name);
+      await refresh();
+    });
+  }
+
+  Future<bool> updateTag(String id, String name) {
+    if (name.trim().isEmpty) {
+      return Future.value(false);
+    }
+
+    return _runMutation(() async {
+      await _todoMetadataRepository.updateTag(id: id, name: name);
+      await refresh();
+    });
+  }
+
+  Future<bool> deleteTag(String id) {
+    return _runMutation(() async {
+      await _todoMetadataRepository.deleteTag(id);
+      if (tagFilter == id) {
+        tagFilter = null;
+      }
       await refresh();
     });
   }

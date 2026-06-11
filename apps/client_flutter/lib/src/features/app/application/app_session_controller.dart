@@ -12,10 +12,14 @@ enum AppSessionStatus {
 }
 
 class AppSessionController extends ChangeNotifier {
-  AppSessionController({required AuthRepository authRepository})
-      : _authRepository = authRepository;
+  AppSessionController({
+    required AuthRepository authRepository,
+    Future<void> Function(SessionUser user)? onAuthenticated,
+  })  : _authRepository = authRepository,
+        _onAuthenticated = onAuthenticated;
 
   final AuthRepository _authRepository;
+  final Future<void> Function(SessionUser user)? _onAuthenticated;
 
   AppSessionStatus _status = AppSessionStatus.initializing;
   SessionUser? _currentUser;
@@ -114,6 +118,7 @@ class AppSessionController extends ChangeNotifier {
       _status = AppSessionStatus.authenticated;
       _lastError = null;
       notifyListeners();
+      await _notifyAuthenticated(user);
       return true;
     } catch (_) {
       _currentUser = null;
@@ -132,6 +137,7 @@ class AppSessionController extends ChangeNotifier {
       _currentUser = await action();
       _status = AppSessionStatus.authenticated;
       notifyListeners();
+      await _notifyAuthenticated(_currentUser!);
       return true;
     } catch (error) {
       _currentUser = null;
@@ -139,6 +145,14 @@ class AppSessionController extends ChangeNotifier {
       _lastError = AppException.describe(error);
       notifyListeners();
       return false;
+    }
+  }
+
+  Future<void> _notifyAuthenticated(SessionUser user) async {
+    try {
+      await _onAuthenticated?.call(user);
+    } catch (_) {
+      // 设备注册等附属动作失败不影响登录态。
     }
   }
 }

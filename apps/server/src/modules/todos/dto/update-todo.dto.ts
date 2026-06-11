@@ -1,5 +1,14 @@
 import { TodoPriority, TodoStatus } from '@prisma/client';
-import { IsBoolean, IsDateString, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsEnum,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
 export class UpdateTodoDto {
   @IsString()
@@ -30,4 +39,10 @@ export class UpdateTodoDto {
   @IsEnum(TodoStatus)
   @IsOptional()
   status?: TodoStatus;
+
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  @IsOptional()
+  tag_ids?: string[];
 }

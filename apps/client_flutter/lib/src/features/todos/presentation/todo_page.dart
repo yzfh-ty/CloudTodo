@@ -37,6 +37,7 @@ class _TodoPageState extends State<TodoPage> {
     final services = AppScope.of(context).services;
     _controller = TodoListController(
       todoRepository: services.todoRepository,
+      todoMetadataRepository: services.todoMetadataRepository,
       remindersRepository: services.remindersRepository,
     )..initialize();
     _initialized = true;
@@ -211,6 +212,98 @@ class _TodoPageState extends State<TodoPage> {
                                   ),
                                 ],
                               ),
+                              const SizedBox(height: 16),
+                              Wrap(
+                                spacing: 12,
+                                runSpacing: 12,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  SizedBox(
+                                    width: 220,
+                                    child: DropdownButtonFormField<String>(
+                                      value: _controller.listFilter ?? '',
+                                      decoration: const InputDecoration(labelText: '清单筛选'),
+                                      items: [
+                                        const DropdownMenuItem(
+                                          value: '',
+                                          child: Text('全部清单'),
+                                        ),
+                                        ..._controller.todoLists.map(
+                                          (list) => DropdownMenuItem(
+                                            value: list.id,
+                                            child: Text(list.name),
+                                          ),
+                                        ),
+                                      ],
+                                      onChanged: (value) {
+                                        _controller.setListFilter(
+                                          value == null || value.isEmpty ? null : value,
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    width: 220,
+                                    child: DropdownButtonFormField<String>(
+                                      value: _controller.tagFilter ?? '',
+                                      decoration: const InputDecoration(labelText: '标签筛选'),
+                                      items: [
+                                        const DropdownMenuItem(
+                                          value: '',
+                                          child: Text('全部标签'),
+                                        ),
+                                        ..._controller.tags.map(
+                                          (tag) => DropdownMenuItem(
+                                            value: tag.id,
+                                            child: Text(tag.name),
+                                          ),
+                                        ),
+                                      ],
+                                      onChanged: (value) {
+                                        _controller.setTagFilter(
+                                          value == null || value.isEmpty ? null : value,
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  OutlinedButton.icon(
+                                    onPressed: _controller.isSubmitting ? null : _createTodoList,
+                                    icon: const Icon(Icons.create_new_folder_rounded),
+                                    label: const Text('新建清单'),
+                                  ),
+                                  OutlinedButton.icon(
+                                    onPressed: _controller.isSubmitting ? null : _createTag,
+                                    icon: const Icon(Icons.sell_rounded),
+                                    label: const Text('新建标签'),
+                                  ),
+                                ],
+                              ),
+                              if (_controller.todoLists.isNotEmpty ||
+                                  _controller.tags.isNotEmpty) ...[
+                                const SizedBox(height: 14),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    ..._controller.todoLists.map(
+                                      (list) => InputChip(
+                                        avatar: const Icon(Icons.folder_rounded, size: 18),
+                                        label: Text(list.name),
+                                        onPressed: () => _editTodoList(list.id, list.name),
+                                        onDeleted: () => _deleteTodoList(list.id, list.name),
+                                      ),
+                                    ),
+                                    ..._controller.tags.map(
+                                      (tag) => InputChip(
+                                        avatar: const Icon(Icons.sell_rounded, size: 18),
+                                        label: Text(tag.name),
+                                        onPressed: () => _editTag(tag.id, tag.name),
+                                        onDeleted: () => _deleteTag(tag.id, tag.name),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                               if (_controller.errorMessage != null) ...[
                                 const SizedBox(height: 12),
                                 Text(
@@ -318,7 +411,11 @@ class _TodoPageState extends State<TodoPage> {
 
   Future<void> _createTodo() async {
     final created = await _controller.createTodo(
-      TodoFormData.createDraft().copyWith(title: _createController.text),
+      TodoFormData.createDraft().copyWith(
+        title: _createController.text,
+        listId: _controller.listFilter,
+        tagIds: _controller.tagFilter == null ? const [] : [_controller.tagFilter!],
+      ),
     );
     if (created) {
       _createController.clear();
@@ -329,16 +426,20 @@ class _TodoPageState extends State<TodoPage> {
     final draft = await showDialog<TodoFormData>(
       context: context,
       builder: (context) {
-        return const TodoEditorDialog(
-          initialValue: TodoFormData(
+        return TodoEditorDialog(
+          initialValue: const TodoFormData(
             title: '',
             description: '',
             priority: 'medium',
             dueAt: null,
             isAllDay: false,
+            listId: null,
+            tagIds: [],
           ),
           title: '创建任务',
           submitLabel: '保存',
+          todoLists: _controller.todoLists,
+          tags: _controller.tags,
         );
       },
     );
@@ -363,6 +464,8 @@ class _TodoPageState extends State<TodoPage> {
           initialValue: TodoFormData.fromTodo(item),
           title: '编辑任务',
           submitLabel: '更新',
+          todoLists: _controller.todoLists,
+          tags: _controller.tags,
         );
       },
     );
@@ -377,6 +480,181 @@ class _TodoPageState extends State<TodoPage> {
         const SnackBar(content: Text('任务已更新')),
       );
     }
+  }
+
+  Future<void> _createTodoList() async {
+    final name = await _showNameDialog(
+      title: '新建清单',
+      labelText: '清单名称',
+    );
+    if (!mounted || name == null) {
+      return;
+    }
+
+    final created = await _controller.createTodoList(name);
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(created ? '清单已创建' : (_controller.errorMessage ?? '清单创建失败'))),
+    );
+  }
+
+  Future<void> _createTag() async {
+    final name = await _showNameDialog(
+      title: '新建标签',
+      labelText: '标签名称',
+    );
+    if (!mounted || name == null) {
+      return;
+    }
+
+    final created = await _controller.createTag(name);
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(created ? '标签已创建' : (_controller.errorMessage ?? '标签创建失败'))),
+    );
+  }
+
+  Future<void> _editTodoList(String id, String currentName) async {
+    final name = await _showNameDialog(
+      title: '编辑清单',
+      labelText: '清单名称',
+      initialValue: currentName,
+    );
+    if (!mounted || name == null) {
+      return;
+    }
+
+    final updated = await _controller.updateTodoList(id, name);
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(updated ? '清单已更新' : (_controller.errorMessage ?? '清单更新失败'))),
+    );
+  }
+
+  Future<void> _deleteTodoList(String id, String name) async {
+    final confirmed = await _confirmMetadataDelete('清单', name);
+    if (!mounted || !confirmed) {
+      return;
+    }
+
+    final deleted = await _controller.deleteTodoList(id);
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(deleted ? '清单已删除' : (_controller.errorMessage ?? '清单删除失败'))),
+    );
+  }
+
+  Future<void> _editTag(String id, String currentName) async {
+    final name = await _showNameDialog(
+      title: '编辑标签',
+      labelText: '标签名称',
+      initialValue: currentName,
+    );
+    if (!mounted || name == null) {
+      return;
+    }
+
+    final updated = await _controller.updateTag(id, name);
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(updated ? '标签已更新' : (_controller.errorMessage ?? '标签更新失败'))),
+    );
+  }
+
+  Future<void> _deleteTag(String id, String name) async {
+    final confirmed = await _confirmMetadataDelete('标签', name);
+    if (!mounted || !confirmed) {
+      return;
+    }
+
+    final deleted = await _controller.deleteTag(id);
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(deleted ? '标签已删除' : (_controller.errorMessage ?? '标签删除失败'))),
+    );
+  }
+
+  Future<String?> _showNameDialog({
+    required String title,
+    required String labelText,
+    String initialValue = '',
+  }) {
+    final controller = TextEditingController(text: initialValue);
+    return showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(title),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: InputDecoration(labelText: labelText),
+            onSubmitted: (value) {
+              final name = value.trim();
+              if (name.isNotEmpty) {
+                Navigator.of(context).pop(name);
+              }
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final name = controller.text.trim();
+                if (name.isNotEmpty) {
+                  Navigator.of(context).pop(name);
+                }
+              },
+              child: const Text('保存'),
+            ),
+          ],
+        );
+      },
+    ).whenComplete(controller.dispose);
+  }
+
+  Future<bool> _confirmMetadataDelete(String type, String name) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: Text('删除$type'),
+              content: Text('确认删除$type“$name”？相关任务会保留。'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('取消'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('删除'),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
   }
 
   Future<void> _openTodoDetail(TodoItem item) async {

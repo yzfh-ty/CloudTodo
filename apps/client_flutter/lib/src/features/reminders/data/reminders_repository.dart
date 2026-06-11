@@ -1,4 +1,5 @@
 import '../../../core/http/http_client.dart';
+import '../domain/reminder_event_item.dart';
 import '../domain/reminder_item.dart';
 
 class RemindersRepository {
@@ -25,6 +26,7 @@ class RemindersRepository {
     required String channel,
     required DateTime remindAt,
     required String repeatType,
+    Map<String, dynamic>? repeatRule,
     required String timezone,
   }) {
     return _apiClient.post(
@@ -33,6 +35,7 @@ class RemindersRepository {
         'channel': channel,
         'remind_at': remindAt.toUtc().toIso8601String(),
         'repeat_type': repeatType,
+        'repeat_rule': repeatRule,
         'timezone': timezone,
       },
       parser: (data) => ReminderItem.fromJson(data as Map<String, dynamic>),
@@ -44,6 +47,7 @@ class RemindersRepository {
     required String channel,
     required DateTime remindAt,
     required String repeatType,
+    Map<String, dynamic>? repeatRule,
     required String timezone,
   }) {
     return _apiClient.patch(
@@ -52,6 +56,7 @@ class RemindersRepository {
         'channel': channel,
         'remind_at': remindAt.toUtc().toIso8601String(),
         'repeat_type': repeatType,
+        'repeat_rule': repeatRule,
         'timezone': timezone,
       },
       parser: (data) => ReminderItem.fromJson(data as Map<String, dynamic>),
@@ -62,6 +67,31 @@ class RemindersRepository {
     return _apiClient.delete(
       '/reminders/$reminderId',
       parser: (data) => ReminderItem.fromJson(data as Map<String, dynamic>),
+    );
+  }
+
+  Future<List<ReminderEventItem>> getPendingLocalEvents() {
+    return _apiClient.get(
+      '/reminder-events',
+      queryParameters: {
+        'status': 'pending',
+      },
+      parser: (data) {
+        final payload = data as Map<String, dynamic>;
+        final items = payload['items'] as List<dynamic>? ?? const [];
+        return items
+            .whereType<Map<String, dynamic>>()
+            .map(ReminderEventItem.fromJson)
+            .where((item) => item.channel == 'android_local' || item.channel == 'windows_local')
+            .toList(growable: false);
+      },
+    );
+  }
+
+  Future<ReminderEventItem> ackReminderEvent(String id) {
+    return _apiClient.post(
+      '/reminder-events/$id/ack',
+      parser: (data) => ReminderEventItem.fromJson(data as Map<String, dynamic>),
     );
   }
 }

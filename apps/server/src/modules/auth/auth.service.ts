@@ -1,11 +1,14 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
-import { UserRole, UserStatus } from '@prisma/client';
+import { PasswordResetMode, UserRole, UserStatus } from '@prisma/client';
 import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../../common/database/prisma.service';
 import { hashPassword, verifyPassword } from '../../common/security/password.util';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { ConfirmPasswordResetDto } from './dto/confirm-password-reset.dto';
 import { UserSessionService } from './user-session.service';
+import type { AuthenticatedUser } from './user-session.service';
 
 @Injectable()
 export class AuthService {
@@ -58,6 +61,7 @@ export class AuthService {
         role: true,
         status: true,
         timezone: true,
+        forcePasswordChange: true,
         createdAt: true,
       },
     });
@@ -85,6 +89,7 @@ export class AuthService {
         role: true,
         status: true,
         timezone: true,
+        forcePasswordChange: true,
         lastLoginAt: true,
         passwordHash: true,
       },
@@ -117,6 +122,7 @@ export class AuthService {
         role: true,
         status: true,
         timezone: true,
+        forcePasswordChange: true,
         lastLoginAt: true,
       },
     });
@@ -167,6 +173,7 @@ export class AuthService {
             role: true,
             status: true,
             timezone: true,
+            forcePasswordChange: true,
             lastLoginAt: true,
           },
         },
@@ -254,6 +261,146 @@ export class AuthService {
       code: 'OK',
       message: 'success',
       data: null,
+    };
+  }
+
+  async changePassword(user: AuthenticatedUser, dto: ChangePasswordDto) {
+    if (dto.new_password !== dto.confirm_password) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'password confirmation does not match',
+      });
+    }
+
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: {
+        id: true,
+        passwordHash: true,
+      },
+    });
+
+    if (!currentUser || !verifyPassword(dto.current_password, currentUser.passwordHash)) {
+      throw new UnauthorizedException({
+        code: 'INVALID_PASSWORD',
+        message: 'current password is invalid',
+      });
+    }
+
+    const changedAt = new Date();
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          passwordHash: hashPassword(dto.new_password),
+          passwordChangedAt: changedAt,
+          forcePasswordChange: false,
+        },
+      }),
+      this.prisma.authRefreshToken.updateMany({
+        where: {
+          userId: user.id,
+          revokedAt: null,
+        },
+        data: {
+          revokedAt: changedAt,
+          revokeReason: 'user_password_changed',
+        },
+      }),
+      this.prisma.authPasswordResetToken.updateMany({
+        where: {
+          userId: user.id,
+          consumedAt: null,
+        },
+        data: {
+          consumedAt: changedAt,
+        },
+      }),
+    ]);
+
+    return {
+      code: 'OK',
+      message: 'success',
+      data: {
+        changed: true,
+        changed_at: changedAt.toISOString(),
+        reauth_required: true,
+      },
+    };
+  }
+
+  async confirmPasswordReset(dto: ConfirmPasswordResetDto) {
+    if (dto.new_password !== dto.confirm_password) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'password confirmation does not match',
+      });
+    }
+
+    const now = new Date();
+    const candidates = await this.prisma.authPasswordResetToken.findMany({
+      where: {
+        mode: PasswordResetMode.reset_token,
+        consumedAt: null,
+        expiresAt: {
+          gt: now,
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 100,
+      select: {
+        id: true,
+        userId: true,
+        tokenHash: true,
+      },
+    });
+    const matchedToken = candidates.find((candidate) =>
+      verifyPassword(dto.token, candidate.tokenHash),
+    );
+
+    if (!matchedToken) {
+      throw new BadRequestException({
+        code: 'PASSWORD_RESET_TOKEN_INVALID',
+        message: 'password reset token is invalid or expired',
+      });
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: matchedToken.userId },
+        data: {
+          passwordHash: hashPassword(dto.new_password),
+          passwordChangedAt: now,
+          forcePasswordChange: false,
+        },
+      }),
+      this.prisma.authRefreshToken.updateMany({
+        where: {
+          userId: matchedToken.userId,
+          revokedAt: null,
+        },
+        data: {
+          revokedAt: now,
+          revokeReason: 'password_reset_confirmed',
+        },
+      }),
+      this.prisma.authPasswordResetToken.update({
+        where: { id: matchedToken.id },
+        data: {
+          consumedAt: now,
+        },
+      }),
+    ]);
+
+    return {
+      code: 'OK',
+      message: 'success',
+      data: {
+        reset: true,
+        changed_at: now.toISOString(),
+      },
     };
   }
 
