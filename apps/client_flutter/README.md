@@ -93,12 +93,12 @@ apps/client_flutter/
 
 ## 本地启动
 
-### 一键启动 Web
+### Windows BAT 手动启动 Web
 
 从仓库根目录执行：
 
-```powershell
-.\scripts\start-client-web.ps1
+```bat
+start-client-web.bat
 ```
 
 默认访问地址：
@@ -107,8 +107,8 @@ apps/client_flutter/
 
 常用参数：
 
-- `-WebPort 8081`：指定 Flutter Web 端口
-- `-SkipPubGet`：跳过 `flutter pub get`
+- `--web-port 8081`：指定 Flutter Web 端口
+- `--skip-pub-get`：跳过 `flutter pub get`
 
 ### 安装依赖
 
@@ -145,7 +145,7 @@ flutter run -d windows
 
 在当前目录执行：
 
-```powershell
+```bat
 docker compose up --build
 ```
 

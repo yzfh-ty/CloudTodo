@@ -80,23 +80,35 @@ apps/server/
 
 ## 快速开始
 
-### 一键启动
+### Windows BAT 手动启动
 
 从仓库根目录执行：
 
-```powershell
-.\scripts\start-server.ps1 -UseDockerDb -SeedAdmin
+```bat
+start-server.bat --use-docker-db --seed-admin
 ```
 
 常用参数：
 
-- `-UseDockerDb`：启动 `apps/server/docker-compose.yml` 中的 PostgreSQL
-- `-SeedAdmin`：执行 `npm run seed:admin`
-- `-SkipInstall`：跳过 `npm install`
-- `-SkipPrismaGenerate`：跳过 Prisma Client 生成
-- `-SkipMigrate`：跳过数据库迁移
-- `-Port 3001`：指定后端端口
-- `-DatabaseUrl "postgresql://..."`：指定数据库连接串
+- `--use-docker-db`：启动 `apps/server/docker-compose.yml` 中的 PostgreSQL
+- `--seed-admin`：执行 `npm run seed:admin`
+- `--skip-install`：跳过 `npm install`
+- `--skip-prisma-generate`：跳过 Prisma Client 生成
+- `--skip-migrate`：跳过数据库迁移
+- `--port 3001`：指定后端端口
+- `--database-url "postgresql://..."`：指定数据库连接串
+
+### 默认管理员账号
+
+执行 `start-server.bat --seed-admin` 或 `npm run seed:admin` 后，会初始化管理员账号。
+
+未配置 `ADMIN_SEED_EMAIL` / `ADMIN_SEED_PASSWORD` 时，开发默认账号为：
+
+- 管理后台：`http://localhost:3000/admin/login`
+- 登录账号：`admin@example.com`
+- 登录密码：`admin123456`
+
+如果当前目录的 `.env` 中配置了 `ADMIN_SEED_EMAIL`、`ADMIN_SEED_PASSWORD`，则以 `.env` 中的值为准。
 
 ### 1. 安装依赖
 
@@ -110,10 +122,10 @@ npm install
 cp .env.example .env
 ```
 
-Windows PowerShell:
+Windows CMD / BAT:
 
-```powershell
-Copy-Item .env.example .env
+```bat
+copy .env.example .env
 ```
 
 ### 3. 生成 Prisma Client
@@ -137,7 +149,7 @@ npm run start:dev
 
 在当前目录执行：
 
-```powershell
+```bat
 docker compose up --build
 ```
 

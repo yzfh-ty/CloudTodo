@@ -20,6 +20,9 @@ CloudTodo/
 │  ├─ client_flutter/
 │  └─ server/
 ├─ docs/
+├─ start-client-web.bat
+├─ start-dev.bat
+├─ start-server.bat
 └─ README.md
 ```
 
@@ -63,12 +66,12 @@ CloudTodo/
 
 ## 快速开始
 
-### 一键启动开发环境
+### Windows BAT 手动启动开发环境
 
-Windows PowerShell:
+从仓库根目录执行：
 
-```powershell
-.\scripts\start-dev.ps1 -UseDockerDb -SeedAdmin
+```bat
+start-dev.bat --use-docker-db --seed-admin
 ```
 
 该命令会打开两个终端窗口：
@@ -78,20 +81,41 @@ Windows PowerShell:
 
 如果已经有本地 PostgreSQL，可改用：
 
-```powershell
-.\scripts\start-dev.ps1 -DatabaseUrl "postgresql://cloudtodo:cloudtodo@localhost:5432/cloudtodo?schema=public"
+```bat
+start-dev.bat --database-url "postgresql://cloudtodo:cloudtodo@localhost:5432/cloudtodo?schema=public"
 ```
 
 也可以拆开启动：
 
-```powershell
-.\scripts\start-server.ps1 -UseDockerDb -SeedAdmin
-.\scripts\start-client-web.ps1
+```bat
+start-server.bat --use-docker-db --seed-admin
+start-client-web.bat
 ```
+
+常用参数：
+
+- `--api-port 3001`：指定后端端口
+- `--web-port 8081`：指定 Flutter Web 端口
+- `--skip-install`：跳过后端 `npm install`
+- `--skip-prisma-generate`：跳过 Prisma Client 生成
+- `--skip-migrate`：跳过数据库迁移
+- `--skip-pub-get`：跳过 `flutter pub get`
+
+### 默认管理员账号
+
+执行 `start-dev.bat --use-docker-db --seed-admin` 或 `start-server.bat --seed-admin` 后，会初始化管理员账号。
+
+未配置 `ADMIN_SEED_EMAIL` / `ADMIN_SEED_PASSWORD` 时，开发默认账号为：
+
+- 管理后台：`http://localhost:3000/admin/login`
+- 登录账号：`admin@example.com`
+- 登录密码：`admin123456`
+
+如果 `apps/server/.env` 中配置了 `ADMIN_SEED_EMAIL`、`ADMIN_SEED_PASSWORD`，则以 `.env` 中的值为准。
 
 ### 后端
 
-```powershell
+```bat
 cd apps/server
 npm install
 npm run prisma:generate
@@ -100,7 +124,7 @@ npm run start:dev
 
 ### 客户端
 
-```powershell
+```bat
 cd apps/client_flutter
 flutter pub get
 flutter run -d chrome --web-hostname localhost
@@ -115,14 +139,14 @@ flutter run -d chrome --web-hostname localhost
 
 后端启动：
 
-```powershell
+```bat
 cd apps/server
 docker compose up --build
 ```
 
 Web 启动：
 
-```powershell
+```bat
 cd apps/client_flutter
 docker compose up --build
 ```

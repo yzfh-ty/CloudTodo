@@ -9,7 +9,7 @@
     "start": "node dist/src/main.js",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "port:free": "powershell -ExecutionPolicy Bypass -File .\\scripts\\clear-port.ps1 -Port 3000",
+    "port:free": "scripts\\clear-port.bat 3000",
     "lint": "tsc --noEmit",
     "test": "jest --runInBand",
     "prisma:generate": "prisma generate",
