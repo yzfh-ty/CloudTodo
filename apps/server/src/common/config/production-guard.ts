@@ -3,6 +3,9 @@ const INSECURE_SECRET_VALUES = new Set([
   'change-me-refresh-secret',
   'change-me-webhook-secret',
   'change-me-admin-session-secret',
+  'change-me-csrf-secret',
+  'change-me-webhook-secret-encryption-key',
+  'change-me-password-reset-token-secret',
   'local-access-secret',
   'local-refresh-secret',
   'local-webhook-secret',
@@ -19,6 +22,7 @@ export function assertProductionSecrets() {
     'ADMIN_SESSION_SECRET',
     'CSRF_SECRET',
     'WEBHOOK_SECRET_ENCRYPTION_KEY',
+    'PASSWORD_RESET_TOKEN_SECRET',
   ]) {
     const value = process.env[key];
     if (!value || value.length < 32 || INSECURE_SECRET_VALUES.has(value)) {

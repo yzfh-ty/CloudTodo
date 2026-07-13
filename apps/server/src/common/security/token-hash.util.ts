@@ -7,13 +7,10 @@ export function hashResetToken(token: string) {
 }
 
 function getResetTokenSecret() {
-  const secret =
-    process.env.PASSWORD_RESET_TOKEN_SECRET ??
-    process.env.JWT_ACCESS_SECRET ??
-    process.env.ADMIN_SESSION_SECRET;
+  const secret = process.env.PASSWORD_RESET_TOKEN_SECRET;
 
   if (!secret) {
-    throw new Error('PASSWORD_RESET_TOKEN_SECRET or a session secret is required');
+    throw new Error('PASSWORD_RESET_TOKEN_SECRET is required');
   }
 
   return secret;

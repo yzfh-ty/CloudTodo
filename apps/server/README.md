@@ -109,7 +109,7 @@ start-server.bat --use-docker-db --seed-admin
 - 登录密码：`admin123456`
 
 如果当前目录的 `.env` 中配置了 `ADMIN_SEED_EMAIL`、`ADMIN_SEED_PASSWORD`，则以 `.env` 中的值为准。
-生产环境必须显式配置强随机 `ADMIN_SEED_PASSWORD`、`JWT_ACCESS_SECRET`、`ADMIN_SESSION_SECRET`、`CSRF_SECRET` 和 `WEBHOOK_SECRET_ENCRYPTION_KEY`，服务会拒绝使用默认弱值启动。
+生产环境必须显式配置强随机 `ADMIN_SEED_PASSWORD`、`JWT_ACCESS_SECRET`、`ADMIN_SESSION_SECRET`、`CSRF_SECRET`、`WEBHOOK_SECRET_ENCRYPTION_KEY` 和 `PASSWORD_RESET_TOKEN_SECRET`，服务会拒绝使用默认弱值启动。
 
 ### 1. 安装依赖
 

@@ -24,9 +24,5 @@ export function verifyPassword(password: string, storedHash: string): boolean {
     return timingSafeEqual(derivedKey, storedKey);
   }
 
-  if (process.env.ALLOW_PLAINTEXT_PASSWORD_VERIFY === 'true') {
-    return storedHash === password;
-  }
-
   return false;
 }

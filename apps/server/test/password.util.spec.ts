@@ -10,19 +10,8 @@ describe('password util', () => {
     expect(verifyPassword('wrong-password', hash)).toBe(false);
   });
 
-  it('supports legacy plain text fallback only when explicitly enabled', () => {
-    const previous = process.env.ALLOW_PLAINTEXT_PASSWORD_VERIFY;
-    process.env.ALLOW_PLAINTEXT_PASSWORD_VERIFY = 'true';
-
-    try {
-      expect(verifyPassword('plain', 'plain')).toBe(true);
-      expect(verifyPassword('plain', 'other')).toBe(false);
-    } finally {
-      if (previous === undefined) {
-        delete process.env.ALLOW_PLAINTEXT_PASSWORD_VERIFY;
-      } else {
-        process.env.ALLOW_PLAINTEXT_PASSWORD_VERIFY = previous;
-      }
-    }
+  it('rejects unsupported password hash formats', () => {
+    expect(verifyPassword('plain', 'plain')).toBe(false);
+    expect(verifyPassword('plain', 'unsupported$hash')).toBe(false);
   });
 });

@@ -18,7 +18,7 @@ export function encryptSecret(value: string) {
 
 export function decryptSecret(value: string) {
   if (!value.startsWith(ENCRYPTED_SECRET_PREFIX)) {
-    return value;
+    throw new Error('encrypted secret is required');
   }
 
   const [, , ivBase64, tagBase64, ciphertextBase64] = value.split(':');
@@ -39,14 +39,10 @@ export function decryptSecret(value: string) {
 }
 
 function getEncryptionKey() {
-  const secret =
-    process.env.WEBHOOK_SECRET_ENCRYPTION_KEY ??
-    process.env.WEBHOOK_SIGNING_SECRET ??
-    process.env.JWT_ACCESS_SECRET ??
-    process.env.ADMIN_SESSION_SECRET;
+  const secret = process.env.WEBHOOK_SECRET_ENCRYPTION_KEY;
 
   if (!secret) {
-    throw new Error('WEBHOOK_SECRET_ENCRYPTION_KEY or a session secret is required');
+    throw new Error('WEBHOOK_SECRET_ENCRYPTION_KEY is required');
   }
 
   return createHash('sha256').update(secret).digest();

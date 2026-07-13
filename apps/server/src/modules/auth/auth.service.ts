@@ -347,7 +347,7 @@ export class AuthService {
 
     const now = new Date();
     const tokenHash = hashResetToken(dto.token);
-    const exactToken = await this.prisma.authPasswordResetToken.findFirst({
+    const matchedToken = await this.prisma.authPasswordResetToken.findFirst({
       where: {
         mode: PasswordResetMode.reset_token,
         tokenHash,
@@ -361,8 +361,6 @@ export class AuthService {
         userId: true,
       },
     });
-
-    const matchedToken = exactToken ?? await this.findLegacyResetToken(dto.token, now);
 
     if (!matchedToken) {
       throw new BadRequestException({
@@ -406,28 +404,6 @@ export class AuthService {
         changed_at: now.toISOString(),
       },
     };
-  }
-
-  private async findLegacyResetToken(token: string, now: Date) {
-    const candidates = await this.prisma.authPasswordResetToken.findMany({
-      where: {
-        mode: PasswordResetMode.reset_token,
-        consumedAt: null,
-        expiresAt: {
-          gt: now,
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      take: 100,
-      select: {
-        id: true,
-        userId: true,
-        tokenHash: true,
-      },
-    });
-    return candidates.find((candidate) => verifyPassword(token, candidate.tokenHash));
   }
 
   private hashRefreshToken(token: string): string {

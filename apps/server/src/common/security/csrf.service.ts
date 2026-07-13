@@ -68,13 +68,10 @@ export class CsrfService {
   }
 
   private getSecret() {
-    const secret =
-      this.configService.get<string>('CSRF_SECRET') ??
-      this.configService.get<string>('JWT_ACCESS_SECRET') ??
-      this.configService.get<string>('ADMIN_SESSION_SECRET');
+    const secret = this.configService.get<string>('CSRF_SECRET');
 
     if (!secret) {
-      throw new Error('CSRF_SECRET or a session secret is required');
+      throw new Error('CSRF_SECRET is required');
     }
 
     return secret;
