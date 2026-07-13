@@ -63,7 +63,8 @@ class _SettingsPageState extends State<SettingsPage> {
 
     final services = AppScope.of(context).services;
     if (!_backendUrlInitialized) {
-      _backendUrlController.text = AppScope.of(context).controller.currentApiBaseUrl;
+      _backendUrlController.text =
+          AppScope.of(context).controller.currentApiBaseUrl;
       _backendUrlInitialized = true;
     }
     _profileController = ProfileController(
@@ -134,13 +135,17 @@ class _SettingsPageState extends State<SettingsPage> {
                       spacing: 12,
                       runSpacing: 12,
                       children: [
-                        _MetaChip(label: '昵称', value: currentUser?.nickname ?? '-'),
-                        _MetaChip(label: '邮箱', value: currentUser?.email ?? '-'),
+                        _MetaChip(
+                            label: '昵称', value: currentUser?.nickname ?? '-'),
+                        _MetaChip(
+                            label: '邮箱', value: currentUser?.email ?? '-'),
                         if (currentUser?.forcePasswordChange == true)
                           const _MetaChip(label: '安全状态', value: '需要修改密码'),
                         _MetaChip(
                           label: '时区',
-                          value: currentUser == null ? '-' : timezoneText(currentUser.timezone),
+                          value: currentUser == null
+                              ? '-'
+                              : timezoneText(currentUser.timezone),
                         ),
                       ],
                     ),
@@ -183,7 +188,9 @@ class _SettingsPageState extends State<SettingsPage> {
                           child: Text(_isSyncing ? '同步中...' : '首次同步'),
                         ),
                         OutlinedButton(
-                          onPressed: _isSyncing || _syncCursor == null ? null : _syncChanges,
+                          onPressed: _isSyncing || _syncCursor == null
+                              ? null
+                              : _syncChanges,
                           child: const Text('拉取增量'),
                         ),
                       ],
@@ -327,7 +334,8 @@ class _SettingsPageState extends State<SettingsPage> {
                         labelText: '后端地址',
                         helperText: '输入 http://localhost:3000 或完整的 /api 地址',
                       ),
-                      validator: (value) => appScope.controller.validateApiBaseUrl(value ?? ''),
+                      validator: (value) =>
+                          appScope.controller.validateApiBaseUrl(value ?? ''),
                     ),
                     const SizedBox(height: 16),
                     Wrap(
@@ -340,7 +348,8 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                         OutlinedButton(
                           onPressed: () {
-                            _backendUrlController.text = AppConfig.defaults().apiBaseUrl;
+                            _backendUrlController.text =
+                                AppConfig.defaults().apiBaseUrl;
                           },
                           child: const Text('恢复默认地址'),
                         ),
@@ -379,11 +388,17 @@ class _SettingsPageState extends State<SettingsPage> {
                           _MetaChip(label: '用户 ID', value: profile?.id ?? '-'),
                           _MetaChip(
                             label: '角色',
-                            value: profile == null ? '-' : (profile.role == 'admin' ? '管理员' : '普通用户'),
+                            value: profile == null
+                                ? '-'
+                                : (profile.role == 'admin' ? '管理员' : '普通用户'),
                           ),
                           _MetaChip(
                             label: '状态',
-                            value: profile == null ? '-' : (profile.status == 'active' ? '正常' : profile.status),
+                            value: profile == null
+                                ? '-'
+                                : (profile.status == 'active'
+                                    ? '正常'
+                                    : profile.status),
                           ),
                           _MetaChip(
                             label: '最近登录',
@@ -401,7 +416,9 @@ class _SettingsPageState extends State<SettingsPage> {
                         controller: _emailController,
                         decoration: const InputDecoration(labelText: '邮箱'),
                         validator: (value) {
-                          if (value == null || value.trim().isEmpty || !value.contains('@')) {
+                          if (value == null ||
+                              value.trim().isEmpty ||
+                              !value.contains('@')) {
                             return '请输入合法邮箱';
                           }
                           return null;
@@ -409,7 +426,9 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
-                        value: _timezoneController.text.isEmpty ? null : _timezoneController.text,
+                        initialValue: _timezoneController.text.isEmpty
+                            ? null
+                            : _timezoneController.text,
                         decoration: const InputDecoration(labelText: '时区'),
                         items: kCommonTimezones
                             .map(
@@ -441,10 +460,12 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                       const SizedBox(height: 20),
                       FilledButton(
-                        onPressed: _profileController.isSaving ? null : _saveProfile,
+                        onPressed:
+                            _profileController.isSaving ? null : _saveProfile,
                         child: Padding(
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          child: Text(_profileController.isSaving ? '保存中...' : '保存资料'),
+                          child: Text(
+                              _profileController.isSaving ? '保存中...' : '保存资料'),
                         ),
                       ),
                     ],
@@ -468,7 +489,9 @@ class _SettingsPageState extends State<SettingsPage> {
                           ),
                         ),
                         FilledButton.icon(
-                          onPressed: _endpointsController.isLoading ? null : _createEndpoint,
+                          onPressed: _endpointsController.isLoading
+                              ? null
+                              : _createEndpoint,
                           icon: const Icon(Icons.add_link_rounded),
                           label: const Text('新增方式'),
                         ),
@@ -499,7 +522,9 @@ class _SettingsPageState extends State<SettingsPage> {
                         title: '当前还没有通知方式',
                         description: '如果你希望把提醒推送到企业微信机器人或自己的服务，可以先新增一种通知方式。',
                         action: FilledButton.tonal(
-                          onPressed: _endpointsController.isLoading ? null : _createEndpoint,
+                          onPressed: _endpointsController.isLoading
+                              ? null
+                              : _createEndpoint,
                           child: const Text('新增通知方式'),
                         ),
                       )
@@ -509,8 +534,9 @@ class _SettingsPageState extends State<SettingsPage> {
                           padding: const EdgeInsets.only(bottom: 12),
                           child: _EndpointCard(
                             item: item,
-                            busy: _endpointsController.submittingId == item.id ||
-                                _endpointsController.testingId == item.id,
+                            busy:
+                                _endpointsController.submittingId == item.id ||
+                                    _endpointsController.testingId == item.id,
                             onCopyUrl: () => _copyEndpointUrl(item),
                             onTest: () => _testEndpoint(item),
                             onEdit: () => _editEndpoint(item),
@@ -545,7 +571,8 @@ class _SettingsPageState extends State<SettingsPage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(updated ? '资料已更新' : (_profileController.errorMessage ?? '资料更新失败')),
+        content: Text(
+            updated ? '资料已更新' : (_profileController.errorMessage ?? '资料更新失败')),
       ),
     );
   }
@@ -554,7 +581,9 @@ class _SettingsPageState extends State<SettingsPage> {
     final currentPassword = _currentPasswordController.text;
     final newPassword = _newPasswordController.text;
     final confirmPassword = _confirmPasswordController.text;
-    if (currentPassword.isEmpty || newPassword.length < 8 || newPassword != confirmPassword) {
+    if (currentPassword.isEmpty ||
+        newPassword.length < 8 ||
+        newPassword != confirmPassword) {
       setState(() {
         _passwordError = '请检查当前密码、新密码长度和确认密码是否一致';
       });
@@ -606,7 +635,8 @@ class _SettingsPageState extends State<SettingsPage> {
     });
 
     try {
-      final devices = await AppScope.of(context).services.deviceRepository.getDevices();
+      final devices =
+          await AppScope.of(context).services.deviceRepository.getDevices();
       if (!mounted) {
         return;
       }
@@ -661,7 +691,10 @@ class _SettingsPageState extends State<SettingsPage> {
     });
 
     try {
-      await AppScope.of(context).services.deviceRepository.deleteDevice(device.id);
+      await AppScope.of(context)
+          .services
+          .deviceRepository
+          .deleteDevice(device.id);
       await _loadDevices();
     } catch (error) {
       if (!mounted) {
@@ -680,7 +713,8 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _syncBootstrap() {
-    return _runSync(() => AppScope.of(context).services.syncRepository.bootstrap());
+    return _runSync(
+        () => AppScope.of(context).services.syncRepository.bootstrap());
   }
 
   Future<void> _syncChanges() {
@@ -689,7 +723,8 @@ class _SettingsPageState extends State<SettingsPage> {
       return Future.value();
     }
 
-    return _runSync(() => AppScope.of(context).services.syncRepository.changes(cursor: cursor));
+    return _runSync(() =>
+        AppScope.of(context).services.syncRepository.changes(cursor: cursor));
   }
 
   Future<void> _runSync(Future<SyncSnapshot> Function() action) async {
@@ -744,7 +779,8 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _applyBackendUrl(AppScope appScope) async {
-    final validation = appScope.controller.validateApiBaseUrl(_backendUrlController.text);
+    final validation =
+        appScope.controller.validateApiBaseUrl(_backendUrlController.text);
     if (validation != null) {
       if (!mounted) {
         return;
@@ -755,7 +791,8 @@ class _SettingsPageState extends State<SettingsPage> {
       return;
     }
 
-    final nextUrl = appScope.controller.normalizeApiBaseUrl(_backendUrlController.text);
+    final nextUrl =
+        appScope.controller.normalizeApiBaseUrl(_backendUrlController.text);
     if (nextUrl == appScope.controller.currentApiBaseUrl) {
       if (!mounted) {
         return;
@@ -827,7 +864,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(created ? '通知方式已创建' : (_endpointsController.errorMessage ?? '通知方式创建失败')),
+        content: Text(created
+            ? '通知方式已创建'
+            : (_endpointsController.errorMessage ?? '通知方式创建失败')),
       ),
     );
   }
@@ -838,9 +877,10 @@ class _SettingsPageState extends State<SettingsPage> {
       builder: (context) {
         return NotificationEndpointEditorDialog(
           initialValue: NotificationEndpointFormData(
-            deliveryKind: item.targetUrl.contains('weixin.qq.com/cgi-bin/webhook/send')
-                ? 'wecom_robot'
-                : 'standard_webhook',
+            deliveryKind:
+                item.targetUrl.contains('weixin.qq.com/cgi-bin/webhook/send')
+                    ? 'wecom_robot'
+                    : 'standard_webhook',
             name: item.name,
             targetUrl: item.targetUrl,
             payloadTemplate: item.payloadTemplate ?? '',
@@ -866,7 +906,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(updated ? '通知方式已更新' : (_endpointsController.errorMessage ?? '通知方式更新失败')),
+        content: Text(updated
+            ? '通知方式已更新'
+            : (_endpointsController.errorMessage ?? '通知方式更新失败')),
       ),
     );
   }
@@ -904,7 +946,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(deleted ? '通知方式已删除' : (_endpointsController.errorMessage ?? '通知方式删除失败')),
+        content: Text(deleted
+            ? '通知方式已删除'
+            : (_endpointsController.errorMessage ?? '通知方式删除失败')),
       ),
     );
   }
@@ -940,9 +984,11 @@ class _SettingsPageState extends State<SettingsPage> {
                 children: [
                   Text('通知方式：${item.name}'),
                   Text('类型：$providerText'),
-                  Text('状态：${endpointTestStatusText(payload['status']?.toString() ?? '-')}'),
+                  Text(
+                      '状态：${endpointTestStatusText(payload['status']?.toString() ?? '-')}'),
                   Text('响应码：$responseCode'),
-                  Text('测试时间：${testedAt == null ? '-' : formatDateTime(DateTime.tryParse(testedAt))}'),
+                  Text(
+                      '测试时间：${testedAt == null ? '-' : formatDateTime(DateTime.tryParse(testedAt))}'),
                   const SizedBox(height: 12),
                   const Text(
                     '返回内容',
@@ -1108,7 +1154,8 @@ class _EndpointCard extends StatelessWidget {
             children: [
               _MetaChip(
                 label: '方式',
-                value: item.targetUrl.contains('weixin.qq.com/cgi-bin/webhook/send')
+                value: item.targetUrl
+                        .contains('weixin.qq.com/cgi-bin/webhook/send')
                     ? '企业微信机器人'
                     : '标准 Webhook',
               ),
@@ -1120,8 +1167,10 @@ class _EndpointCard extends StatelessWidget {
                 value: item.lastResponseCode?.toString() ?? '无',
               ),
               _MetaChip(label: '创建时间', value: formatDateTime(item.createdAt)),
-              _MetaChip(label: '最近成功', value: formatDateTime(item.lastSuccessAt)),
-              _MetaChip(label: '最近失败', value: formatDateTime(item.lastFailureAt)),
+              _MetaChip(
+                  label: '最近成功', value: formatDateTime(item.lastSuccessAt)),
+              _MetaChip(
+                  label: '最近失败', value: formatDateTime(item.lastFailureAt)),
             ],
           ),
           if (item.lastResponseSummary?.trim().isNotEmpty == true) ...[

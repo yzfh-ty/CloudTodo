@@ -27,6 +27,10 @@ class WebPlatformHttpClient implements PlatformHttpClient {
       'Accept': 'application/json',
       ...?headers,
     };
+    final csrfToken = _csrfTokenForRequest(method);
+    if (csrfToken != null) {
+      requestHeaders['X-CSRF-Token'] = csrfToken;
+    }
 
     String? sendData;
     if (body != null) {
@@ -68,5 +72,29 @@ class WebPlatformHttpClient implements PlatformHttpClient {
     };
 
     return uri.replace(queryParameters: cleanedQuery.isEmpty ? null : cleanedQuery).toString();
+  }
+
+  String? _csrfTokenForRequest(String method) {
+    if (_isSafeMethod(method)) {
+      return null;
+    }
+
+    return _readCookie('cloudtodo_user_csrf_token') ??
+        _readCookie('cloudtodo_admin_csrf_token');
+  }
+
+  bool _isSafeMethod(String method) {
+    return const {'GET', 'HEAD', 'OPTIONS'}.contains(method.toUpperCase());
+  }
+
+  String? _readCookie(String name) {
+    final prefix = '$name=';
+    for (final part in html.document.cookie?.split(';') ?? const <String>[]) {
+      final trimmed = part.trim();
+      if (trimmed.startsWith(prefix)) {
+        return Uri.decodeComponent(trimmed.substring(prefix.length));
+      }
+    }
+    return null;
   }
 }

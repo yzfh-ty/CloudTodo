@@ -3,6 +3,7 @@ import { PasswordResetMode, UserRole, UserStatus } from '@prisma/client';
 import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../../common/database/prisma.service';
 import { hashPassword, verifyPassword } from '../../common/security/password.util';
+import { hashResetToken } from '../../common/security/token-hash.util';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -157,7 +158,14 @@ export class AuthService {
     };
   }
 
-  async refresh(refreshToken: string) {
+  async refresh(refreshToken?: string) {
+    if (!refreshToken) {
+      throw new UnauthorizedException({
+        code: 'UNAUTHORIZED',
+        message: 'refresh token is invalid',
+      });
+    }
+
     const tokenHash = this.hashRefreshToken(refreshToken);
     const existingToken = await this.prisma.authRefreshToken.findUnique({
       where: {
@@ -338,27 +346,23 @@ export class AuthService {
     }
 
     const now = new Date();
-    const candidates = await this.prisma.authPasswordResetToken.findMany({
+    const tokenHash = hashResetToken(dto.token);
+    const exactToken = await this.prisma.authPasswordResetToken.findFirst({
       where: {
         mode: PasswordResetMode.reset_token,
+        tokenHash,
         consumedAt: null,
         expiresAt: {
           gt: now,
         },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      take: 100,
       select: {
         id: true,
         userId: true,
-        tokenHash: true,
       },
     });
-    const matchedToken = candidates.find((candidate) =>
-      verifyPassword(dto.token, candidate.tokenHash),
-    );
+
+    const matchedToken = exactToken ?? await this.findLegacyResetToken(dto.token, now);
 
     if (!matchedToken) {
       throw new BadRequestException({
@@ -402,6 +406,28 @@ export class AuthService {
         changed_at: now.toISOString(),
       },
     };
+  }
+
+  private async findLegacyResetToken(token: string, now: Date) {
+    const candidates = await this.prisma.authPasswordResetToken.findMany({
+      where: {
+        mode: PasswordResetMode.reset_token,
+        consumedAt: null,
+        expiresAt: {
+          gt: now,
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 100,
+      select: {
+        id: true,
+        userId: true,
+        tokenHash: true,
+      },
+    });
+    return candidates.find((candidate) => verifyPassword(token, candidate.tokenHash));
   }
 
   private hashRefreshToken(token: string): string {

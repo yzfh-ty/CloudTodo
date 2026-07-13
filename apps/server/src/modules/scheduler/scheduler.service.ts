@@ -10,6 +10,8 @@ import {
 } from '@prisma/client';
 import { createHmac } from 'node:crypto';
 import { PrismaService } from '../../common/database/prisma.service';
+import { OutboundHttpService } from '../../common/security/outbound-http.service';
+import { decryptSecret } from '../../common/security/secret.util';
 import {
   defaultPayloadTemplate,
   inferNotificationDeliveryKind,
@@ -28,6 +30,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly outboundHttpService: OutboundHttpService,
   ) {}
 
   onModuleInit() {
@@ -267,6 +270,9 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
 
     const deliveryKind = inferNotificationDeliveryKind(delivery.endpoint.targetUrl);
     const isWeComRobot = deliveryKind === 'wecom_robot';
+    const endpointSecret = delivery.endpoint.secret
+      ? decryptSecret(delivery.endpoint.secret)
+      : null;
     const payloadObject =
       typeof delivery.reminderEvent.payload === 'object' && delivery.reminderEvent.payload !== null
         ? (delivery.reminderEvent.payload as Record<string, unknown>)
@@ -300,31 +306,26 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     };
 
     let requestUrl = delivery.endpoint.targetUrl;
-    if (isWeComRobot && delivery.endpoint.secret) {
+    if (isWeComRobot && endpointSecret) {
       const timestamp = Date.now().toString();
       const sign = encodeURIComponent(
-        createHmac('sha256', delivery.endpoint.secret)
-          .update(`${timestamp}\n${delivery.endpoint.secret}`)
+        createHmac('sha256', endpointSecret)
+          .update(`${timestamp}\n${endpointSecret}`)
           .digest('base64'),
       );
       const url = new URL(delivery.endpoint.targetUrl);
       url.searchParams.set('timestamp', timestamp);
       url.searchParams.set('sign', sign);
       requestUrl = url.toString();
-    } else if (delivery.endpoint.secret) {
-      headers['X-CloudTodo-Signature'] = createHmac('sha256', delivery.endpoint.secret)
+    } else if (endpointSecret) {
+      headers['X-CloudTodo-Signature'] = createHmac('sha256', endpointSecret)
         .update(body)
         .digest('hex');
     }
 
     try {
-      const response = await fetch(requestUrl, {
-        method: 'POST',
-        headers,
-        body,
-      });
-
-      const responseBody = (await response.text()).slice(0, 2000);
+      const response = await this.outboundHttpService.postJson(requestUrl, headers, body);
+      const responseBody = response.body;
       const parsedBody = this.tryParseJson(responseBody);
       const weComBusinessFailed =
         isWeComRobot &&

@@ -6,10 +6,12 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { parseCookies } from '../../../common/http/cookie.util';
+import { CsrfService } from '../../../common/security/csrf.service';
 import { IS_PUBLIC_KEY } from '../../admin/decorators/public.decorator';
 import { UserSessionService } from '../user-session.service';
 
 type RequestWithUser = {
+  method?: string;
   headers: Record<string, string | string[] | undefined>;
   user?: unknown;
 };
@@ -19,6 +21,7 @@ export class UserApiSessionGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly userSessionService: UserSessionService,
+    private readonly csrfService: CsrfService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -37,6 +40,12 @@ export class UserApiSessionGuard implements CanActivate {
       ? rawCookieHeader.join('; ')
       : rawCookieHeader;
     const cookies = parseCookies(cookieHeader);
+    this.csrfService.assertValidRequest(
+      request,
+      cookies,
+      CsrfService.USER_COOKIE_NAME,
+      'user',
+    );
     const user = await this.userSessionService.authenticate(
       cookies[UserSessionService.COOKIE_NAME],
     );

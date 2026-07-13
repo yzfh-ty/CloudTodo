@@ -777,10 +777,34 @@ export class AdminPanelService {
         detailUserModal.classList.add('hidden');
       }
 
+      function readCookie(name) {
+        const prefix = name + '=';
+        for (const part of document.cookie.split(';')) {
+          const trimmed = part.trim();
+          if (trimmed.startsWith(prefix)) {
+            try {
+              return decodeURIComponent(trimmed.slice(prefix.length));
+            } catch {
+              return trimmed.slice(prefix.length);
+            }
+          }
+        }
+        return '';
+      }
+
       async function fetchJson(url, options = {}) {
+        const headers = {
+          ...(options.headers || {})
+        };
+        const method = (options.method || 'GET').toUpperCase();
+        const csrfToken = readCookie('cloudtodo_admin_csrf_token');
+        if (csrfToken && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+          headers['X-CSRF-Token'] = csrfToken;
+        }
         const res = await fetch(url, {
           credentials: 'same-origin',
-          ...options
+          ...options,
+          headers
         });
         const json = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -1062,13 +1086,13 @@ export class AdminPanelService {
         });
 
         const payload = json.data;
+        await Promise.all([loadSummary(), loadUsers(), selectUser(selectedUser.id), loadLogs(logsPage)]);
+
         if (payload.mode === 'temporary_password') {
           setBanner('临时密码已生成：' + payload.temporary_password);
         } else {
           setBanner('重置令牌已生成：' + payload.reset_token);
         }
-
-        await Promise.all([loadSummary(), loadUsers(), selectUser(selectedUser.id), loadLogs(logsPage)]);
       }
 
       async function postAction(url, payload, successMessage) {
@@ -1239,7 +1263,10 @@ export class AdminPanelService {
       document.getElementById('logoutBtn').addEventListener('click', async () => {
         await fetch('/api/admin/auth/logout', {
           method: 'POST',
-          credentials: 'same-origin'
+          credentials: 'same-origin',
+          headers: {
+            'X-CSRF-Token': readCookie('cloudtodo_admin_csrf_token')
+          }
         });
         location.href = '/admin/login';
       });
@@ -1296,7 +1323,7 @@ export class AdminPanelService {
         <button type="submit">登录后台</button>
       </form>
       <div class="error" id="errorBox"></div>
-      <div class="hint">管理员可使用用户名或邮箱登录。默认示例：<code>admin@example.com / admin123456</code></div>
+      <div class="hint">管理员可使用用户名或邮箱登录。</div>
     </main>
     <script>
       const form = document.getElementById('loginForm');

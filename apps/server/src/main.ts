@@ -1,9 +1,11 @@
 import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { assertProductionSecrets } from './common/config/production-guard';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  assertProductionSecrets();
   const port = Number(process.env.PORT ?? 3000);
   const isProduction = process.env.NODE_ENV === 'production';
 

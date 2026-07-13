@@ -35,7 +35,8 @@ class _RegisterPageState extends State<RegisterPage> {
       return;
     }
 
-    _backendUrlController.text = AppScope.of(context).controller.currentApiBaseUrl;
+    _backendUrlController.text =
+        AppScope.of(context).controller.currentApiBaseUrl;
     _backendInitialized = true;
   }
 
@@ -121,7 +122,8 @@ class _RegisterPageState extends State<RegisterPage> {
                             labelText: '后端地址',
                             helperText: '输入 http://localhost:3000 或完整的 /api 地址',
                           ),
-                          validator: (value) => appController.validateApiBaseUrl(value ?? ''),
+                          validator: (value) =>
+                              appController.validateApiBaseUrl(value ?? ''),
                         ),
                       ],
                     ],
@@ -132,7 +134,9 @@ class _RegisterPageState extends State<RegisterPage> {
                   controller: _emailController,
                   decoration: const InputDecoration(labelText: '邮箱'),
                   validator: (value) {
-                    if (value == null || value.trim().isEmpty || !value.contains('@')) {
+                    if (value == null ||
+                        value.trim().isEmpty ||
+                        !value.contains('@')) {
                       return '请输入合法邮箱';
                     }
                     return null;
@@ -156,7 +160,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: _timezoneController.text,
+                  initialValue: _timezoneController.text,
                   decoration: const InputDecoration(labelText: '时区'),
                   items: kCommonTimezones
                       .map(
@@ -214,7 +218,8 @@ class _RegisterPageState extends State<RegisterPage> {
     }
 
     final appScope = AppScope.of(context);
-    final services = await appScope.controller.updateApiBaseUrl(_backendUrlController.text);
+    final services =
+        await appScope.controller.updateApiBaseUrl(_backendUrlController.text);
     final sessionController = services.sessionController;
     await sessionController.register(
       email: _emailController.text,

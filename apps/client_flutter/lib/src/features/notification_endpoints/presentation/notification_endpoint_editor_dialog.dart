@@ -37,7 +37,8 @@ class _NotificationEndpointEditorDialogState
     super.initState();
     _deliveryKind = widget.initialValue.deliveryKind;
     _nameController = TextEditingController(text: widget.initialValue.name);
-    _targetUrlController = TextEditingController(text: widget.initialValue.targetUrl);
+    _targetUrlController =
+        TextEditingController(text: widget.initialValue.targetUrl);
     _secretController = TextEditingController(text: widget.initialValue.secret);
     _payloadTemplateController = TextEditingController(
       text: widget.initialValue.payloadTemplate,
@@ -82,7 +83,7 @@ class _NotificationEndpointEditorDialogState
                   ),
                   const SizedBox(height: 20),
                   DropdownButtonFormField<String>(
-                    value: _deliveryKind,
+                    initialValue: _deliveryKind,
                     decoration: const InputDecoration(labelText: '通知方式'),
                     items: const [
                       DropdownMenuItem(
@@ -105,7 +106,8 @@ class _NotificationEndpointEditorDialogState
                           _nameController.text = defaultNameForKind(value);
                         }
                         if (_payloadTemplateController.text.trim().isEmpty) {
-                          _payloadTemplateController.text = defaultPayloadTemplateForKind(value);
+                          _payloadTemplateController.text =
+                              defaultPayloadTemplateForKind(value);
                         }
                       });
                     },
@@ -126,7 +128,9 @@ class _NotificationEndpointEditorDialogState
                   TextFormField(
                     controller: _targetUrlController,
                     decoration: InputDecoration(
-                      labelText: _deliveryKind == 'wecom_robot' ? '机器人地址' : 'Webhook 地址',
+                      labelText: _deliveryKind == 'wecom_robot'
+                          ? '机器人地址'
+                          : 'Webhook 地址',
                       helperText: _deliveryKind == 'wecom_robot'
                           ? '粘贴企业微信机器人 Webhook 地址'
                           : '粘贴接收提醒的 Webhook 地址',
@@ -142,7 +146,8 @@ class _NotificationEndpointEditorDialogState
                         return '请输入合法的地址';
                       }
                       if (_deliveryKind == 'wecom_robot' &&
-                          !text.contains('weixin.qq.com/cgi-bin/webhook/send')) {
+                          !text
+                              .contains('weixin.qq.com/cgi-bin/webhook/send')) {
                         return '请输入企业微信机器人的 Webhook 地址';
                       }
                       return null;
@@ -156,7 +161,9 @@ class _NotificationEndpointEditorDialogState
                           ? (widget.isEditing ? '新签名密钥' : '签名密钥')
                           : (widget.isEditing ? '新密钥' : '密钥'),
                       hintText: _deliveryKind == 'wecom_robot'
-                          ? (widget.isEditing ? '留空则保持不变，可选' : '如果企业微信机器人启用了签名，可填这里')
+                          ? (widget.isEditing
+                              ? '留空则保持不变，可选'
+                              : '如果企业微信机器人启用了签名，可填这里')
                           : (widget.isEditing ? '留空则保持不变' : '可选'),
                     ),
                   ),
@@ -167,7 +174,8 @@ class _NotificationEndpointEditorDialogState
                     maxLines: 16,
                     decoration: const InputDecoration(
                       labelText: '请求体模板',
-                      helperText: '支持占位符，如 {{todo_title}}、{{scheduled_for}}、{{payload_json}}',
+                      helperText:
+                          '支持占位符，如 {{todo_title}}、{{scheduled_for}}、{{payload_json}}',
                     ),
                     validator: (value) {
                       final text = value?.trim() ?? '';
@@ -188,7 +196,8 @@ class _NotificationEndpointEditorDialogState
                             _payloadTemplateController.text =
                                 defaultPayloadTemplateForKind(_deliveryKind);
                             if (_nameController.text.trim().isEmpty) {
-                              _nameController.text = defaultNameForKind(_deliveryKind);
+                              _nameController.text =
+                                  defaultNameForKind(_deliveryKind);
                             }
                           });
                         },
@@ -328,7 +337,9 @@ class _NotificationEndpointEditorDialogState
       'todo_priority': 'high',
       'scheduled_for': '2026-04-21T18:00:00Z',
       'triggered_at': '2026-04-21T18:00:05Z',
-      'endpoint_name': _nameController.text.trim().isEmpty ? defaultNameForKind(_deliveryKind) : _nameController.text.trim(),
+      'endpoint_name': _nameController.text.trim().isEmpty
+          ? defaultNameForKind(_deliveryKind)
+          : _nameController.text.trim(),
       'user_timezone': 'Asia/Shanghai',
       'payload_text': '请及时处理该任务，避免错过提交时间。',
       'payload_json': '{"todo_id":"demo_todo","channel":"webhook"}',

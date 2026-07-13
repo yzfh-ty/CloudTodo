@@ -21,11 +21,19 @@ export function parseCookies(cookieHeader?: string): Record<string, string> {
         return acc;
       }
 
-      const key = decodeURIComponent(part.slice(0, separatorIndex));
-      const value = decodeURIComponent(part.slice(separatorIndex + 1));
+      const key = safeDecodeURIComponent(part.slice(0, separatorIndex));
+      const value = safeDecodeURIComponent(part.slice(separatorIndex + 1));
       acc[key] = value;
       return acc;
     }, {});
+}
+
+function safeDecodeURIComponent(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 export function serializeCookie(

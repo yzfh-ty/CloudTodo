@@ -40,11 +40,14 @@ class _TodoEditorDialogState extends State<TodoEditorDialog> {
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.initialValue.title);
-    _descriptionController = TextEditingController(text: widget.initialValue.description);
+    _descriptionController =
+        TextEditingController(text: widget.initialValue.description);
     _priority = widget.initialValue.priority;
     _isAllDay = widget.initialValue.isAllDay;
     final listIds = widget.todoLists.map((list) => list.id).toSet();
-    _listId = listIds.contains(widget.initialValue.listId) ? widget.initialValue.listId : null;
+    _listId = listIds.contains(widget.initialValue.listId)
+        ? widget.initialValue.listId
+        : null;
     _tagIds = widget.initialValue.tagIds.toSet();
     _dueAt = widget.initialValue.dueAt;
   }
@@ -79,7 +82,7 @@ class _TodoEditorDialogState extends State<TodoEditorDialog> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                  '三端共用同一份任务表单数据结构，Web、Android、Windows 后续都从这里继续扩表单规则。',
+                    '三端共用同一份任务表单数据结构，Web、Android、Windows 后续都从这里继续扩表单规则。',
                     style: theme.textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 20),
@@ -103,7 +106,7 @@ class _TodoEditorDialogState extends State<TodoEditorDialog> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: _listId,
+                    initialValue: _listId,
                     decoration: const InputDecoration(labelText: '清单'),
                     items: [
                       const DropdownMenuItem<String>(
@@ -148,13 +151,17 @@ class _TodoEditorDialogState extends State<TodoEditorDialog> {
                   ],
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: _priority,
+                    initialValue: _priority,
                     decoration: const InputDecoration(labelText: '优先级'),
-                  items: [
-                    DropdownMenuItem(value: 'low', child: Text(todoPriorityText('low'))),
-                    DropdownMenuItem(value: 'medium', child: Text(todoPriorityText('medium'))),
-                    DropdownMenuItem(value: 'high', child: Text(todoPriorityText('high'))),
-                  ],
+                    items: [
+                      DropdownMenuItem(
+                          value: 'low', child: Text(todoPriorityText('low'))),
+                      DropdownMenuItem(
+                          value: 'medium',
+                          child: Text(todoPriorityText('medium'))),
+                      DropdownMenuItem(
+                          value: 'high', child: Text(todoPriorityText('high'))),
+                    ],
                     onChanged: (value) {
                       if (value == null) {
                         return;
@@ -175,7 +182,8 @@ class _TodoEditorDialogState extends State<TodoEditorDialog> {
                       setState(() {
                         _isAllDay = value;
                         if (_dueAt != null && value) {
-                          _dueAt = DateTime(_dueAt!.year, _dueAt!.month, _dueAt!.day);
+                          _dueAt = DateTime(
+                              _dueAt!.year, _dueAt!.month, _dueAt!.day);
                         }
                       });
                     },

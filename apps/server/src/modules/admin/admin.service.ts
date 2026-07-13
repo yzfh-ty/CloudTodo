@@ -16,6 +16,7 @@ import {
 import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../../common/database/prisma.service';
 import { hashPassword, verifyPassword } from '../../common/security/password.util';
+import { hashResetToken } from '../../common/security/token-hash.util';
 import type { AuthenticatedAdmin } from './admin-session.service';
 import { AdminChangePasswordDto } from './dto/admin-change-password.dto';
 import { AdminCreateUserDto } from './dto/admin-create-user.dto';
@@ -770,7 +771,7 @@ export class AdminService {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 2 * 60 * 60 * 1000);
     const trackingToken = this.generateSecret(24);
-    const trackingTokenHash = hashPassword(trackingToken);
+    const trackingTokenHash = hashResetToken(trackingToken);
 
     if (dto.mode === PasswordResetMode.temporary_password) {
       const temporaryPassword = this.generateTemporaryPassword();
@@ -836,7 +837,7 @@ export class AdminService {
     }
 
     const resetToken = this.generateSecret(32);
-    const resetTokenHash = hashPassword(resetToken);
+    const resetTokenHash = hashResetToken(resetToken);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.authRefreshToken.updateMany({

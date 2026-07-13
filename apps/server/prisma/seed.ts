@@ -15,6 +15,7 @@ async function main() {
   const password = process.env.ADMIN_SEED_PASSWORD ?? 'admin123456';
   const nickname = process.env.ADMIN_SEED_NICKNAME ?? 'System Admin';
   const timezone = process.env.ADMIN_SEED_TIMEZONE ?? 'Asia/Shanghai';
+  assertSafeSeedPassword('ADMIN_SEED_PASSWORD', password);
 
   // 是否创建演示普通用户
   // 演示普通用户邮箱
@@ -28,6 +29,9 @@ async function main() {
   const demoPassword = process.env.DEMO_USER_PASSWORD ?? 'demo123456';
   const demoNickname = process.env.DEMO_USER_NICKNAME ?? 'Demo User';
   const demoTimezone = process.env.DEMO_USER_TIMEZONE ?? 'Asia/Shanghai';
+  if (demoUserEnabled) {
+    assertSafeSeedPassword('DEMO_USER_PASSWORD', demoPassword);
+  }
 
   const admin = await prisma.user.upsert({
     where: { email },
@@ -128,3 +132,18 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+
+function assertSafeSeedPassword(name: string, value: string) {
+  if (process.env.NODE_ENV !== 'production') {
+    return;
+  }
+
+  if (
+    !process.env[name] ||
+    value === 'admin123456' ||
+    value === 'demo123456' ||
+    value.length < 12
+  ) {
+    throw new Error(`${name} must be explicitly set to a strong password in production`);
+  }
+}

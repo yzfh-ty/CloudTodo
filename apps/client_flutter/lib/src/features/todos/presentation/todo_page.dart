@@ -87,7 +87,7 @@ class _TodoPageState extends State<TodoPage> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                      '先把用户的个人工作流打通：登录后恢复会话、拉取任务、查看近期提醒，再逐步扩成多端共享的业务层。',
+                    '先把用户的个人工作流打通：登录后恢复会话、拉取任务、查看近期提醒，再逐步扩成多端共享的业务层。',
                     style: theme.textTheme.bodyLarge?.copyWith(
                       color: Colors.white.withValues(alpha: 0.9),
                     ),
@@ -97,10 +97,14 @@ class _TodoPageState extends State<TodoPage> {
                     spacing: 12,
                     runSpacing: 12,
                     children: [
-                      _SummaryCard(label: '当前任务总数', value: '${_controller.total}'),
-                      _SummaryCard(label: '待办', value: '${summary['pending'] ?? 0}'),
-                      _SummaryCard(label: '已完成', value: '${summary['completed'] ?? 0}'),
-                      _SummaryCard(label: '已归档', value: '${summary['archived'] ?? 0}'),
+                      _SummaryCard(
+                          label: '当前任务总数', value: '${_controller.total}'),
+                      _SummaryCard(
+                          label: '待办', value: '${summary['pending'] ?? 0}'),
+                      _SummaryCard(
+                          label: '已完成', value: '${summary['completed'] ?? 0}'),
+                      _SummaryCard(
+                          label: '已归档', value: '${summary['archived'] ?? 0}'),
                     ],
                   ),
                 ],
@@ -140,15 +144,20 @@ class _TodoPageState extends State<TodoPage> {
                                   ),
                                   const SizedBox(width: 12),
                                   FilledButton(
-                                    onPressed:
-                                        _controller.isSubmitting ? null : _createTodo,
+                                    onPressed: _controller.isSubmitting
+                                        ? null
+                                        : _createTodo,
                                     child: Text(
-                                      _controller.isSubmitting ? '提交中...' : '添加',
+                                      _controller.isSubmitting
+                                          ? '提交中...'
+                                          : '添加',
                                     ),
                                   ),
                                   const SizedBox(width: 12),
                                   OutlinedButton(
-                                    onPressed: _controller.isSubmitting ? null : _openCreateDialog,
+                                    onPressed: _controller.isSubmitting
+                                        ? null
+                                        : _openCreateDialog,
                                     child: const Text('完整表单'),
                                   ),
                                 ],
@@ -171,7 +180,8 @@ class _TodoPageState extends State<TodoPage> {
                                   const SizedBox(width: 12),
                                   FilledButton.tonal(
                                     onPressed: () {
-                                      _controller.setKeyword(_searchController.text);
+                                      _controller
+                                          .setKeyword(_searchController.text);
                                     },
                                     child: const Text('筛选'),
                                   ),
@@ -184,21 +194,24 @@ class _TodoPageState extends State<TodoPage> {
                                 children: [
                                   _StatusFilterChip(
                                     label: '待办',
-                                    selected: _controller.statusFilter == 'pending',
+                                    selected:
+                                        _controller.statusFilter == 'pending',
                                     onSelected: () {
                                       _controller.setStatusFilter('pending');
                                     },
                                   ),
                                   _StatusFilterChip(
                                     label: '已完成',
-                                    selected: _controller.statusFilter == 'completed',
+                                    selected:
+                                        _controller.statusFilter == 'completed',
                                     onSelected: () {
                                       _controller.setStatusFilter('completed');
                                     },
                                   ),
                                   _StatusFilterChip(
                                     label: '已归档',
-                                    selected: _controller.statusFilter == 'archived',
+                                    selected:
+                                        _controller.statusFilter == 'archived',
                                     onSelected: () {
                                       _controller.setStatusFilter('archived');
                                     },
@@ -221,8 +234,10 @@ class _TodoPageState extends State<TodoPage> {
                                   SizedBox(
                                     width: 220,
                                     child: DropdownButtonFormField<String>(
-                                      value: _controller.listFilter ?? '',
-                                      decoration: const InputDecoration(labelText: '清单筛选'),
+                                      initialValue:
+                                          _controller.listFilter ?? '',
+                                      decoration: const InputDecoration(
+                                          labelText: '清单筛选'),
                                       items: [
                                         const DropdownMenuItem(
                                           value: '',
@@ -237,7 +252,9 @@ class _TodoPageState extends State<TodoPage> {
                                       ],
                                       onChanged: (value) {
                                         _controller.setListFilter(
-                                          value == null || value.isEmpty ? null : value,
+                                          value == null || value.isEmpty
+                                              ? null
+                                              : value,
                                         );
                                       },
                                     ),
@@ -245,8 +262,9 @@ class _TodoPageState extends State<TodoPage> {
                                   SizedBox(
                                     width: 220,
                                     child: DropdownButtonFormField<String>(
-                                      value: _controller.tagFilter ?? '',
-                                      decoration: const InputDecoration(labelText: '标签筛选'),
+                                      initialValue: _controller.tagFilter ?? '',
+                                      decoration: const InputDecoration(
+                                          labelText: '标签筛选'),
                                       items: [
                                         const DropdownMenuItem(
                                           value: '',
@@ -261,18 +279,25 @@ class _TodoPageState extends State<TodoPage> {
                                       ],
                                       onChanged: (value) {
                                         _controller.setTagFilter(
-                                          value == null || value.isEmpty ? null : value,
+                                          value == null || value.isEmpty
+                                              ? null
+                                              : value,
                                         );
                                       },
                                     ),
                                   ),
                                   OutlinedButton.icon(
-                                    onPressed: _controller.isSubmitting ? null : _createTodoList,
-                                    icon: const Icon(Icons.create_new_folder_rounded),
+                                    onPressed: _controller.isSubmitting
+                                        ? null
+                                        : _createTodoList,
+                                    icon: const Icon(
+                                        Icons.create_new_folder_rounded),
                                     label: const Text('新建清单'),
                                   ),
                                   OutlinedButton.icon(
-                                    onPressed: _controller.isSubmitting ? null : _createTag,
+                                    onPressed: _controller.isSubmitting
+                                        ? null
+                                        : _createTag,
                                     icon: const Icon(Icons.sell_rounded),
                                     label: const Text('新建标签'),
                                   ),
@@ -287,18 +312,24 @@ class _TodoPageState extends State<TodoPage> {
                                   children: [
                                     ..._controller.todoLists.map(
                                       (list) => InputChip(
-                                        avatar: const Icon(Icons.folder_rounded, size: 18),
+                                        avatar: const Icon(Icons.folder_rounded,
+                                            size: 18),
                                         label: Text(list.name),
-                                        onPressed: () => _editTodoList(list.id, list.name),
-                                        onDeleted: () => _deleteTodoList(list.id, list.name),
+                                        onPressed: () =>
+                                            _editTodoList(list.id, list.name),
+                                        onDeleted: () =>
+                                            _deleteTodoList(list.id, list.name),
                                       ),
                                     ),
                                     ..._controller.tags.map(
                                       (tag) => InputChip(
-                                        avatar: const Icon(Icons.sell_rounded, size: 18),
+                                        avatar: const Icon(Icons.sell_rounded,
+                                            size: 18),
                                         label: Text(tag.name),
-                                        onPressed: () => _editTag(tag.id, tag.name),
-                                        onDeleted: () => _deleteTag(tag.id, tag.name),
+                                        onPressed: () =>
+                                            _editTag(tag.id, tag.name),
+                                        onDeleted: () =>
+                                            _deleteTag(tag.id, tag.name),
                                       ),
                                     ),
                                   ],
@@ -308,7 +339,8 @@ class _TodoPageState extends State<TodoPage> {
                                 const SizedBox(height: 12),
                                 Text(
                                   _controller.errorMessage!,
-                                  style: const TextStyle(color: Color(0xFFA12E2E)),
+                                  style:
+                                      const TextStyle(color: Color(0xFFA12E2E)),
                                 ),
                               ],
                             ],
@@ -327,11 +359,14 @@ class _TodoPageState extends State<TodoPage> {
                         EmptyStateCard(
                           icon: Icons.inbox_rounded,
                           title: '当前没有任务',
-                          description: _controller.keyword.isNotEmpty || _controller.statusFilter != null
+                          description: _controller.keyword.isNotEmpty ||
+                                  _controller.statusFilter != null
                               ? '当前筛选条件下没有匹配的任务，试试切换筛选条件或清空搜索词。'
                               : '先创建第一条任务，再逐步补充提醒和通知方式。',
                           action: FilledButton.tonal(
-                            onPressed: _controller.isSubmitting ? null : _openCreateDialog,
+                            onPressed: _controller.isSubmitting
+                                ? null
+                                : _openCreateDialog,
                             child: const Text('新建任务'),
                           ),
                         )
@@ -343,7 +378,8 @@ class _TodoPageState extends State<TodoPage> {
                               item: item,
                               onViewDetail: () => _openTodoDetail(item),
                               onEdit: () => _openEditDialog(item),
-                              onManageReminder: () => _openCreateReminderDialog(item),
+                              onManageReminder: () =>
+                                  _openCreateReminderDialog(item),
                               onComplete: item.status == 'pending'
                                   ? () => _controller.completeTodo(item.id)
                                   : null,
@@ -414,7 +450,8 @@ class _TodoPageState extends State<TodoPage> {
       TodoFormData.createDraft().copyWith(
         title: _createController.text,
         listId: _controller.listFilter,
-        tagIds: _controller.tagFilter == null ? const [] : [_controller.tagFilter!],
+        tagIds:
+            _controller.tagFilter == null ? const [] : [_controller.tagFilter!],
       ),
     );
     if (created) {
@@ -497,7 +534,9 @@ class _TodoPageState extends State<TodoPage> {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(created ? '清单已创建' : (_controller.errorMessage ?? '清单创建失败'))),
+      SnackBar(
+          content:
+              Text(created ? '清单已创建' : (_controller.errorMessage ?? '清单创建失败'))),
     );
   }
 
@@ -516,7 +555,9 @@ class _TodoPageState extends State<TodoPage> {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(created ? '标签已创建' : (_controller.errorMessage ?? '标签创建失败'))),
+      SnackBar(
+          content:
+              Text(created ? '标签已创建' : (_controller.errorMessage ?? '标签创建失败'))),
     );
   }
 
@@ -536,7 +577,9 @@ class _TodoPageState extends State<TodoPage> {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(updated ? '清单已更新' : (_controller.errorMessage ?? '清单更新失败'))),
+      SnackBar(
+          content:
+              Text(updated ? '清单已更新' : (_controller.errorMessage ?? '清单更新失败'))),
     );
   }
 
@@ -552,7 +595,9 @@ class _TodoPageState extends State<TodoPage> {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(deleted ? '清单已删除' : (_controller.errorMessage ?? '清单删除失败'))),
+      SnackBar(
+          content:
+              Text(deleted ? '清单已删除' : (_controller.errorMessage ?? '清单删除失败'))),
     );
   }
 
@@ -572,7 +617,9 @@ class _TodoPageState extends State<TodoPage> {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(updated ? '标签已更新' : (_controller.errorMessage ?? '标签更新失败'))),
+      SnackBar(
+          content:
+              Text(updated ? '标签已更新' : (_controller.errorMessage ?? '标签更新失败'))),
     );
   }
 
@@ -588,7 +635,9 @@ class _TodoPageState extends State<TodoPage> {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(deleted ? '标签已删除' : (_controller.errorMessage ?? '标签删除失败'))),
+      SnackBar(
+          content:
+              Text(deleted ? '标签已删除' : (_controller.errorMessage ?? '标签删除失败'))),
     );
   }
 
@@ -696,7 +745,8 @@ class _TodoPageState extends State<TodoPage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(created ? '提醒已创建' : (_controller.errorMessage ?? '提醒创建失败')),
+        content:
+            Text(created ? '提醒已创建' : (_controller.errorMessage ?? '提醒创建失败')),
       ),
     );
   }
@@ -724,13 +774,15 @@ class _TodoPageState extends State<TodoPage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(updated ? '提醒已更新' : (_controller.errorMessage ?? '提醒更新失败')),
+        content:
+            Text(updated ? '提醒已更新' : (_controller.errorMessage ?? '提醒更新失败')),
       ),
     );
   }
 
   Future<void> _openReminderDetail(ReminderItem item) async {
-    final relatedTodo = _controller.items.where((todo) => todo.id == item.todoId).firstOrNull;
+    final relatedTodo =
+        _controller.items.where((todo) => todo.id == item.todoId).firstOrNull;
     await showDialog<void>(
       context: context,
       builder: (context) => ReminderDetailDialog(
@@ -773,7 +825,8 @@ class _TodoPageState extends State<TodoPage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(deleted ? '提醒已删除' : (_controller.errorMessage ?? '提醒删除失败')),
+        content:
+            Text(deleted ? '提醒已删除' : (_controller.errorMessage ?? '提醒删除失败')),
       ),
     );
   }
@@ -918,7 +971,8 @@ class _TodoCard extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(16),

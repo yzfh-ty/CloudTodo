@@ -6,6 +6,7 @@ class NotificationEndpoint {
     required this.targetUrl,
     required this.payloadTemplate,
     required this.isEnabled,
+    required this.secretExists,
     required this.createdAt,
     this.lastResponseCode,
     this.lastResponseSummary,
@@ -19,6 +20,7 @@ class NotificationEndpoint {
   final String targetUrl;
   final String? payloadTemplate;
   final bool isEnabled;
+  final bool secretExists;
   final DateTime createdAt;
   final int? lastResponseCode;
   final String? lastResponseSummary;
@@ -33,6 +35,7 @@ class NotificationEndpoint {
       targetUrl: json['targetUrl'] as String? ?? '',
       payloadTemplate: json['payloadTemplate'] as String?,
       isEnabled: json['isEnabled'] as bool? ?? false,
+      secretExists: json['secretExists'] as bool? ?? false,
       createdAt: DateTime.parse(json['createdAt'] as String),
       lastResponseCode: json['lastResponseCode'] as int?,
       lastResponseSummary: json['lastResponseSummary'] as String?,

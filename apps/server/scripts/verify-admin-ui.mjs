@@ -324,7 +324,9 @@ async function main() {
     assert(logsText?.includes('update_user_profile'), 'Filtered logs did not show expected action');
     assert(typeof devicesText === 'string', 'Devices section did not render');
 
-    await page.click('#closeDetailUserBtn');
+    if (await page.locator('#detailUserModal:not(.hidden)').isVisible().catch(() => false)) {
+      await page.click('#closeDetailUserBtn');
+    }
     await page.waitForFunction(() => {
       const modal = document.getElementById('detailUserModal');
       return modal && modal.classList.contains('hidden');

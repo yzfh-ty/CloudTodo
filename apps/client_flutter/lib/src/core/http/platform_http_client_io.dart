@@ -33,6 +33,11 @@ class IoPlatformHttpClient implements PlatformHttpClient {
       );
     }
 
+    final csrfToken = _csrfTokenForRequest(method);
+    if (csrfToken != null) {
+      request.headers.set('X-CSRF-Token', csrfToken);
+    }
+
     for (final entry in (headers ?? const <String, String>{}).entries) {
       request.headers.set(entry.key, entry.value);
     }
@@ -80,5 +85,18 @@ class IoPlatformHttpClient implements PlatformHttpClient {
       path: mergedPath,
       queryParameters: cleanedQuery.isEmpty ? null : cleanedQuery,
     );
+  }
+
+  String? _csrfTokenForRequest(String method) {
+    if (_isSafeMethod(method)) {
+      return null;
+    }
+
+    return _cookies['cloudtodo_user_csrf_token'] ??
+        _cookies['cloudtodo_admin_csrf_token'];
+  }
+
+  bool _isSafeMethod(String method) {
+    return const {'GET', 'HEAD', 'OPTIONS'}.contains(method.toUpperCase());
   }
 }

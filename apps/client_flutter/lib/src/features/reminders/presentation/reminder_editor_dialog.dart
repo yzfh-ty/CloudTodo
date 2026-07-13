@@ -36,7 +36,8 @@ class _ReminderEditorDialogState extends State<ReminderEditorDialog> {
     _repeatType = widget.initialValue.repeatType;
     _customUnit = _inferCustomUnit(widget.initialValue.repeatRule);
     _remindAt = widget.initialValue.remindAt;
-    _timezoneController = TextEditingController(text: widget.initialValue.timezone);
+    _timezoneController =
+        TextEditingController(text: widget.initialValue.timezone);
     _intervalController = TextEditingController(
       text: _initialIntervalText(widget.initialValue.repeatRule),
     );
@@ -74,19 +75,21 @@ class _ReminderEditorDialogState extends State<ReminderEditorDialog> {
                   ),
                   const SizedBox(height: 20),
                   DropdownButtonFormField<String>(
-                    value: _channel,
+                    initialValue: _channel,
                     decoration: const InputDecoration(labelText: '提醒通道'),
-                  items: [
-                    DropdownMenuItem(value: 'webhook', child: Text(reminderChannelText('webhook'))),
-                    DropdownMenuItem(
-                      value: 'android_local',
-                      child: Text(reminderChannelText('android_local')),
-                    ),
-                    DropdownMenuItem(
-                      value: 'windows_local',
-                      child: Text(reminderChannelText('windows_local')),
-                    ),
-                  ],
+                    items: [
+                      DropdownMenuItem(
+                          value: 'webhook',
+                          child: Text(reminderChannelText('webhook'))),
+                      DropdownMenuItem(
+                        value: 'android_local',
+                        child: Text(reminderChannelText('android_local')),
+                      ),
+                      DropdownMenuItem(
+                        value: 'windows_local',
+                        child: Text(reminderChannelText('windows_local')),
+                      ),
+                    ],
                     onChanged: (value) {
                       if (value == null) {
                         return;
@@ -98,18 +101,26 @@ class _ReminderEditorDialogState extends State<ReminderEditorDialog> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: _repeatType,
+                    initialValue: _repeatType,
                     decoration: const InputDecoration(labelText: '重复规则'),
-                  items: [
-                    DropdownMenuItem(value: 'none', child: Text(reminderRepeatTypeText('none'))),
-                    DropdownMenuItem(value: 'daily', child: Text(reminderRepeatTypeText('daily'))),
-                    DropdownMenuItem(value: 'weekly', child: Text(reminderRepeatTypeText('weekly'))),
-                    DropdownMenuItem(
-                      value: 'workday',
-                      child: Text(reminderRepeatTypeText('workday')),
-                    ),
-                    DropdownMenuItem(value: 'custom', child: Text(reminderRepeatTypeText('custom'))),
-                  ],
+                    items: [
+                      DropdownMenuItem(
+                          value: 'none',
+                          child: Text(reminderRepeatTypeText('none'))),
+                      DropdownMenuItem(
+                          value: 'daily',
+                          child: Text(reminderRepeatTypeText('daily'))),
+                      DropdownMenuItem(
+                          value: 'weekly',
+                          child: Text(reminderRepeatTypeText('weekly'))),
+                      DropdownMenuItem(
+                        value: 'workday',
+                        child: Text(reminderRepeatTypeText('workday')),
+                      ),
+                      DropdownMenuItem(
+                          value: 'custom',
+                          child: Text(reminderRepeatTypeText('custom'))),
+                    ],
                     onChanged: (value) {
                       if (value == null) {
                         return;
@@ -131,7 +142,8 @@ class _ReminderEditorDialogState extends State<ReminderEditorDialog> {
                         Expanded(
                           child: TextFormField(
                             controller: _intervalController,
-                            decoration: const InputDecoration(labelText: '自定义间隔'),
+                            decoration:
+                                const InputDecoration(labelText: '自定义间隔'),
                             keyboardType: TextInputType.number,
                             validator: (value) {
                               if (_repeatType != 'custom') {
@@ -149,13 +161,16 @@ class _ReminderEditorDialogState extends State<ReminderEditorDialog> {
                         SizedBox(
                           width: 160,
                           child: DropdownButtonFormField<String>(
-                            value: _customUnit,
+                            initialValue: _customUnit,
                             decoration: const InputDecoration(labelText: '单位'),
                             items: const [
-                              DropdownMenuItem(value: 'minutes', child: Text('分钟')),
-                              DropdownMenuItem(value: 'hours', child: Text('小时')),
+                              DropdownMenuItem(
+                                  value: 'minutes', child: Text('分钟')),
+                              DropdownMenuItem(
+                                  value: 'hours', child: Text('小时')),
                               DropdownMenuItem(value: 'days', child: Text('天')),
-                              DropdownMenuItem(value: 'weeks', child: Text('周')),
+                              DropdownMenuItem(
+                                  value: 'weeks', child: Text('周')),
                             ],
                             onChanged: (value) {
                               if (value == null) {

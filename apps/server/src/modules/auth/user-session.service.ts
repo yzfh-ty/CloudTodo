@@ -126,9 +126,17 @@ export class UserSessionService {
       });
     }
 
-    const payload = JSON.parse(
-      Buffer.from(encodedPayload, 'base64url').toString('utf8'),
-    ) as UserSessionPayload;
+    let payload: UserSessionPayload;
+    try {
+      payload = JSON.parse(
+        Buffer.from(encodedPayload, 'base64url').toString('utf8'),
+      ) as UserSessionPayload;
+    } catch {
+      throw new UnauthorizedException({
+        code: 'UNAUTHORIZED',
+        message: 'invalid user session token',
+      });
+    }
     const nowSeconds = Math.floor(Date.now() / 1000);
 
     if (!payload.sub || payload.exp <= nowSeconds) {

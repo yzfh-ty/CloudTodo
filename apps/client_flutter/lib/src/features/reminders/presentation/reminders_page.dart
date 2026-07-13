@@ -83,7 +83,7 @@ class _RemindersPageState extends State<RemindersPage> {
                         SizedBox(
                           width: 320,
                           child: DropdownButtonFormField<String>(
-                            value: _controller.selectedTodoId,
+                            initialValue: _controller.selectedTodoId,
                             decoration: const InputDecoration(
                               labelText: '选择任务',
                             ),
@@ -99,14 +99,16 @@ class _RemindersPageState extends State<RemindersPage> {
                           ),
                         ),
                         FilledButton.icon(
-                          onPressed: _controller.isLoading || _controller.selectedTodoId == null
+                          onPressed: _controller.isLoading ||
+                                  _controller.selectedTodoId == null
                               ? null
                               : _createReminder,
                           icon: const Icon(Icons.alarm_add_rounded),
                           label: const Text('添加提醒'),
                         ),
                         OutlinedButton(
-                          onPressed: _controller.isLoading ? null : _controller.load,
+                          onPressed:
+                              _controller.isLoading ? null : _controller.load,
                           child: const Text('刷新'),
                         ),
                       ],
@@ -139,7 +141,8 @@ class _RemindersPageState extends State<RemindersPage> {
                 title: '当前没有近期提醒',
                 description: '先选择一个任务并添加提醒，之后这里会统一显示近期提醒。',
                 action: FilledButton.tonal(
-                  onPressed: _controller.isLoading || _controller.selectedTodoId == null
+                  onPressed: _controller.isLoading ||
+                          _controller.selectedTodoId == null
                       ? null
                       : _createReminder,
                   child: const Text('添加提醒'),
@@ -176,7 +179,8 @@ class _RemindersPageState extends State<RemindersPage> {
                               FilledButton.tonal(
                                 onPressed: _controller.submittingId == item.id
                                     ? null
-                                    : () => _openReminderDetail(item, todoTitleById[item.todoId]),
+                                    : () => _openReminderDetail(
+                                        item, todoTitleById[item.todoId]),
                                 child: const Text('详情'),
                               ),
                               const SizedBox(width: 8),
@@ -201,10 +205,19 @@ class _RemindersPageState extends State<RemindersPage> {
                             runSpacing: 8,
                             children: [
                               _MetaChip(label: '任务 ID', value: item.todoId),
-                              _MetaChip(label: '通道', value: reminderChannelText(item.channel)),
-                              _MetaChip(label: '重复', value: reminderRepeatTypeText(item.repeatType)),
-                              _MetaChip(label: '时区', value: timezoneText(item.timezone)),
-                              _MetaChip(label: '状态', value: reminderStatusText(item.status)),
+                              _MetaChip(
+                                  label: '通道',
+                                  value: reminderChannelText(item.channel)),
+                              _MetaChip(
+                                  label: '重复',
+                                  value:
+                                      reminderRepeatTypeText(item.repeatType)),
+                              _MetaChip(
+                                  label: '时区',
+                                  value: timezoneText(item.timezone)),
+                              _MetaChip(
+                                  label: '状态',
+                                  value: reminderStatusText(item.status)),
                             ],
                           ),
                         ],
@@ -249,7 +262,8 @@ class _RemindersPageState extends State<RemindersPage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(created ? '提醒已创建' : (_controller.errorMessage ?? '提醒创建失败')),
+        content:
+            Text(created ? '提醒已创建' : (_controller.errorMessage ?? '提醒创建失败')),
       ),
     );
   }
@@ -277,7 +291,8 @@ class _RemindersPageState extends State<RemindersPage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(updated ? '提醒已更新' : (_controller.errorMessage ?? '提醒更新失败')),
+        content:
+            Text(updated ? '提醒已更新' : (_controller.errorMessage ?? '提醒更新失败')),
       ),
     );
   }
@@ -325,7 +340,8 @@ class _RemindersPageState extends State<RemindersPage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(deleted ? '提醒已删除' : (_controller.errorMessage ?? '提醒删除失败')),
+        content:
+            Text(deleted ? '提醒已删除' : (_controller.errorMessage ?? '提醒删除失败')),
       ),
     );
   }

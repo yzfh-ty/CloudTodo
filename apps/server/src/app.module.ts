@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { appConfig } from './common/config/app.config';
 import { PrismaModule } from './common/database/prisma.module';
+import { SecurityModule } from './common/security/security.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { AdminPanelModule } from './modules/admin-panel/admin-panel.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -27,6 +28,7 @@ import { WebhookTestModule } from './modules/webhook-test/webhook-test.module';
       envFilePath: ['.env.local', '.env'],
     }),
     PrismaModule,
+    SecurityModule,
     HealthModule,
     AuthModule,
     AdminPanelModule,

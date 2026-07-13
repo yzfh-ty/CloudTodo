@@ -145,9 +145,17 @@ export class AdminSessionService {
       });
     }
 
-    const payload = JSON.parse(
-      Buffer.from(encodedPayload, 'base64url').toString('utf8'),
-    ) as AdminSessionPayload;
+    let payload: AdminSessionPayload;
+    try {
+      payload = JSON.parse(
+        Buffer.from(encodedPayload, 'base64url').toString('utf8'),
+      ) as AdminSessionPayload;
+    } catch {
+      throw new UnauthorizedException({
+        code: 'UNAUTHORIZED',
+        message: 'invalid admin session token',
+      });
+    }
 
     const nowSeconds = Math.floor(Date.now() / 1000);
     if (payload.exp <= nowSeconds || payload.role !== UserRole.admin || !payload.sub) {

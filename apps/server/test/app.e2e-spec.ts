@@ -79,6 +79,7 @@ describe('App integration', () => {
     expect(loginResponse.headers['set-cookie']).toEqual(
       expect.arrayContaining([expect.stringContaining('cloudtodo_admin_session=')]),
     );
+    await agent.post('/api/admin/auth/logout').expect(403);
 
     const adminPage = await agent.get('/admin').expect(200);
     expect(adminPage.text).toContain('CloudTodo Admin');
@@ -113,12 +114,23 @@ describe('App integration', () => {
         expect.stringContaining('cloudtodo_user_refresh_token='),
       ]),
     );
+    const userCsrfToken = csrfTokenFrom(registerResponse, 'cloudtodo_user_csrf_token');
 
     const meResponse = await agent.get('/api/users/me').expect(200);
     expect(meResponse.body.data.email).toBe(email);
 
+    await agent
+      .post('/api/todos')
+      .send({
+        title: 'Missing CSRF Todo',
+        priority: 'medium',
+        source_platform: 'web',
+      })
+      .expect(403);
+
     const todoResponse = await agent
       .post('/api/todos')
+      .set('X-CSRF-Token', userCsrfToken)
       .send({
         title: 'Integration Todo',
         description: 'from integration test',
@@ -133,11 +145,36 @@ describe('App integration', () => {
     const listResponse = await agent.get('/api/todos?page=1&page_size=10').expect(200);
     expect(listResponse.body.data.items.some((item: { id: string }) => item.id === todoId)).toBe(true);
 
-    await agent.post(`/api/todos/${todoId}/complete`).expect(201);
-    await agent.post('/api/auth/refresh').expect(201);
-    await agent.post('/api/auth/logout').expect(201);
+    await agent
+      .post(`/api/todos/${todoId}/complete`)
+      .set('X-CSRF-Token', userCsrfToken)
+      .expect(201);
+    const refreshResponse = await agent
+      .post('/api/auth/refresh')
+      .set('X-CSRF-Token', userCsrfToken)
+      .expect(201);
+    const refreshedCsrfToken = csrfTokenFrom(refreshResponse, 'cloudtodo_user_csrf_token');
+    await agent.post('/api/auth/logout').set('X-CSRF-Token', refreshedCsrfToken).expect(201);
     await agent.get('/api/users/me').expect(401);
   });
+
+  function csrfTokenFrom(
+    response: request.Response,
+    cookieName: 'cloudtodo_user_csrf_token' | 'cloudtodo_admin_csrf_token',
+  ) {
+    const setCookieHeader = response.headers['set-cookie'] as unknown;
+    const setCookie = Array.isArray(setCookieHeader)
+      ? setCookieHeader
+      : typeof setCookieHeader === 'string'
+        ? [setCookieHeader]
+        : undefined;
+    const cookie = setCookie?.find((value) => value.startsWith(`${cookieName}=`));
+    if (!cookie) {
+      throw new Error(`${cookieName} was not set`);
+    }
+
+    return decodeURIComponent(cookie.split(';')[0].slice(cookieName.length + 1));
+  }
 
   async function cleanupTestUsers() {
     await prisma.user.deleteMany({

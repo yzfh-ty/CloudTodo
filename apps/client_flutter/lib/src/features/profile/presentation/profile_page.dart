@@ -96,14 +96,21 @@ class _ProfilePageState extends State<ProfilePage> {
                           spacing: 16,
                           runSpacing: 12,
                           children: [
-                            _MetaChip(label: '用户 ID', value: profile?.id ?? '-'),
+                            _MetaChip(
+                                label: '用户 ID', value: profile?.id ?? '-'),
                             _MetaChip(
                               label: '角色',
-                              value: profile == null ? '-' : (profile.role == 'admin' ? '管理员' : '普通用户'),
+                              value: profile == null
+                                  ? '-'
+                                  : (profile.role == 'admin' ? '管理员' : '普通用户'),
                             ),
                             _MetaChip(
                               label: '状态',
-                              value: profile == null ? '-' : (profile.status == 'active' ? '正常' : profile.status),
+                              value: profile == null
+                                  ? '-'
+                                  : (profile.status == 'active'
+                                      ? '正常'
+                                      : profile.status),
                             ),
                             _MetaChip(
                               label: '最近登录',
@@ -121,7 +128,9 @@ class _ProfilePageState extends State<ProfilePage> {
                           controller: _emailController,
                           decoration: const InputDecoration(labelText: '邮箱'),
                           validator: (value) {
-                            if (value == null || value.trim().isEmpty || !value.contains('@')) {
+                            if (value == null ||
+                                value.trim().isEmpty ||
+                                !value.contains('@')) {
                               return '请输入合法邮箱';
                             }
                             return null;
@@ -129,7 +138,9 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                         const SizedBox(height: 12),
                         DropdownButtonFormField<String>(
-                          value: _timezoneController.text.isEmpty ? null : _timezoneController.text,
+                          initialValue: _timezoneController.text.isEmpty
+                              ? null
+                              : _timezoneController.text,
                           decoration: const InputDecoration(labelText: '时区'),
                           items: kCommonTimezones
                               .map(
@@ -164,7 +175,8 @@ class _ProfilePageState extends State<ProfilePage> {
                           onPressed: _controller.isSaving ? null : _save,
                           child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 14),
-                            child: Text(_controller.isSaving ? '保存中...' : '保存资料'),
+                            child:
+                                Text(_controller.isSaving ? '保存中...' : '保存资料'),
                           ),
                         ),
                       ],
@@ -196,7 +208,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(updated ? '资料已更新' : (_controller.errorMessage ?? '资料更新失败')),
+        content:
+            Text(updated ? '资料已更新' : (_controller.errorMessage ?? '资料更新失败')),
       ),
     );
   }

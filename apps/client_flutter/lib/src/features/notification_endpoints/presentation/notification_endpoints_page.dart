@@ -148,6 +148,7 @@ class _NotificationEndpointsPageState extends State<NotificationEndpointsPage> {
                             children: [
                               _Chip(label: '类型', value: endpointTypeText(item.type)),
                               _Chip(label: '状态', value: enabledStatusText(item.isEnabled)),
+                              _Chip(label: '密钥', value: item.secretExists ? '已设置' : '未设置'),
                               _Chip(label: '创建时间', value: formatDateTime(item.createdAt)),
                               _Chip(label: '最近成功', value: formatDateTime(item.lastSuccessAt)),
                               _Chip(label: '最近失败', value: formatDateTime(item.lastFailureAt)),

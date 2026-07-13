@@ -7,16 +7,20 @@ export class UpdateNotificationEndpointDto {
   name?: string;
 
   @IsUrl({
+    protocols: ['http', 'https'],
     require_protocol: true,
   })
+  @MaxLength(1024)
   @IsOptional()
   target_url?: string;
 
   @IsString()
+  @MaxLength(128)
   @IsOptional()
   secret?: string | null;
 
   @IsString()
+  @MaxLength(10000)
   @IsOptional()
   payload_template?: string | null;
 
