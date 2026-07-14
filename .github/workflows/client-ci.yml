@@ -1,0 +1,71 @@
+name: Client CI
+
+on:
+  push:
+    paths:
+      - "apps/client_flutter/**"
+      - ".github/workflows/client-ci.yml"
+  pull_request:
+    paths:
+      - "apps/client_flutter/**"
+      - ".github/workflows/client-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: apps/client_flutter
+
+jobs:
+  linux-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.6"
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      - run: flutter build web --release
+      - name: Create temporary Android release key
+        run: >-
+          keytool -genkeypair
+          -keystore "$RUNNER_TEMP/cloudtodo-release-test.jks"
+          -storepass cloudtodo-ci-test
+          -keypass cloudtodo-ci-test
+          -alias cloudtodo-ci-test
+          -dname "CN=CloudTodo CI, O=CloudTodo, C=CN"
+          -keyalg RSA
+          -keysize 2048
+          -validity 1
+          -noprompt
+      - name: Build Android release
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/cloudtodo-release-test.jks
+          ANDROID_KEYSTORE_PASSWORD: cloudtodo-ci-test
+          ANDROID_KEY_ALIAS: cloudtodo-ci-test
+          ANDROID_KEY_PASSWORD: cloudtodo-ci-test
+        run: flutter build apk --release
+
+  windows-release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.6"
+          channel: stable
+          cache: true
+      - run: flutter config --enable-windows-desktop
+      - run: flutter pub get
+      - run: flutter build windows --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cloudtodo-windows-release
+          path: apps/client_flutter/build/windows/x64/runner/Release
+          if-no-files-found: error

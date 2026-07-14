@@ -135,6 +135,18 @@ flutter run -d chrome --web-hostname localhost
 flutter run -d windows
 ```
 
+### 打包 Android Release
+
+Release 构建必须通过环境变量提供独立签名密钥，不会回退到 Android 调试证书：
+
+```bash
+export ANDROID_KEYSTORE_PATH=/absolute/path/to/release.jks
+export ANDROID_KEYSTORE_PASSWORD='your-keystore-password'
+export ANDROID_KEY_ALIAS='your-key-alias'
+export ANDROID_KEY_PASSWORD='your-key-password'
+flutter build apk --release
+```
+
 ## Docker
 
 当前仓库已经提供：
