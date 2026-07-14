@@ -11,6 +11,42 @@ import { UpdateTodoDto } from './dto/update-todo.dto';
 export class TodosService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async getSummary(user: AuthenticatedUser) {
+    const grouped = await this.prisma.todo.groupBy({
+      by: ['status'],
+      where: {
+        userId: user.id,
+        deletedAt: null,
+        status: {
+          in: [TodoStatus.pending, TodoStatus.completed, TodoStatus.archived],
+        },
+      },
+      _count: {
+        _all: true,
+      },
+    });
+    const summary = {
+      total: 0,
+      pending: 0,
+      completed: 0,
+      archived: 0,
+    };
+
+    for (const item of grouped) {
+      const count = item._count._all;
+      if (item.status === TodoStatus.pending) summary.pending = count;
+      if (item.status === TodoStatus.completed) summary.completed = count;
+      if (item.status === TodoStatus.archived) summary.archived = count;
+      summary.total += count;
+    }
+
+    return {
+      code: 'OK',
+      message: 'success',
+      data: summary,
+    };
+  }
+
   async getTodos(user: AuthenticatedUser, query: TodoListQueryDto) {
     const page = query.page ?? 1;
     const pageSize = query.page_size ?? 20;

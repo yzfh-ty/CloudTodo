@@ -23,6 +23,11 @@ export class TodosController {
     return this.todosService.createTodo(user, dto);
   }
 
+  @Get('summary')
+  getSummary(@CurrentUser() user: AuthenticatedUser) {
+    return this.todosService.getSummary(user);
+  }
+
   @Get(':id')
   getTodo(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.todosService.getTodo(user, id);

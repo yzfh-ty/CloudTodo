@@ -139,7 +139,6 @@ class _AppState extends State<App> {
       colorScheme: scheme,
       scaffoldBackgroundColor: cream,
       useMaterial3: true,
-      fontFamily: 'Georgia',
       textTheme: const TextTheme(
         headlineLarge: TextStyle(
           fontSize: 40,

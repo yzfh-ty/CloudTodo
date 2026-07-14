@@ -37,6 +37,12 @@ class TodoListController extends ChangeNotifier {
   String? tagFilter;
   String keyword = '';
   int total = 0;
+  Map<String, int> statusSummary = const {
+    'total': 0,
+    'pending': 0,
+    'completed': 0,
+    'archived': 0,
+  };
   bool _initialized = false;
 
   Future<void> initialize() async {
@@ -64,18 +70,21 @@ class TodoListController extends ChangeNotifier {
         _remindersRepository.getUpcomingReminders(),
         _todoMetadataRepository.getTodoLists(),
         _todoMetadataRepository.getTags(),
+        _todoRepository.getSummary(),
       ]);
 
       final todosPage = results[0] as PagedResponse<TodoItem>;
       final reminders = results[1] as List<ReminderItem>;
       final lists = results[2] as List<TodoListItem>;
       final loadedTags = results[3] as List<TagItem>;
+      final loadedSummary = results[4] as Map<String, int>;
 
       items = todosPage.items;
       total = todosPage.total;
       upcomingReminders = reminders;
       todoLists = lists;
       tags = loadedTags;
+      statusSummary = loadedSummary;
     } catch (error) {
       errorMessage = AppException.describe(error);
     } finally {
@@ -268,20 +277,6 @@ class TodoListController extends ChangeNotifier {
       }
       await refresh();
     });
-  }
-
-  Map<String, int> get statusSummary {
-    final summary = <String, int>{
-      'pending': 0,
-      'completed': 0,
-      'archived': 0,
-    };
-
-    for (final item in items) {
-      summary[item.status] = (summary[item.status] ?? 0) + 1;
-    }
-
-    return summary;
   }
 
   Future<bool> _runMutation(Future<void> Function() action) async {

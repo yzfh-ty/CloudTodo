@@ -21,7 +21,9 @@ class AppShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final services = AppScope.of(context).services;
-    final isCompact = MediaQuery.sizeOf(context).width < 900;
+    final width = MediaQuery.sizeOf(context).width;
+    final isCompact = width < 900;
+    final isMobile = width < 600;
     final body = _buildSection(section);
 
     final navigationItems = const [
@@ -56,22 +58,29 @@ class AppShell extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          titleSpacing: 24,
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                services.config.appName,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              Text(
-                '管理后台继续走 /admin，普通用户客户端当前聚焦任务、提醒和设置三个主业务入口。',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: const Color(0xFF5A4E48),
+          toolbarHeight: isMobile ? 56 : 72,
+          titleSpacing: isMobile ? 16 : 24,
+          title: isMobile
+              ? Text(
+                  services.config.appName,
+                  style: Theme.of(context).textTheme.titleLarge,
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      services.config.appName,
+                      style: Theme.of(context).textTheme.titleLarge,
                     ),
-              ),
-            ],
-          ),
+                    Text(
+                      '任务、提醒和设置',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: const Color(0xFF5A4E48),
+                          ),
+                    ),
+                  ],
+                ),
         ),
         body: Row(
           children: [
@@ -85,7 +94,12 @@ class AppShell extends StatelessWidget {
               ),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.fromLTRB(
+                  isMobile ? 12 : 16,
+                  isMobile ? 8 : 16,
+                  isMobile ? 12 : 16,
+                  isMobile ? 12 : 16,
+                ),
                 child: body,
               ),
             ),
@@ -204,60 +218,68 @@ class AuthPageFrame extends StatelessWidget {
         ),
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 960),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            title,
-                            style: Theme.of(context).textTheme.headlineLarge,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            subtitle,
-                            style: Theme.of(context).textTheme.bodyLarge,
-                          ),
-                          const SizedBox(height: 24),
-                          Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.55),
-                              borderRadius: BorderRadius.circular(24),
-                            ),
-                            child: const Text(
-                              '这次初始化只做普通用户客户端。`/admin` 管理后台继续留在后端侧，避免权限边界和部署职责混杂。',
-                            ),
-                          ),
-                        ],
+            padding: const EdgeInsets.all(16),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isMobile = constraints.maxWidth < 720;
+                final intro = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      style: isMobile
+                          ? Theme.of(context).textTheme.titleLarge
+                          : Theme.of(context).textTheme.headlineLarge,
+                    ),
+                    if (!isMobile) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        subtitle,
+                        style: Theme.of(context).textTheme.bodyLarge,
                       ),
+                    ],
+                  ],
+                );
+                final form = Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(isMobile ? 20 : 24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        child,
+                        const SizedBox(height: 16),
+                        footer,
+                      ],
                     ),
                   ),
-                  Expanded(
-                    child: Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
+                );
+
+                return ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 960),
+                  child: isMobile
+                      ? Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            child,
-                            const SizedBox(height: 16),
-                            footer,
+                            intro,
+                            const SizedBox(height: 20),
+                            form,
+                          ],
+                        )
+                      : Row(
+                          children: [
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.only(right: 24),
+                                child: intro,
+                              ),
+                            ),
+                            Expanded(child: form),
                           ],
                         ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                );
+              },
             ),
           ),
         ),

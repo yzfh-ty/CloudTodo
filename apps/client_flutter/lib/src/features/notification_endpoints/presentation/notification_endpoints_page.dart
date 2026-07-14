@@ -12,7 +12,8 @@ class NotificationEndpointsPage extends StatefulWidget {
   const NotificationEndpointsPage({super.key});
 
   @override
-  State<NotificationEndpointsPage> createState() => _NotificationEndpointsPageState();
+  State<NotificationEndpointsPage> createState() =>
+      _NotificationEndpointsPageState();
 }
 
 class _NotificationEndpointsPageState extends State<NotificationEndpointsPage> {
@@ -45,6 +46,7 @@ class _NotificationEndpointsPageState extends State<NotificationEndpointsPage> {
       animation: _controller,
       builder: (context, _) {
         final theme = Theme.of(context);
+        final isMobile = MediaQuery.sizeOf(context).width < 600;
 
         return ListView(
           children: [
@@ -69,7 +71,7 @@ class _NotificationEndpointsPageState extends State<NotificationEndpointsPage> {
             ),
             const SizedBox(height: 12),
             Text(
-              '这里用于管理通知方式。当前已经补到列表、创建、编辑、删除和模拟测试，三端可共用这套通知配置流。',
+              '管理通知地址、启用状态和连通性测试。',
               style: theme.textTheme.bodyLarge,
             ),
             const SizedBox(height: 20),
@@ -107,37 +109,10 @@ class _NotificationEndpointsPageState extends State<NotificationEndpointsPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  item.name,
-                                  style: theme.textTheme.titleLarge,
-                                ),
-                              ),
-                              FilledButton.tonal(
-                                onPressed: _controller.testingId == item.id
-                                    ? null
-                                    : () => _test(item),
-                                child: Text(
-                                  _controller.testingId == item.id ? '测试中...' : '模拟测试',
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              FilledButton.tonal(
-                                onPressed: _controller.submittingId == item.id
-                                    ? null
-                                    : () => _edit(item),
-                                child: const Text('编辑'),
-                              ),
-                              const SizedBox(width: 8),
-                              TextButton(
-                                onPressed: _controller.submittingId == item.id
-                                    ? null
-                                    : () => _delete(item),
-                                child: const Text('删除'),
-                              ),
-                            ],
+                          _buildEndpointHeader(
+                            context,
+                            item,
+                            isMobile,
                           ),
                           const SizedBox(height: 8),
                           SelectableText(item.targetUrl),
@@ -146,12 +121,24 @@ class _NotificationEndpointsPageState extends State<NotificationEndpointsPage> {
                             spacing: 12,
                             runSpacing: 8,
                             children: [
-                              _Chip(label: '类型', value: endpointTypeText(item.type)),
-                              _Chip(label: '状态', value: enabledStatusText(item.isEnabled)),
-                              _Chip(label: '密钥', value: item.secretExists ? '已设置' : '未设置'),
-                              _Chip(label: '创建时间', value: formatDateTime(item.createdAt)),
-                              _Chip(label: '最近成功', value: formatDateTime(item.lastSuccessAt)),
-                              _Chip(label: '最近失败', value: formatDateTime(item.lastFailureAt)),
+                              _Chip(
+                                  label: '类型',
+                                  value: endpointTypeText(item.type)),
+                              _Chip(
+                                  label: '状态',
+                                  value: enabledStatusText(item.isEnabled)),
+                              _Chip(
+                                  label: '密钥',
+                                  value: item.secretExists ? '已设置' : '未设置'),
+                              _Chip(
+                                  label: '创建时间',
+                                  value: formatDateTime(item.createdAt)),
+                              _Chip(
+                                  label: '最近成功',
+                                  value: formatDateTime(item.lastSuccessAt)),
+                              _Chip(
+                                  label: '最近失败',
+                                  value: formatDateTime(item.lastFailureAt)),
                             ],
                           ),
                         ],
@@ -166,13 +153,64 @@ class _NotificationEndpointsPageState extends State<NotificationEndpointsPage> {
     );
   }
 
+  Widget _buildEndpointHeader(
+    BuildContext context,
+    NotificationEndpoint item,
+    bool isMobile,
+  ) {
+    final title = Text(
+      item.name,
+      style: Theme.of(context).textTheme.titleLarge,
+    );
+    final actions = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        FilledButton.tonal(
+          onPressed:
+              _controller.testingId == item.id ? null : () => _test(item),
+          child: Text(_controller.testingId == item.id ? '测试中...' : '模拟测试'),
+        ),
+        FilledButton.tonal(
+          onPressed:
+              _controller.submittingId == item.id ? null : () => _edit(item),
+          child: const Text('编辑'),
+        ),
+        TextButton(
+          onPressed:
+              _controller.submittingId == item.id ? null : () => _delete(item),
+          child: const Text('删除'),
+        ),
+      ],
+    );
+
+    if (isMobile) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          title,
+          const SizedBox(height: 12),
+          actions,
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(child: title),
+        const SizedBox(width: 12),
+        actions,
+      ],
+    );
+  }
+
   Future<void> _test(NotificationEndpoint item) async {
     final payload = await _controller.testEndpoint(item.id);
     if (!mounted || payload == null) {
       return;
     }
 
-        ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           '通知方式 ${payload['endpoint_id']} 已完成一次模拟测试，状态：${payload['status']}',
@@ -205,7 +243,8 @@ class _NotificationEndpointsPageState extends State<NotificationEndpointsPage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(created ? '通知方式已创建' : (_controller.errorMessage ?? '通知方式创建失败')),
+        content: Text(
+            created ? '通知方式已创建' : (_controller.errorMessage ?? '通知方式创建失败')),
       ),
     );
   }
@@ -216,9 +255,10 @@ class _NotificationEndpointsPageState extends State<NotificationEndpointsPage> {
       builder: (context) {
         return NotificationEndpointEditorDialog(
           initialValue: NotificationEndpointFormData(
-            deliveryKind: item.targetUrl.contains('weixin.qq.com/cgi-bin/webhook/send')
-                ? 'wecom_robot'
-                : 'standard_webhook',
+            deliveryKind:
+                item.targetUrl.contains('weixin.qq.com/cgi-bin/webhook/send')
+                    ? 'wecom_robot'
+                    : 'standard_webhook',
             name: item.name,
             targetUrl: item.targetUrl,
             payloadTemplate: item.payloadTemplate ?? '',
@@ -244,7 +284,8 @@ class _NotificationEndpointsPageState extends State<NotificationEndpointsPage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(updated ? '通知方式已更新' : (_controller.errorMessage ?? '通知方式更新失败')),
+        content: Text(
+            updated ? '通知方式已更新' : (_controller.errorMessage ?? '通知方式更新失败')),
       ),
     );
   }
@@ -282,7 +323,8 @@ class _NotificationEndpointsPageState extends State<NotificationEndpointsPage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(deleted ? '通知方式已删除' : (_controller.errorMessage ?? '通知方式删除失败')),
+        content: Text(
+            deleted ? '通知方式已删除' : (_controller.errorMessage ?? '通知方式删除失败')),
       ),
     );
   }

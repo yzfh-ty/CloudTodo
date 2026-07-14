@@ -60,388 +60,446 @@ class _TodoPageState extends State<TodoPage> {
       builder: (context, _) {
         final summary = _controller.statusSummary;
 
-        return ListView(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(28),
-                gradient: const LinearGradient(
-                  colors: [
-                    Color(0xFF1D5C63),
-                    Color(0xFF2C7A7B),
-                    Color(0xFFC56B3D),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '任务中心',
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    '先把用户的个人工作流打通：登录后恢复会话、拉取任务、查看近期提醒，再逐步扩成多端共享的业务层。',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: Colors.white.withValues(alpha: 0.9),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      _SummaryCard(
-                          label: '当前任务总数', value: '${_controller.total}'),
-                      _SummaryCard(
-                          label: '待办', value: '${summary['pending'] ?? 0}'),
-                      _SummaryCard(
-                          label: '已完成', value: '${summary['completed'] ?? 0}'),
-                      _SummaryCard(
-                          label: '已归档', value: '${summary['archived'] ?? 0}'),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            Wrap(
-              spacing: 20,
-              runSpacing: 20,
-              crossAxisAlignment: WrapCrossAlignment.start,
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final isMobile = constraints.maxWidth < 600;
+            final useTwoColumns = constraints.maxWidth >= 1120;
+            final mainWidth = useTwoColumns ? 780.0 : constraints.maxWidth;
+            final sideWidth = useTwoColumns ? 320.0 : constraints.maxWidth;
+            final filterWidth = isMobile ? constraints.maxWidth - 48 : 220.0;
+            final summaryWidth =
+                isMobile ? (constraints.maxWidth - 44) / 2 : 160.0;
+
+            return ListView(
               children: [
-                SizedBox(
-                  width: 780,
+                Container(
+                  padding: EdgeInsets.all(isMobile ? 16 : 24),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(28),
+                    gradient: const LinearGradient(
+                      colors: [
+                        Color(0xFF1D5C63),
+                        Color(0xFF2C7A7B),
+                        Color(0xFFC56B3D),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '快速添加',
-                                style: theme.textTheme.titleLarge,
-                              ),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: TextField(
-                                      controller: _createController,
-                                      decoration: const InputDecoration(
-                                        hintText: '输入一条新的任务标题',
-                                      ),
-                                      onSubmitted: (_) => _createTodo(),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  FilledButton(
-                                    onPressed: _controller.isSubmitting
-                                        ? null
-                                        : _createTodo,
-                                    child: Text(
-                                      _controller.isSubmitting
-                                          ? '提交中...'
-                                          : '添加',
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  OutlinedButton(
-                                    onPressed: _controller.isSubmitting
-                                        ? null
-                                        : _openCreateDialog,
-                                    child: const Text('完整表单'),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: TextField(
-                                      controller: _searchController,
-                                      decoration: const InputDecoration(
-                                        hintText: '按标题或描述搜索',
-                                        prefixIcon: Icon(Icons.search_rounded),
-                                      ),
-                                      onSubmitted: (value) {
-                                        _controller.setKeyword(value);
-                                      },
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  FilledButton.tonal(
-                                    onPressed: () {
-                                      _controller
-                                          .setKeyword(_searchController.text);
-                                    },
-                                    child: const Text('筛选'),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  _StatusFilterChip(
-                                    label: '待办',
-                                    selected:
-                                        _controller.statusFilter == 'pending',
-                                    onSelected: () {
-                                      _controller.setStatusFilter('pending');
-                                    },
-                                  ),
-                                  _StatusFilterChip(
-                                    label: '已完成',
-                                    selected:
-                                        _controller.statusFilter == 'completed',
-                                    onSelected: () {
-                                      _controller.setStatusFilter('completed');
-                                    },
-                                  ),
-                                  _StatusFilterChip(
-                                    label: '已归档',
-                                    selected:
-                                        _controller.statusFilter == 'archived',
-                                    onSelected: () {
-                                      _controller.setStatusFilter('archived');
-                                    },
-                                  ),
-                                  _StatusFilterChip(
-                                    label: '全部',
-                                    selected: _controller.statusFilter == null,
-                                    onSelected: () {
-                                      _controller.setStatusFilter(null);
-                                    },
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              Wrap(
-                                spacing: 12,
-                                runSpacing: 12,
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                children: [
-                                  SizedBox(
-                                    width: 220,
-                                    child: DropdownButtonFormField<String>(
-                                      initialValue:
-                                          _controller.listFilter ?? '',
-                                      decoration: const InputDecoration(
-                                          labelText: '清单筛选'),
-                                      items: [
-                                        const DropdownMenuItem(
-                                          value: '',
-                                          child: Text('全部清单'),
-                                        ),
-                                        ..._controller.todoLists.map(
-                                          (list) => DropdownMenuItem(
-                                            value: list.id,
-                                            child: Text(list.name),
-                                          ),
-                                        ),
-                                      ],
-                                      onChanged: (value) {
-                                        _controller.setListFilter(
-                                          value == null || value.isEmpty
-                                              ? null
-                                              : value,
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    width: 220,
-                                    child: DropdownButtonFormField<String>(
-                                      initialValue: _controller.tagFilter ?? '',
-                                      decoration: const InputDecoration(
-                                          labelText: '标签筛选'),
-                                      items: [
-                                        const DropdownMenuItem(
-                                          value: '',
-                                          child: Text('全部标签'),
-                                        ),
-                                        ..._controller.tags.map(
-                                          (tag) => DropdownMenuItem(
-                                            value: tag.id,
-                                            child: Text(tag.name),
-                                          ),
-                                        ),
-                                      ],
-                                      onChanged: (value) {
-                                        _controller.setTagFilter(
-                                          value == null || value.isEmpty
-                                              ? null
-                                              : value,
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                  OutlinedButton.icon(
-                                    onPressed: _controller.isSubmitting
-                                        ? null
-                                        : _createTodoList,
-                                    icon: const Icon(
-                                        Icons.create_new_folder_rounded),
-                                    label: const Text('新建清单'),
-                                  ),
-                                  OutlinedButton.icon(
-                                    onPressed: _controller.isSubmitting
-                                        ? null
-                                        : _createTag,
-                                    icon: const Icon(Icons.sell_rounded),
-                                    label: const Text('新建标签'),
-                                  ),
-                                ],
-                              ),
-                              if (_controller.todoLists.isNotEmpty ||
-                                  _controller.tags.isNotEmpty) ...[
-                                const SizedBox(height: 14),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: [
-                                    ..._controller.todoLists.map(
-                                      (list) => InputChip(
-                                        avatar: const Icon(Icons.folder_rounded,
-                                            size: 18),
-                                        label: Text(list.name),
-                                        onPressed: () =>
-                                            _editTodoList(list.id, list.name),
-                                        onDeleted: () =>
-                                            _deleteTodoList(list.id, list.name),
-                                      ),
-                                    ),
-                                    ..._controller.tags.map(
-                                      (tag) => InputChip(
-                                        avatar: const Icon(Icons.sell_rounded,
-                                            size: 18),
-                                        label: Text(tag.name),
-                                        onPressed: () =>
-                                            _editTag(tag.id, tag.name),
-                                        onDeleted: () =>
-                                            _deleteTag(tag.id, tag.name),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                              if (_controller.errorMessage != null) ...[
-                                const SizedBox(height: 12),
-                                Text(
-                                  _controller.errorMessage!,
-                                  style:
-                                      const TextStyle(color: Color(0xFFA12E2E)),
-                                ),
-                              ],
-                            ],
-                          ),
+                      Text(
+                        '任务中心',
+                        style: theme.textTheme.headlineMedium?.copyWith(
+                          color: Colors.white,
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      if (_controller.isLoading)
-                        const Card(
-                          child: Padding(
-                            padding: EdgeInsets.all(24),
-                            child: Center(child: CircularProgressIndicator()),
-                          ),
-                        )
-                      else if (_controller.items.isEmpty)
-                        EmptyStateCard(
-                          icon: Icons.inbox_rounded,
-                          title: '当前没有任务',
-                          description: _controller.keyword.isNotEmpty ||
-                                  _controller.statusFilter != null
-                              ? '当前筛选条件下没有匹配的任务，试试切换筛选条件或清空搜索词。'
-                              : '先创建第一条任务，再逐步补充提醒和通知方式。',
-                          action: FilledButton.tonal(
-                            onPressed: _controller.isSubmitting
-                                ? null
-                                : _openCreateDialog,
-                            child: const Text('新建任务'),
-                          ),
-                        )
-                      else
-                        ..._controller.items.map(
-                          (item) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _TodoCard(
-                              item: item,
-                              onViewDetail: () => _openTodoDetail(item),
-                              onEdit: () => _openEditDialog(item),
-                              onManageReminder: () =>
-                                  _openCreateReminderDialog(item),
-                              onComplete: item.status == 'pending'
-                                  ? () => _controller.completeTodo(item.id)
-                                  : null,
-                              onReopen: item.status != 'pending'
-                                  ? () => _controller.reopenTodo(item.id)
-                                  : null,
-                              onArchive: item.status != 'archived'
-                                  ? () => _controller.archiveTodo(item.id)
-                                  : null,
-                              onDelete: () => _confirmDeleteTodo(item),
-                            ),
-                          ),
+                      const SizedBox(height: 12),
+                      Text(
+                        '集中管理任务、清单、标签和近期提醒。',
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: Colors.white.withValues(alpha: 0.9),
                         ),
+                      ),
+                      const SizedBox(height: 20),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          _SummaryCard(
+                            width: summaryWidth,
+                            label: '任务总数',
+                            value: '${summary['total'] ?? 0}',
+                          ),
+                          _SummaryCard(
+                            width: summaryWidth,
+                            label: '待办',
+                            value: '${summary['pending'] ?? 0}',
+                          ),
+                          _SummaryCard(
+                            width: summaryWidth,
+                            label: '已完成',
+                            value: '${summary['completed'] ?? 0}',
+                          ),
+                          _SummaryCard(
+                            width: summaryWidth,
+                            label: '已归档',
+                            value: '${summary['archived'] ?? 0}',
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
-                SizedBox(
-                  width: 320,
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
+                const SizedBox(height: 20),
+                Wrap(
+                  spacing: 20,
+                  runSpacing: 20,
+                  crossAxisAlignment: WrapCrossAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: mainWidth,
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            '近期提醒',
-                            style: theme.textTheme.titleLarge,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '这里展示近期提醒，用于证明客户端模块拆分已经覆盖任务之外的第二条业务链路。',
-                            style: theme.textTheme.bodyMedium,
+                          Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '快速添加',
+                                    style: theme.textTheme.titleLarge,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _buildQuickAddControls(isMobile),
+                                  const SizedBox(height: 16),
+                                  _buildSearchControls(isMobile),
+                                  const SizedBox(height: 16),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      _StatusFilterChip(
+                                        label: '待办',
+                                        selected: _controller.statusFilter ==
+                                            'pending',
+                                        onSelected: () {
+                                          _controller
+                                              .setStatusFilter('pending');
+                                        },
+                                      ),
+                                      _StatusFilterChip(
+                                        label: '已完成',
+                                        selected: _controller.statusFilter ==
+                                            'completed',
+                                        onSelected: () {
+                                          _controller
+                                              .setStatusFilter('completed');
+                                        },
+                                      ),
+                                      _StatusFilterChip(
+                                        label: '已归档',
+                                        selected: _controller.statusFilter ==
+                                            'archived',
+                                        onSelected: () {
+                                          _controller
+                                              .setStatusFilter('archived');
+                                        },
+                                      ),
+                                      _StatusFilterChip(
+                                        label: '全部',
+                                        selected:
+                                            _controller.statusFilter == null,
+                                        onSelected: () {
+                                          _controller.setStatusFilter(null);
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Wrap(
+                                    spacing: 12,
+                                    runSpacing: 12,
+                                    crossAxisAlignment:
+                                        WrapCrossAlignment.center,
+                                    children: [
+                                      SizedBox(
+                                        width: filterWidth,
+                                        child: DropdownButtonFormField<String>(
+                                          initialValue:
+                                              _controller.listFilter ?? '',
+                                          decoration: const InputDecoration(
+                                              labelText: '清单筛选'),
+                                          items: [
+                                            const DropdownMenuItem(
+                                              value: '',
+                                              child: Text('全部清单'),
+                                            ),
+                                            ..._controller.todoLists.map(
+                                              (list) => DropdownMenuItem(
+                                                value: list.id,
+                                                child: Text(list.name),
+                                              ),
+                                            ),
+                                          ],
+                                          onChanged: (value) {
+                                            _controller.setListFilter(
+                                              value == null || value.isEmpty
+                                                  ? null
+                                                  : value,
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: filterWidth,
+                                        child: DropdownButtonFormField<String>(
+                                          initialValue:
+                                              _controller.tagFilter ?? '',
+                                          decoration: const InputDecoration(
+                                              labelText: '标签筛选'),
+                                          items: [
+                                            const DropdownMenuItem(
+                                              value: '',
+                                              child: Text('全部标签'),
+                                            ),
+                                            ..._controller.tags.map(
+                                              (tag) => DropdownMenuItem(
+                                                value: tag.id,
+                                                child: Text(tag.name),
+                                              ),
+                                            ),
+                                          ],
+                                          onChanged: (value) {
+                                            _controller.setTagFilter(
+                                              value == null || value.isEmpty
+                                                  ? null
+                                                  : value,
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                      OutlinedButton.icon(
+                                        onPressed: _controller.isSubmitting
+                                            ? null
+                                            : _createTodoList,
+                                        icon: const Icon(
+                                            Icons.create_new_folder_rounded),
+                                        label: const Text('新建清单'),
+                                      ),
+                                      OutlinedButton.icon(
+                                        onPressed: _controller.isSubmitting
+                                            ? null
+                                            : _createTag,
+                                        icon: const Icon(Icons.sell_rounded),
+                                        label: const Text('新建标签'),
+                                      ),
+                                    ],
+                                  ),
+                                  if (_controller.todoLists.isNotEmpty ||
+                                      _controller.tags.isNotEmpty) ...[
+                                    const SizedBox(height: 14),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: [
+                                        ..._controller.todoLists.map(
+                                          (list) => InputChip(
+                                            avatar: const Icon(
+                                                Icons.folder_rounded,
+                                                size: 18),
+                                            label: Text(list.name),
+                                            onPressed: () => _editTodoList(
+                                                list.id, list.name),
+                                            onDeleted: () => _deleteTodoList(
+                                                list.id, list.name),
+                                          ),
+                                        ),
+                                        ..._controller.tags.map(
+                                          (tag) => InputChip(
+                                            avatar: const Icon(
+                                                Icons.sell_rounded,
+                                                size: 18),
+                                            label: Text(tag.name),
+                                            onPressed: () =>
+                                                _editTag(tag.id, tag.name),
+                                            onDeleted: () =>
+                                                _deleteTag(tag.id, tag.name),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                  if (_controller.errorMessage != null) ...[
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      _controller.errorMessage!,
+                                      style: const TextStyle(
+                                          color: Color(0xFFA12E2E)),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
                           ),
                           const SizedBox(height: 16),
-                          if (_controller.upcomingReminders.isEmpty)
-                            const EmptyStateCard(
-                              icon: Icons.alarm_off_rounded,
-                              title: '暂无近期提醒',
-                              description: '你可以在任务卡片里添加提醒，之后这里会显示最近即将触发的提醒。',
+                          if (_controller.isLoading)
+                            const Card(
+                              child: Padding(
+                                padding: EdgeInsets.all(24),
+                                child:
+                                    Center(child: CircularProgressIndicator()),
+                              ),
+                            )
+                          else if (_controller.items.isEmpty)
+                            EmptyStateCard(
+                              icon: Icons.inbox_rounded,
+                              title: '当前没有任务',
+                              description: _controller.keyword.isNotEmpty ||
+                                      _controller.statusFilter != null
+                                  ? '当前筛选条件下没有匹配的任务，试试切换筛选条件或清空搜索词。'
+                                  : '先创建第一条任务，再逐步补充提醒和通知方式。',
+                              action: FilledButton.tonal(
+                                onPressed: _controller.isSubmitting
+                                    ? null
+                                    : _openCreateDialog,
+                                child: const Text('新建任务'),
+                              ),
                             )
                           else
-                            ..._controller.upcomingReminders.map(
+                            ..._controller.items.map(
                               (item) => Padding(
-                                padding: const EdgeInsets.only(bottom: 10),
-                                child: _ReminderCard(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: _TodoCard(
                                   item: item,
-                                  onViewDetail: () => _openReminderDetail(item),
-                                  onEdit: () => _openEditReminderDialog(item),
-                                  onDelete: () => _deleteReminder(item),
+                                  onViewDetail: () => _openTodoDetail(item),
+                                  onEdit: () => _openEditDialog(item),
+                                  onManageReminder: () =>
+                                      _openCreateReminderDialog(item),
+                                  onComplete: item.status == 'pending'
+                                      ? () => _controller.completeTodo(item.id)
+                                      : null,
+                                  onReopen: item.status != 'pending'
+                                      ? () => _controller.reopenTodo(item.id)
+                                      : null,
+                                  onArchive: item.status != 'archived'
+                                      ? () => _controller.archiveTodo(item.id)
+                                      : null,
+                                  onDelete: () => _confirmDeleteTodo(item),
                                 ),
                               ),
                             ),
                         ],
                       ),
                     ),
-                  ),
+                    SizedBox(
+                      width: sideWidth,
+                      child: Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '近期提醒',
+                                style: theme.textTheme.titleLarge,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                '查看即将触发的任务提醒。',
+                                style: theme.textTheme.bodyMedium,
+                              ),
+                              const SizedBox(height: 16),
+                              if (_controller.upcomingReminders.isEmpty)
+                                const EmptyStateCard(
+                                  icon: Icons.alarm_off_rounded,
+                                  title: '暂无近期提醒',
+                                  description:
+                                      '你可以在任务卡片里添加提醒，之后这里会显示最近即将触发的提醒。',
+                                )
+                              else
+                                ..._controller.upcomingReminders.map(
+                                  (item) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: _ReminderCard(
+                                      item: item,
+                                      onViewDetail: () =>
+                                          _openReminderDetail(item),
+                                      onEdit: () =>
+                                          _openEditReminderDialog(item),
+                                      onDelete: () => _deleteReminder(item),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
-            ),
-          ],
+            );
+          },
         );
       },
+    );
+  }
+
+  Widget _buildQuickAddControls(bool isMobile) {
+    final input = TextField(
+      controller: _createController,
+      decoration: const InputDecoration(hintText: '输入一条新的任务标题'),
+      onSubmitted: (_) => _createTodo(),
+    );
+    final addButton = FilledButton(
+      onPressed: _controller.isSubmitting ? null : _createTodo,
+      child: Text(_controller.isSubmitting ? '提交中...' : '添加'),
+    );
+    final formButton = OutlinedButton(
+      onPressed: _controller.isSubmitting ? null : _openCreateDialog,
+      child: const Text('完整表单'),
+    );
+
+    if (isMobile) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          input,
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            children: [addButton, formButton],
+          ),
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(child: input),
+        const SizedBox(width: 12),
+        addButton,
+        const SizedBox(width: 12),
+        formButton,
+      ],
+    );
+  }
+
+  Widget _buildSearchControls(bool isMobile) {
+    final input = TextField(
+      controller: _searchController,
+      decoration: const InputDecoration(
+        hintText: '按标题或描述搜索',
+        prefixIcon: Icon(Icons.search_rounded),
+      ),
+      onSubmitted: _controller.setKeyword,
+    );
+    final button = FilledButton.tonal(
+      onPressed: () => _controller.setKeyword(_searchController.text),
+      child: const Text('筛选'),
+    );
+
+    if (isMobile) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          input,
+          const SizedBox(height: 12),
+          Align(alignment: Alignment.centerLeft, child: button),
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(child: input),
+        const SizedBox(width: 12),
+        button,
+      ],
     );
   }
 
@@ -868,17 +926,19 @@ class _TodoPageState extends State<TodoPage> {
 
 class _SummaryCard extends StatelessWidget {
   const _SummaryCard({
+    required this.width,
     required this.label,
     required this.value,
   });
 
+  final double width;
   final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 160,
+      width: width,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.18),

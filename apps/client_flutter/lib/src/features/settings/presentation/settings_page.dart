@@ -1107,6 +1107,34 @@ class _EndpointCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.sizeOf(context).width < 600;
+    final title = Text(
+      item.name,
+      style: Theme.of(context).textTheme.titleMedium,
+    );
+    final actions = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        FilledButton.tonal(
+          onPressed: busy ? null : onTest,
+          child: const Text('测试'),
+        ),
+        FilledButton.tonal(
+          onPressed: busy ? null : onCopyUrl,
+          child: const Text('复制地址'),
+        ),
+        FilledButton.tonal(
+          onPressed: busy ? null : onEdit,
+          child: const Text('编辑'),
+        ),
+        TextButton(
+          onPressed: busy ? null : onDelete,
+          child: const Text('删除'),
+        ),
+      ],
+    );
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -1116,35 +1144,18 @@ class _EndpointCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  item.name,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-              FilledButton.tonal(
-                onPressed: busy ? null : onTest,
-                child: const Text('测试'),
-              ),
-              const SizedBox(width: 8),
-              FilledButton.tonal(
-                onPressed: busy ? null : onCopyUrl,
-                child: const Text('复制地址'),
-              ),
-              const SizedBox(width: 8),
-              FilledButton.tonal(
-                onPressed: busy ? null : onEdit,
-                child: const Text('编辑'),
-              ),
-              const SizedBox(width: 8),
-              TextButton(
-                onPressed: busy ? null : onDelete,
-                child: const Text('删除'),
-              ),
-            ],
-          ),
+          if (isMobile) ...[
+            title,
+            const SizedBox(height: 12),
+            actions,
+          ] else
+            Row(
+              children: [
+                Expanded(child: title),
+                const SizedBox(width: 12),
+                actions,
+              ],
+            ),
           const SizedBox(height: 8),
           SelectableText(item.targetUrl),
           const SizedBox(height: 12),
@@ -1207,41 +1218,65 @@ class _DeviceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.sizeOf(context).width < 600;
+    final details = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.devices_rounded),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                item.deviceName.isEmpty ? item.platform : item.deviceName,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '平台：${item.platform}\n版本：${item.appVersion ?? '-'}\n最近活跃：${formatDateTime(item.lastActiveAt)}',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+    final actions = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        _MetaChip(label: '状态', value: item.isOnline ? '在线' : '离线'),
+        TextButton(
+          onPressed: busy ? null : onDelete,
+          child: const Text('删除'),
+        ),
+      ],
+    );
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFFF6F0E6),
         borderRadius: BorderRadius.circular(18),
       ),
-      child: Row(
-        children: [
-          const Icon(Icons.devices_rounded),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
+      child: isMobile
+          ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  item.deviceName.isEmpty ? item.platform : item.deviceName,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '平台：${item.platform}  版本：${item.appVersion ?? '-'}  最近活跃：${formatDateTime(item.lastActiveAt)}',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
+                details,
+                const SizedBox(height: 12),
+                actions,
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(child: details),
+                const SizedBox(width: 12),
+                actions,
               ],
             ),
-          ),
-          const SizedBox(width: 12),
-          _MetaChip(label: '状态', value: item.isOnline ? '在线' : '离线'),
-          const SizedBox(width: 8),
-          TextButton(
-            onPressed: busy ? null : onDelete,
-            child: const Text('删除'),
-          ),
-        ],
-      ),
     );
   }
 }

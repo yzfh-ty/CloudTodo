@@ -145,10 +145,27 @@ describe('App integration', () => {
     const listResponse = await agent.get('/api/todos?page=1&page_size=10').expect(200);
     expect(listResponse.body.data.items.some((item: { id: string }) => item.id === todoId)).toBe(true);
 
+    const pendingSummaryResponse = await agent.get('/api/todos/summary').expect(200);
+    expect(pendingSummaryResponse.body.data).toEqual({
+      total: 1,
+      pending: 1,
+      completed: 0,
+      archived: 0,
+    });
+
     await agent
       .post(`/api/todos/${todoId}/complete`)
       .set('X-CSRF-Token', userCsrfToken)
       .expect(201);
+
+    const completedSummaryResponse = await agent.get('/api/todos/summary').expect(200);
+    expect(completedSummaryResponse.body.data).toEqual({
+      total: 1,
+      pending: 0,
+      completed: 1,
+      archived: 0,
+    });
+
     const refreshResponse = await agent
       .post('/api/auth/refresh')
       .set('X-CSRF-Token', userCsrfToken)

@@ -7,6 +7,21 @@ class TodoRepository {
 
   final ApiClient _apiClient;
 
+  Future<Map<String, int>> getSummary() {
+    return _apiClient.get(
+      '/todos/summary',
+      parser: (data) {
+        final json = data as Map<String, dynamic>;
+        return {
+          'total': json['total'] as int? ?? 0,
+          'pending': json['pending'] as int? ?? 0,
+          'completed': json['completed'] as int? ?? 0,
+          'archived': json['archived'] as int? ?? 0,
+        };
+      },
+    );
+  }
+
   Future<PagedResponse<TodoItem>> getTodos({
     String? status,
     String? keyword,
@@ -47,7 +62,8 @@ class TodoRepository {
       '/todos',
       body: {
         'title': title.trim(),
-        'description': description?.trim().isEmpty ?? true ? null : description?.trim(),
+        'description':
+            description?.trim().isEmpty ?? true ? null : description?.trim(),
         'priority': priority,
         'due_at': dueAt?.toUtc().toIso8601String(),
         'is_all_day': isAllDay,
@@ -72,7 +88,8 @@ class TodoRepository {
       '/todos/$id',
       body: {
         'title': title.trim(),
-        'description': description?.trim().isEmpty ?? true ? null : description?.trim(),
+        'description':
+            description?.trim().isEmpty ?? true ? null : description?.trim(),
         'priority': priority,
         'due_at': dueAt?.toUtc().toIso8601String(),
         'is_all_day': isAllDay,
