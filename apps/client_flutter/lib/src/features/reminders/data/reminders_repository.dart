@@ -27,7 +27,6 @@ class RemindersRepository {
     required DateTime remindAt,
     required String repeatType,
     Map<String, dynamic>? repeatRule,
-    required String timezone,
   }) {
     return _apiClient.post(
       '/todos/$todoId/reminders',
@@ -36,7 +35,6 @@ class RemindersRepository {
         'remind_at': remindAt.toUtc().toIso8601String(),
         'repeat_type': repeatType,
         'repeat_rule': repeatRule,
-        'timezone': timezone,
       },
       parser: (data) => ReminderItem.fromJson(data as Map<String, dynamic>),
     );
@@ -48,7 +46,6 @@ class RemindersRepository {
     required DateTime remindAt,
     required String repeatType,
     Map<String, dynamic>? repeatRule,
-    required String timezone,
   }) {
     return _apiClient.patch(
       '/reminders/$reminderId',
@@ -57,7 +54,6 @@ class RemindersRepository {
         'remind_at': remindAt.toUtc().toIso8601String(),
         'repeat_type': repeatType,
         'repeat_rule': repeatRule,
-        'timezone': timezone,
       },
       parser: (data) => ReminderItem.fromJson(data as Map<String, dynamic>),
     );
@@ -82,7 +78,9 @@ class RemindersRepository {
         return items
             .whereType<Map<String, dynamic>>()
             .map(ReminderEventItem.fromJson)
-            .where((item) => item.channel == 'android_local' || item.channel == 'windows_local')
+            .where((item) =>
+                item.channel == 'android_local' ||
+                item.channel == 'windows_local')
             .toList(growable: false);
       },
     );
@@ -91,7 +89,8 @@ class RemindersRepository {
   Future<ReminderEventItem> ackReminderEvent(String id) {
     return _apiClient.post(
       '/reminder-events/$id/ack',
-      parser: (data) => ReminderEventItem.fromJson(data as Map<String, dynamic>),
+      parser: (data) =>
+          ReminderEventItem.fromJson(data as Map<String, dynamic>),
     );
   }
 }

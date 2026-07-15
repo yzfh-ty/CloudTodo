@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/utils/date_time_formatter.dart';
 import '../../../core/utils/display_texts.dart';
+import '../../../core/utils/app_timezone.dart';
 import '../domain/reminder_form_data.dart';
 
 class ReminderEditorDialog extends StatefulWidget {
@@ -22,7 +23,6 @@ class ReminderEditorDialog extends StatefulWidget {
 
 class _ReminderEditorDialogState extends State<ReminderEditorDialog> {
   final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _timezoneController;
   late final TextEditingController _intervalController;
   late String _channel;
   late String _repeatType;
@@ -35,9 +35,7 @@ class _ReminderEditorDialogState extends State<ReminderEditorDialog> {
     _channel = widget.initialValue.channel;
     _repeatType = widget.initialValue.repeatType;
     _customUnit = _inferCustomUnit(widget.initialValue.repeatRule);
-    _remindAt = widget.initialValue.remindAt;
-    _timezoneController =
-        TextEditingController(text: widget.initialValue.timezone);
+    _remindAt = dateTimeInAppTimezone(widget.initialValue.remindAt);
     _intervalController = TextEditingController(
       text: _initialIntervalText(widget.initialValue.repeatRule),
     );
@@ -45,7 +43,6 @@ class _ReminderEditorDialogState extends State<ReminderEditorDialog> {
 
   @override
   void dispose() {
-    _timezoneController.dispose();
     _intervalController.dispose();
     super.dispose();
   }
@@ -186,17 +183,6 @@ class _ReminderEditorDialogState extends State<ReminderEditorDialog> {
                     ),
                   ],
                   const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _timezoneController,
-                    decoration: const InputDecoration(labelText: '时区'),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return '请输入时区';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
@@ -263,12 +249,12 @@ class _ReminderEditorDialogState extends State<ReminderEditorDialog> {
     }
 
     setState(() {
-      _remindAt = DateTime(
-        pickedDate.year,
-        pickedDate.month,
-        pickedDate.day,
-        pickedTime.hour,
-        pickedTime.minute,
+      _remindAt = appTimezoneWallClock(
+        year: pickedDate.year,
+        month: pickedDate.month,
+        day: pickedDate.day,
+        hour: pickedTime.hour,
+        minute: pickedTime.minute,
       );
     });
   }
@@ -283,10 +269,7 @@ class _ReminderEditorDialogState extends State<ReminderEditorDialog> {
         channel: _channel,
         repeatType: _repeatType,
         repeatRule: _buildRepeatRule(),
-        remindAt: _remindAt,
-        timezone: _timezoneController.text.trim().isEmpty
-            ? 'Asia/Shanghai'
-            : _timezoneController.text.trim(),
+        remindAt: _remindAt.toUtc(),
       ),
     );
   }

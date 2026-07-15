@@ -52,7 +52,7 @@ export class AuthService {
         nickname: dto.nickname?.trim() || username,
         role: UserRole.user,
         status: UserStatus.active,
-        timezone: dto.timezone?.trim() || 'Asia/Shanghai',
+        timezone: 'Asia/Shanghai',
       },
       select: {
         id: true,

@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 import 'app.dart';
 import 'core/config/config_loader.dart';
+import 'core/utils/app_timezone.dart';
 import 'features/app/application/app_controller.dart';
 
 Future<void> bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
+  initializeAppTimezone();
 
   try {
     final config = await loadAppConfig();

@@ -6,7 +6,7 @@ import '../../todos/presentation/todo_page.dart';
 import '../../../routing/app_route_path.dart';
 import '../application/app_scope.dart';
 
-class AppShell extends StatelessWidget {
+class AppShell extends StatefulWidget {
   const AppShell({
     super.key,
     required this.section,
@@ -19,12 +19,19 @@ class AppShell extends StatelessWidget {
   final Future<void> Function() onLogout;
 
   @override
+  State<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends State<AppShell> {
+  SettingsSection _settingsSection = SettingsSection.profile;
+
+  @override
   Widget build(BuildContext context) {
     final services = AppScope.of(context).services;
     final width = MediaQuery.sizeOf(context).width;
     final isCompact = width < 900;
     final isMobile = width < 600;
-    final body = _buildSection(section);
+    final body = _buildSection(widget.section);
 
     final navigationItems = const [
       NavigationDestination(
@@ -85,8 +92,12 @@ class AppShell extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 0, 16),
                 child: _SideRail(
-                  section: section,
-                  onNavigate: onNavigate,
+                  section: widget.section,
+                  settingsSection: _settingsSection,
+                  onNavigate: widget.onNavigate,
+                  onSettingsSectionChanged: (value) {
+                    setState(() => _settingsSection = value);
+                  },
                 ),
               ),
             Expanded(
@@ -104,10 +115,10 @@ class AppShell extends StatelessWidget {
         ),
         bottomNavigationBar: isCompact
             ? NavigationBar(
-                selectedIndex: section.index,
+                selectedIndex: widget.section.index,
                 destinations: navigationItems,
                 onDestinationSelected: (index) {
-                  onNavigate(AppSection.values[index]);
+                  widget.onNavigate(AppSection.values[index]);
                 },
               )
             : null,
@@ -122,7 +133,13 @@ class AppShell extends StatelessWidget {
       case AppSection.reminders:
         return const RemindersPage();
       case AppSection.settings:
-        return SettingsPage(onLogout: onLogout);
+        return SettingsPage(
+          onLogout: widget.onLogout,
+          initialSection: _settingsSection,
+          onSectionChanged: (value) {
+            setState(() => _settingsSection = value);
+          },
+        );
     }
   }
 }
@@ -130,40 +147,74 @@ class AppShell extends StatelessWidget {
 class _SideRail extends StatelessWidget {
   const _SideRail({
     required this.section,
+    required this.settingsSection,
     required this.onNavigate,
+    required this.onSettingsSectionChanged,
   });
 
   final AppSection section;
+  final SettingsSection settingsSection;
   final ValueChanged<AppSection> onNavigate;
+  final ValueChanged<SettingsSection> onSettingsSectionChanged;
 
   @override
   Widget build(BuildContext context) {
+    final showSettingsSections = section == AppSection.settings;
+    final destinations = [
+      const NavigationRailDestination(
+        icon: Icon(Icons.format_list_bulleted_rounded),
+        label: Text('任务'),
+      ),
+      const NavigationRailDestination(
+        icon: Icon(Icons.alarm_rounded),
+        label: Text('提醒'),
+      ),
+      const NavigationRailDestination(
+        icon: Icon(Icons.settings_outlined),
+        label: Text('设置'),
+      ),
+      if (showSettingsSections) ...[
+        const NavigationRailDestination(
+          icon: Icon(Icons.manage_accounts_outlined),
+          selectedIcon: Icon(Icons.manage_accounts_rounded),
+          label: Text('账户资料'),
+        ),
+        const NavigationRailDestination(
+          icon: Icon(Icons.sync_outlined),
+          selectedIcon: Icon(Icons.sync_rounded),
+          label: Text('同步设备'),
+        ),
+        const NavigationRailDestination(
+          icon: Icon(Icons.notifications_outlined),
+          selectedIcon: Icon(Icons.notifications_rounded),
+          label: Text('通知方式'),
+        ),
+        const NavigationRailDestination(
+          icon: Icon(Icons.tune_outlined),
+          selectedIcon: Icon(Icons.tune_rounded),
+          label: Text('外观连接'),
+        ),
+      ],
+    ];
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(28),
       child: ColoredBox(
         color: Theme.of(context).colorScheme.surfaceContainerLow,
         child: NavigationRail(
           backgroundColor: Colors.transparent,
-          selectedIndex: section.index,
+          selectedIndex:
+              showSettingsSections ? 3 + settingsSection.index : section.index,
           groupAlignment: -0.7,
           labelType: NavigationRailLabelType.all,
           onDestinationSelected: (index) {
+            if (showSettingsSections && index >= 3) {
+              onSettingsSectionChanged(SettingsSection.values[index - 3]);
+              return;
+            }
             onNavigate(AppSection.values[index]);
           },
-          destinations: const [
-            NavigationRailDestination(
-              icon: Icon(Icons.format_list_bulleted_rounded),
-              label: Text('任务'),
-            ),
-            NavigationRailDestination(
-              icon: Icon(Icons.alarm_rounded),
-              label: Text('提醒'),
-            ),
-            NavigationRailDestination(
-              icon: Icon(Icons.settings_outlined),
-              label: Text('设置'),
-            ),
-          ],
+          destinations: destinations,
         ),
       ),
     );

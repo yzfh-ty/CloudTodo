@@ -188,7 +188,6 @@ class TodoListController extends ChangeNotifier {
         remindAt: draft.remindAt,
         repeatType: draft.repeatType,
         repeatRule: draft.repeatRule,
-        timezone: draft.timezone,
       );
       await refresh();
     });
@@ -202,7 +201,6 @@ class TodoListController extends ChangeNotifier {
         remindAt: draft.remindAt,
         repeatType: draft.repeatType,
         repeatRule: draft.repeatRule,
-        timezone: draft.timezone,
       );
       await refresh();
     });

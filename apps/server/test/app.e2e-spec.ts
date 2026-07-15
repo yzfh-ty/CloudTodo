@@ -108,6 +108,7 @@ describe('App integration', () => {
       .expect(201);
 
     expect(registerResponse.body.code).toBe('OK');
+    expect(registerResponse.body.data.user.timezone).toBe('Asia/Shanghai');
     expect(registerResponse.headers['set-cookie']).toEqual(
       expect.arrayContaining([
         expect.stringContaining('cloudtodo_user_session='),
@@ -141,6 +142,36 @@ describe('App integration', () => {
 
     const todoId = todoResponse.body.data.id as string;
     expect(todoResponse.body.data.title).toBe('Integration Todo');
+
+    const timezoneResponse = await agent
+      .patch('/api/users/me')
+      .set('X-CSRF-Token', userCsrfToken)
+      .send({ timezone: 'Europe/Berlin' })
+      .expect(200);
+    expect(timezoneResponse.body.data.timezone).toBe('Europe/Berlin');
+
+    const reminderResponse = await agent
+      .post(`/api/todos/${todoId}/reminders`)
+      .set('X-CSRF-Token', userCsrfToken)
+      .send({
+        channel: 'webhook',
+        remind_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        timezone: 'UTC',
+      })
+      .expect(201);
+    const reminderId = reminderResponse.body.data.id as string;
+    expect(reminderResponse.body.data.timezone).toBe('Europe/Berlin');
+
+    await agent
+      .patch('/api/users/me')
+      .set('X-CSRF-Token', userCsrfToken)
+      .send({ timezone: 'Asia/Tokyo' })
+      .expect(200);
+    const remindersResponse = await agent.get('/api/reminders/upcoming').expect(200);
+    const syncedReminder = remindersResponse.body.data.items.find(
+      (item: { id: string }) => item.id === reminderId,
+    );
+    expect(syncedReminder.timezone).toBe('Asia/Tokyo');
 
     const listResponse = await agent.get('/api/todos?page=1&page_size=10').expect(200);
     expect(listResponse.body.data.items.some((item: { id: string }) => item.id === todoId)).toBe(true);

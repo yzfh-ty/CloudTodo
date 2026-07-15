@@ -70,7 +70,6 @@ class RemindersController extends ChangeNotifier {
         remindAt: draft.remindAt,
         repeatType: draft.repeatType,
         repeatRule: draft.repeatRule,
-        timezone: draft.timezone,
       );
       await load();
     });
@@ -84,7 +83,6 @@ class RemindersController extends ChangeNotifier {
         remindAt: draft.remindAt,
         repeatType: draft.repeatType,
         repeatRule: draft.repeatRule,
-        timezone: draft.timezone,
       );
       await load();
     });

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'core/utils/app_timezone.dart';
 import 'features/app/application/app_controller.dart';
 import 'features/app/application/app_scope.dart';
 import 'features/app/application/app_session_controller.dart';
@@ -28,6 +29,7 @@ class _AppState extends State<App> {
     super.initState();
     _routerDelegate = AppRouterDelegate(widget.controller.services);
     _listenedSessionController = widget.controller.services.sessionController;
+    _applySessionTimezone();
     widget.controller.addListener(_handleControllerChanged);
     _listenedSessionController.addListener(_handleSessionChanged);
     _reminderPoller = Timer.periodic(
@@ -45,6 +47,7 @@ class _AppState extends State<App> {
       widget.controller.addListener(_handleControllerChanged);
       _listenedSessionController = widget.controller.services.sessionController;
       _listenedSessionController.addListener(_handleSessionChanged);
+      _applySessionTimezone();
       _recreateRouterDelegate();
     }
   }
@@ -84,6 +87,7 @@ class _AppState extends State<App> {
 
     final nextSessionController = widget.controller.services.sessionController;
     if (identical(_listenedSessionController, nextSessionController)) {
+      _applySessionTimezone();
       setState(() {});
       return;
     }
@@ -91,13 +95,25 @@ class _AppState extends State<App> {
     _listenedSessionController.removeListener(_handleSessionChanged);
     _listenedSessionController = nextSessionController;
     _listenedSessionController.addListener(_handleSessionChanged);
+    _applySessionTimezone();
     _recreateRouterDelegate();
   }
 
   void _handleSessionChanged() {
+    _applySessionTimezone();
+    if (mounted) {
+      setState(() {});
+    }
     if (widget.controller.services.sessionController.isAuthenticated) {
       _pollReminderEvents();
     }
+  }
+
+  void _applySessionTimezone() {
+    setAppTimezone(
+      widget.controller.services.sessionController.currentUser?.timezone ??
+          defaultAppTimezone,
+    );
   }
 
   void _recreateRouterDelegate() {

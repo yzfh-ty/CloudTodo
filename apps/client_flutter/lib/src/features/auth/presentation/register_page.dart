@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/utils/display_texts.dart';
-import '../../../core/utils/timezone_options.dart';
 import '../../app/application/app_scope.dart';
 import '../../app/presentation/app_shell.dart';
 
@@ -23,7 +21,6 @@ class _RegisterPageState extends State<RegisterPage> {
   final _emailController = TextEditingController();
   final _usernameController = TextEditingController();
   final _nicknameController = TextEditingController();
-  final _timezoneController = TextEditingController(text: 'Asia/Shanghai');
   final _passwordController = TextEditingController();
   bool _backendInitialized = false;
   bool _showAdvanced = false;
@@ -46,7 +43,6 @@ class _RegisterPageState extends State<RegisterPage> {
     _emailController.dispose();
     _usernameController.dispose();
     _nicknameController.dispose();
-    _timezoneController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -160,25 +156,6 @@ class _RegisterPageState extends State<RegisterPage> {
                   decoration: const InputDecoration(labelText: '昵称'),
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: _timezoneController.text,
-                  decoration: const InputDecoration(labelText: '时区'),
-                  items: kCommonTimezones
-                      .map(
-                        (timezone) => DropdownMenuItem<String>(
-                          value: timezone,
-                          child: Text(timezoneText(timezone)),
-                        ),
-                      )
-                      .toList(growable: false),
-                  onChanged: (value) {
-                    if (value == null) {
-                      return;
-                    }
-                    _timezoneController.text = value;
-                  },
-                ),
-                const SizedBox(height: 12),
                 TextFormField(
                   controller: _passwordController,
                   obscureText: true,
@@ -229,7 +206,6 @@ class _RegisterPageState extends State<RegisterPage> {
       username: _usernameController.text,
       password: _passwordController.text,
       nickname: _nicknameController.text,
-      timezone: _timezoneController.text,
     );
   }
 }

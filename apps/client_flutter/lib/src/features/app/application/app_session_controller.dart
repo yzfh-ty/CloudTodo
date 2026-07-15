@@ -60,7 +60,6 @@ class AppSessionController extends ChangeNotifier {
     required String username,
     required String password,
     required String nickname,
-    required String timezone,
   }) {
     return _submit(() {
       return _authRepository.register(
@@ -68,7 +67,6 @@ class AppSessionController extends ChangeNotifier {
         username: username,
         password: password,
         nickname: nickname,
-        timezone: timezone,
       );
     });
   }

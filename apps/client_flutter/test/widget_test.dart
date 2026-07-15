@@ -4,6 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:client_flutter/src/app.dart';
 import 'package:client_flutter/src/core/config/app_config.dart';
+import 'package:client_flutter/src/core/utils/app_timezone.dart';
+import 'package:client_flutter/src/core/utils/date_time_formatter.dart';
 import 'package:client_flutter/src/features/app/application/app_controller.dart';
 import 'package:client_flutter/src/features/app/presentation/app_shell.dart';
 
@@ -57,6 +59,24 @@ void main() {
       config.alignLoopbackHost(Uri.parse('http://127.0.0.1:4201')).apiBaseUrl,
       'https://api.example.com/api',
     );
+  });
+
+  test('global timezone formats and converts reminder times', () {
+    setAppTimezone('Asia/Tokyo');
+    expect(
+      formatDateTime(DateTime.utc(2026, 1, 1)),
+      '2026-01-01 09:00',
+    );
+
+    final wallClock = appTimezoneWallClock(
+      year: 2026,
+      month: 1,
+      day: 1,
+      hour: 9,
+      minute: 0,
+    );
+    expect(wallClock.toUtc(), DateTime.utc(2026, 1, 1));
+    setAppTimezone(defaultAppTimezone);
   });
 
   test('theme mode restores and persists across app launches', () async {

@@ -20,7 +20,7 @@ export class RemindersService {
         repeatType: dto.repeat_type ?? 'none',
         repeatRule: dto.repeat_rule as Prisma.InputJsonValue | undefined,
         remindAt: new Date(dto.remind_at),
-        timezone: dto.timezone?.trim() || user.timezone,
+        timezone: user.timezone,
         status: ReminderStatus.pending,
       },
       select: this.reminderSelect(),
@@ -41,7 +41,6 @@ export class RemindersService {
     if (dto.remind_at !== undefined) data.remindAt = new Date(dto.remind_at);
     if (dto.repeat_type !== undefined) data.repeatType = dto.repeat_type;
     if (dto.repeat_rule !== undefined) data.repeatRule = dto.repeat_rule;
-    if (dto.timezone !== undefined) data.timezone = dto.timezone?.trim() || null;
     if (dto.status !== undefined) data.status = dto.status;
 
     if (Object.keys(data).length === 0) {
@@ -50,6 +49,8 @@ export class RemindersService {
         message: 'no reminder fields to update',
       });
     }
+
+    data.timezone = user.timezone;
 
     const reminder = await this.prisma.reminder.update({
       where: { id },

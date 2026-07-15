@@ -284,14 +284,11 @@ class _RemindersPageState extends State<RemindersPage> {
       return;
     }
 
-    final user = AppScope.of(context).services.sessionController.currentUser;
-
     final draft = await showDialog<ReminderFormData>(
       context: context,
       builder: (context) {
         return ReminderEditorDialog(
-          initialValue: ReminderFormData.createDraft()
-              .copyWith(timezone: user?.timezone ?? 'Asia/Shanghai'),
+          initialValue: ReminderFormData.createDraft(),
           title: '创建提醒',
           submitLabel: '保存提醒',
         );

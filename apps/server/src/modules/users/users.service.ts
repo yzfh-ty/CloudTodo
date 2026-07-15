@@ -89,29 +89,45 @@ export class UsersService {
       data.timezone = nextTimezone;
     }
 
-    if (Object.keys(data).length === 0) {
+    if (Object.keys(data).length === 0 && !nextTimezone) {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message: 'no user fields to update',
       });
     }
 
-    const updatedUser = await this.prisma.user.update({
-      where: { id: user.id },
-      data,
-      select: {
-        id: true,
-        email: true,
-        username: true,
-        nickname: true,
-        role: true,
-        status: true,
-        timezone: true,
-        forcePasswordChange: true,
-        lastLoginAt: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+    const updatedUser = await this.prisma.$transaction(async (transaction) => {
+      const updated = await transaction.user.update({
+        where: { id: user.id },
+        data,
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          nickname: true,
+          role: true,
+          status: true,
+          timezone: true,
+          forcePasswordChange: true,
+          lastLoginAt: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      if (nextTimezone) {
+        await transaction.reminder.updateMany({
+          where: {
+            userId: user.id,
+            deletedAt: null,
+          },
+          data: {
+            timezone: nextTimezone,
+          },
+        });
+      }
+
+      return updated;
     });
 
     return {

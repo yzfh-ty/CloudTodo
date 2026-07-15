@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../core/utils/date_time_formatter.dart';
 import '../../../core/utils/display_texts.dart';
-import '../../../core/utils/timezone_options.dart';
 import '../../app/application/app_scope.dart';
 import '../application/profile_controller.dart';
 import '../domain/profile_user.dart';
@@ -18,7 +17,6 @@ class _ProfilePageState extends State<ProfilePage> {
   final _formKey = GlobalKey<FormState>();
   final _nicknameController = TextEditingController();
   final _emailController = TextEditingController();
-  final _timezoneController = TextEditingController();
   late final ProfileController _controller;
   bool _initialized = false;
 
@@ -41,7 +39,6 @@ class _ProfilePageState extends State<ProfilePage> {
   void dispose() {
     _nicknameController.dispose();
     _emailController.dispose();
-    _timezoneController.dispose();
     super.dispose();
   }
 
@@ -136,33 +133,6 @@ class _ProfilePageState extends State<ProfilePage> {
                             return null;
                           },
                         ),
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<String>(
-                          initialValue: _timezoneController.text.isEmpty
-                              ? null
-                              : _timezoneController.text,
-                          decoration: const InputDecoration(labelText: '时区'),
-                          items: kCommonTimezones
-                              .map(
-                                (timezone) => DropdownMenuItem<String>(
-                                  value: timezone,
-                                  child: Text(timezoneText(timezone)),
-                                ),
-                              )
-                              .toList(growable: false),
-                          onChanged: (value) {
-                            if (value == null) {
-                              return;
-                            }
-                            _timezoneController.text = value;
-                          },
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return '请选择时区';
-                            }
-                            return null;
-                          },
-                        ),
                         const SizedBox(height: 16),
                         Text(
                           '创建时间：${formatDateTime(profile?.createdAt)}\n更新时间：${formatDateTime(profile?.updatedAt)}\n当前时区：${profile == null ? '未设置' : timezoneText(profile.timezone)}',
@@ -199,7 +169,7 @@ class _ProfilePageState extends State<ProfilePage> {
     final updated = await _controller.save(
       nickname: _nicknameController.text,
       email: _emailController.text,
-      timezone: _timezoneController.text,
+      timezone: _controller.profile?.timezone ?? 'Asia/Shanghai',
     );
 
     if (!mounted) {
@@ -217,7 +187,6 @@ class _ProfilePageState extends State<ProfilePage> {
   void _bindProfile(ProfileUser profile) {
     _nicknameController.text = profile.nickname;
     _emailController.text = profile.email;
-    _timezoneController.text = profile.timezone;
   }
 }
 
