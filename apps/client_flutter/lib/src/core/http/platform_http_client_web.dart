@@ -15,6 +15,11 @@ class WebPlatformHttpClient implements PlatformHttpClient {
   final String baseUrl;
 
   @override
+  bool get hasSessionHint =>
+      _readCookie('cloudtodo_user_csrf_token') != null ||
+      _readCookie('cloudtodo_admin_csrf_token') != null;
+
+  @override
   Future<RawHttpResponse> request({
     required String method,
     required String path,
@@ -71,7 +76,9 @@ class WebPlatformHttpClient implements PlatformHttpClient {
           entry.key: entry.value!,
     };
 
-    return uri.replace(queryParameters: cleanedQuery.isEmpty ? null : cleanedQuery).toString();
+    return uri
+        .replace(queryParameters: cleanedQuery.isEmpty ? null : cleanedQuery)
+        .toString();
   }
 
   String? _csrfTokenForRequest(String method) {

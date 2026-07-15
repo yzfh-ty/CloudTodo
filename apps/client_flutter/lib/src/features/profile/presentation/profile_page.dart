@@ -81,7 +81,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Text(
                     _controller.errorMessage!,
-                    style: const TextStyle(color: Color(0xFFA12E2E)),
+                    style: TextStyle(color: theme.colorScheme.error),
                   ),
                 ),
               Card(
@@ -167,7 +167,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         Text(
                           '创建时间：${formatDateTime(profile?.createdAt)}\n更新时间：${formatDateTime(profile?.updatedAt)}\n当前时区：${profile == null ? '未设置' : timezoneText(profile.timezone)}',
                           style: theme.textTheme.bodyMedium?.copyWith(
-                            color: const Color(0xFF5B4D47),
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
                         const SizedBox(height: 24),
@@ -235,7 +235,7 @@ class _MetaChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF6F0E6),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Text('$label：$value'),

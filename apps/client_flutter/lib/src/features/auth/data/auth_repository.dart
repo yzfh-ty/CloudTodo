@@ -6,6 +6,8 @@ class AuthRepository {
 
   final ApiClient _apiClient;
 
+  bool get hasSessionHint => _apiClient.hasSessionHint;
+
   Future<SessionUser> login({
     required String account,
     required String password,

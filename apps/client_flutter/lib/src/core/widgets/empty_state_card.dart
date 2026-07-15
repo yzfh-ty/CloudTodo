@@ -25,7 +25,7 @@ class EmptyStateCard extends StatelessWidget {
             Icon(
               icon,
               size: 40,
-              color: const Color(0xFFA2471E),
+              color: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(height: 12),
             Text(
@@ -37,7 +37,7 @@ class EmptyStateCard extends StatelessWidget {
             Text(
               description,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: const Color(0xFF5B4D47),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
               textAlign: TextAlign.center,
             ),

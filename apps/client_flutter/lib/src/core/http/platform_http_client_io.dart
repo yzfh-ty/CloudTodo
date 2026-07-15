@@ -15,6 +15,11 @@ class IoPlatformHttpClient implements PlatformHttpClient {
   final Map<String, String> _cookies = <String, String>{};
 
   @override
+  bool get hasSessionHint =>
+      _cookies.containsKey('cloudtodo_user_csrf_token') ||
+      _cookies.containsKey('cloudtodo_admin_csrf_token');
+
+  @override
   Future<RawHttpResponse> request({
     required String method,
     required String path,
@@ -29,7 +34,9 @@ class IoPlatformHttpClient implements PlatformHttpClient {
     if (_cookies.isNotEmpty) {
       request.headers.set(
         HttpHeaders.cookieHeader,
-        _cookies.entries.map((entry) => '${entry.key}=${entry.value}').join('; '),
+        _cookies.entries
+            .map((entry) => '${entry.key}=${entry.value}')
+            .join('; '),
       );
     }
 
@@ -66,7 +73,8 @@ class IoPlatformHttpClient implements PlatformHttpClient {
 
   Uri _buildUri(String path, Map<String, String?>? queryParameters) {
     if (baseUrl.trim().isEmpty) {
-      throw const FormatException('Native platform requires an absolute apiBaseUrl.');
+      throw const FormatException(
+          'Native platform requires an absolute apiBaseUrl.');
     }
 
     final normalizedBase = baseUrl.endsWith('/')
@@ -76,7 +84,8 @@ class IoPlatformHttpClient implements PlatformHttpClient {
     final baseUri = Uri.parse(normalizedBase);
     final mergedPath = '${baseUri.path}$normalizedPath';
     final cleanedQuery = <String, String>{
-      for (final entry in (queryParameters ?? const <String, String?>{}).entries)
+      for (final entry
+          in (queryParameters ?? const <String, String?>{}).entries)
         if (entry.value != null && entry.value!.trim().isNotEmpty)
           entry.key: entry.value!,
     };

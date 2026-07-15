@@ -41,18 +41,8 @@ class AppShell extends StatelessWidget {
       ),
     ];
 
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Color(0xFFF5EFE2),
-            Color(0xFFE9E0CC),
-            Color(0xFFD7E7E3),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
+    return ColoredBox(
+      color: Theme.of(context).colorScheme.surface,
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
@@ -63,7 +53,9 @@ class AppShell extends StatelessWidget {
           title: isMobile
               ? Text(
                   services.config.appName,
-                  style: Theme.of(context).textTheme.titleLarge,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                 )
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -76,11 +68,16 @@ class AppShell extends StatelessWidget {
                     Text(
                       '任务、提醒和设置',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: const Color(0xFF5A4E48),
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                     ),
                   ],
                 ),
+          actions: const [
+            _ThemeModeButton(),
+            SizedBox(width: 8),
+          ],
         ),
         body: Row(
           children: [
@@ -144,7 +141,7 @@ class _SideRail extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(28),
       child: ColoredBox(
-        color: Colors.white.withValues(alpha: 0.74),
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
         child: NavigationRail(
           backgroundColor: Colors.transparent,
           selectedIndex: section.index,
@@ -179,7 +176,6 @@ class SplashPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      backgroundColor: Color(0xFFF5EFE2),
       body: Center(
         child: CircularProgressIndicator(),
       ),
@@ -204,18 +200,16 @@ class AuthPageFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        elevation: 0,
+        actions: const [
+          _ThemeModeButton(),
+          SizedBox(width: 8),
+        ],
+      ),
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Color(0xFFEEE3C8),
-              Color(0xFFF9F5EC),
-              Color(0xFFDCEBE6),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
+        color: Theme.of(context).colorScheme.surface,
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -284,6 +278,24 @@ class AuthPageFrame extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ThemeModeButton extends StatelessWidget {
+  const _ThemeModeButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return IconButton(
+      onPressed: () {
+        AppScope.of(context).controller.toggleTheme(
+              Theme.of(context).brightness,
+            );
+      },
+      icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
+      tooltip: isDark ? '切换到亮色' : '切换到暗色',
     );
   }
 }

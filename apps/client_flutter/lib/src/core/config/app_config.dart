@@ -39,6 +39,18 @@ class AppConfig {
     );
   }
 
+  AppConfig alignLoopbackHost(Uri appUri) {
+    final apiUri = Uri.tryParse(apiBaseUrl);
+    if (apiUri == null ||
+        !_isLoopbackHost(appUri.host) ||
+        !_isLoopbackHost(apiUri.host) ||
+        apiUri.host == appUri.host) {
+      return this;
+    }
+
+    return copyWith(apiBaseUrl: apiUri.replace(host: appUri.host).toString());
+  }
+
   static String _defaultApiBaseUrl() {
     if (kIsWeb) {
       return '/api';
@@ -52,5 +64,9 @@ class AppConfig {
       default:
         return 'http://127.0.0.1:3000/api';
     }
+  }
+
+  static bool _isLoopbackHost(String host) {
+    return host == 'localhost' || host == '127.0.0.1' || host == '::1';
   }
 }

@@ -10,6 +10,7 @@ Future<void> bootstrap() async {
   try {
     final config = await loadAppConfig();
     final controller = AppController(initialConfig: config);
+    await controller.restoreThemeMode();
     controller.restoreSession();
     runApp(App(controller: controller));
   } catch (error) {
@@ -26,30 +27,33 @@ class _BootstrapFailureApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.black,
+          dynamicSchemeVariant: DynamicSchemeVariant.monochrome,
+        ),
+      ),
+      darkTheme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.black,
+          brightness: Brightness.dark,
+          dynamicSchemeVariant: DynamicSchemeVariant.monochrome,
+        ),
+      ),
+      themeMode: ThemeMode.system,
       home: Scaffold(
-        backgroundColor: const Color(0xFFF5EFE2),
         body: Center(
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 640),
-            padding: const EdgeInsets.all(24),
+          child: Card(
             margin: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x14000000),
-                  blurRadius: 24,
-                  offset: Offset(0, 16),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 640),
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'CloudTodo Web 启动失败。\n$error',
+                style: const TextStyle(
+                  fontSize: 16,
+                  height: 1.6,
                 ),
-              ],
-            ),
-            child: Text(
-              'CloudTodo Web 启动失败。\n$error',
-              style: const TextStyle(
-                fontSize: 16,
-                height: 1.6,
-                color: Color(0xFF2F241F),
               ),
             ),
           ),

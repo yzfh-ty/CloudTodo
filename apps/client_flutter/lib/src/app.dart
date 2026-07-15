@@ -70,7 +70,9 @@ class _AppState extends State<App> {
         debugShowCheckedModeBanner: false,
         routerDelegate: _routerDelegate,
         routeInformationParser: _routeInformationParser,
-        theme: _buildTheme(),
+        theme: _buildTheme(Brightness.light),
+        darkTheme: _buildTheme(Brightness.dark),
+        themeMode: widget.controller.themeMode,
       ),
     );
   }
@@ -80,8 +82,14 @@ class _AppState extends State<App> {
       return;
     }
 
+    final nextSessionController = widget.controller.services.sessionController;
+    if (identical(_listenedSessionController, nextSessionController)) {
+      setState(() {});
+      return;
+    }
+
     _listenedSessionController.removeListener(_handleSessionChanged);
-    _listenedSessionController = widget.controller.services.sessionController;
+    _listenedSessionController = nextSessionController;
     _listenedSessionController.addListener(_handleSessionChanged);
     _recreateRouterDelegate();
   }
@@ -120,83 +128,91 @@ class _AppState extends State<App> {
     }
   }
 
-  ThemeData _buildTheme() {
-    const cream = Color(0xFFF5EFE2);
-    const paper = Color(0xFFFFFCF5);
-    const ink = Color(0xFF2D211D);
-    const rust = Color(0xFFA2471E);
-    const teal = Color(0xFF1D5C63);
-
+  ThemeData _buildTheme(Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
     final scheme = ColorScheme.fromSeed(
-      seedColor: rust,
-      brightness: Brightness.light,
-      primary: rust,
-      secondary: teal,
-      surface: paper,
+      seedColor: Colors.black,
+      brightness: brightness,
+      dynamicSchemeVariant: DynamicSchemeVariant.monochrome,
+    ).copyWith(
+      primary: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF111111),
+      onPrimary: isDark ? const Color(0xFF111111) : Colors.white,
+      secondary: isDark ? const Color(0xFFC7C7C7) : const Color(0xFF555555),
+      onSecondary: isDark ? const Color(0xFF111111) : Colors.white,
+      surface: isDark ? Colors.black : Colors.white,
+      onSurface: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF171717),
     );
+    final fieldColor =
+        isDark ? const Color(0xFF161616) : const Color(0xFFF5F5F5);
+    final cardColor =
+        isDark ? const Color(0xFF101010) : const Color(0xFFFFFFFF);
+    final borderColor =
+        isDark ? const Color(0xFF303030) : const Color(0xFFE5E5E5);
 
     return ThemeData(
       colorScheme: scheme,
-      scaffoldBackgroundColor: cream,
+      brightness: brightness,
+      scaffoldBackgroundColor: scheme.surface,
       useMaterial3: true,
-      textTheme: const TextTheme(
+      textTheme: TextTheme(
         headlineLarge: TextStyle(
           fontSize: 40,
           fontWeight: FontWeight.w700,
-          color: ink,
+          color: scheme.onSurface,
           height: 1.1,
         ),
         headlineMedium: TextStyle(
           fontSize: 28,
           fontWeight: FontWeight.w700,
-          color: ink,
+          color: scheme.onSurface,
         ),
         titleLarge: TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.w700,
-          color: ink,
+          color: scheme.onSurface,
         ),
         bodyLarge: TextStyle(
           fontSize: 16,
           height: 1.6,
-          color: ink,
+          color: scheme.onSurface,
         ),
         bodyMedium: TextStyle(
           fontSize: 14,
           height: 1.5,
-          color: ink,
+          color: scheme.onSurface,
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.white.withValues(alpha: 0.9),
+        fillColor: fieldColor,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide.none,
+          borderSide: BorderSide(color: borderColor),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide.none,
+          borderSide: BorderSide(color: borderColor),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: rust, width: 1.5),
+          borderSide: BorderSide(color: scheme.primary, width: 1.5),
         ),
       ),
       cardTheme: CardThemeData(
-        color: Colors.white.withValues(alpha: 0.9),
+        color: cardColor,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24),
-          side: BorderSide(
-            color: Colors.black.withValues(alpha: 0.06),
-          ),
+          side: BorderSide(color: borderColor),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: ink,
-        contentTextStyle: const TextStyle(color: Colors.white),
+        backgroundColor:
+            isDark ? const Color(0xFFF5F5F5) : const Color(0xFF171717),
+        contentTextStyle: TextStyle(
+          color: isDark ? const Color(0xFF171717) : Colors.white,
+        ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),

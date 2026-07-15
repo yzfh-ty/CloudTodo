@@ -56,28 +56,37 @@ class _RemindersPageState extends State<RemindersPage> {
           builder: (context, constraints) {
             final isMobile = constraints.maxWidth < 600;
             final selectorWidth = isMobile ? constraints.maxWidth - 48 : 320.0;
+            final cardPadding = EdgeInsets.all(isMobile ? 16 : 20);
+            final sectionTitleStyle = isMobile
+                ? theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700)
+                : theme.textTheme.titleLarge;
 
             return ListView(
               children: [
                 Text(
                   '提醒中心',
-                  style: theme.textTheme.headlineMedium,
+                  style: isMobile
+                      ? theme.textTheme.titleLarge
+                      : theme.textTheme.headlineMedium,
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: isMobile ? 8 : 12),
                 Text(
                   '统一查看、创建和维护近期提醒。',
-                  style: theme.textTheme.bodyLarge,
+                  style: isMobile
+                      ? theme.textTheme.bodyMedium
+                      : theme.textTheme.bodyLarge,
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: isMobile ? 16 : 20),
                 Card(
                   child: Padding(
-                    padding: const EdgeInsets.all(20),
+                    padding: cardPadding,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           '新建提醒',
-                          style: theme.textTheme.titleLarge,
+                          style: sectionTitleStyle,
                         ),
                         const SizedBox(height: 12),
                         Wrap(
@@ -125,19 +134,19 @@ class _RemindersPageState extends State<RemindersPage> {
                 ),
                 const SizedBox(height: 16),
                 if (_controller.isLoading)
-                  const Card(
+                  Card(
                     child: Padding(
-                      padding: EdgeInsets.all(24),
+                      padding: cardPadding,
                       child: Center(child: CircularProgressIndicator()),
                     ),
                   )
                 else if (_controller.errorMessage != null)
                   Card(
                     child: Padding(
-                      padding: const EdgeInsets.all(24),
+                      padding: cardPadding,
                       child: Text(
                         _controller.errorMessage!,
-                        style: const TextStyle(color: Color(0xFFA12E2E)),
+                        style: TextStyle(color: theme.colorScheme.error),
                       ),
                     ),
                   )
@@ -160,7 +169,7 @@ class _RemindersPageState extends State<RemindersPage> {
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Card(
                         child: Padding(
-                          padding: const EdgeInsets.all(20),
+                          padding: cardPadding,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -399,7 +408,7 @@ class _MetaChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFFF6F0E6),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Text('$label：$value'),

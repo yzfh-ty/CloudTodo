@@ -101,6 +101,11 @@ class _SettingsPageState extends State<SettingsPage> {
       ]),
       builder: (context, _) {
         final theme = Theme.of(context);
+        final isMobile = MediaQuery.sizeOf(context).width < 600;
+        final cardPadding = EdgeInsets.all(isMobile ? 16 : 24);
+        final sectionTitleStyle = isMobile
+            ? theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)
+            : theme.textTheme.titleLarge;
         final appScope = AppScope.of(context);
         final currentUser = appScope.services.sessionController.currentUser;
         final profile = _profileController.profile;
@@ -112,23 +117,80 @@ class _SettingsPageState extends State<SettingsPage> {
           children: [
             Text(
               '设置',
-              style: theme.textTheme.headlineMedium,
+              style: isMobile
+                  ? theme.textTheme.titleLarge
+                  : theme.textTheme.headlineMedium,
             ),
             const SizedBox(height: 12),
             Text(
               '这里统一放账户资料、时区、通知方式和退出，不再把这些内容拆成多个一级菜单。',
-              style: theme.textTheme.bodyLarge,
+              style: isMobile
+                  ? theme.textTheme.bodyMedium
+                  : theme.textTheme.bodyLarge,
             ),
             const SizedBox(height: 20),
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(24),
+                padding: cardPadding,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('外观', style: sectionTitleStyle),
+                    const SizedBox(height: 16),
+                    SegmentedButton<ThemeMode>(
+                      segments: isMobile
+                          ? const [
+                              ButtonSegment(
+                                value: ThemeMode.system,
+                                label: Text('系统'),
+                              ),
+                              ButtonSegment(
+                                value: ThemeMode.light,
+                                label: Text('亮色'),
+                              ),
+                              ButtonSegment(
+                                value: ThemeMode.dark,
+                                label: Text('暗色'),
+                              ),
+                            ]
+                          : const [
+                              ButtonSegment(
+                                value: ThemeMode.system,
+                                icon: Icon(Icons.brightness_auto_outlined),
+                                label: Text('跟随系统'),
+                              ),
+                              ButtonSegment(
+                                value: ThemeMode.light,
+                                icon: Icon(Icons.light_mode_outlined),
+                                label: Text('亮色'),
+                              ),
+                              ButtonSegment(
+                                value: ThemeMode.dark,
+                                icon: Icon(Icons.dark_mode_outlined),
+                                label: Text('暗色'),
+                              ),
+                            ],
+                      selected: {appScope.controller.themeMode},
+                      showSelectedIcon: false,
+                      expandedInsets: EdgeInsets.zero,
+                      onSelectionChanged: (selection) {
+                        appScope.controller.setThemeMode(selection.first);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: cardPadding,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       '账户',
-                      style: theme.textTheme.titleLarge,
+                      style: sectionTitleStyle,
                     ),
                     const SizedBox(height: 16),
                     Wrap(
@@ -162,13 +224,13 @@ class _SettingsPageState extends State<SettingsPage> {
             const SizedBox(height: 16),
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(24),
+                padding: cardPadding,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       '同步',
-                      style: theme.textTheme.titleLarge,
+                      style: sectionTitleStyle,
                     ),
                     const SizedBox(height: 12),
                     if (_syncError != null)
@@ -176,7 +238,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         padding: const EdgeInsets.only(bottom: 12),
                         child: Text(
                           _syncError!,
-                          style: const TextStyle(color: Color(0xFFA12E2E)),
+                          style: TextStyle(color: theme.colorScheme.error),
                         ),
                       ),
                     Wrap(
@@ -208,7 +270,7 @@ class _SettingsPageState extends State<SettingsPage> {
             const SizedBox(height: 16),
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(24),
+                padding: cardPadding,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -217,7 +279,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         Expanded(
                           child: Text(
                             '设备',
-                            style: theme.textTheme.titleLarge,
+                            style: sectionTitleStyle,
                           ),
                         ),
                         OutlinedButton.icon(
@@ -233,7 +295,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         padding: const EdgeInsets.only(bottom: 12),
                         child: Text(
                           _deviceError!,
-                          style: const TextStyle(color: Color(0xFFA12E2E)),
+                          style: TextStyle(color: theme.colorScheme.error),
                         ),
                       ),
                     if (_isLoadingDevices)
@@ -265,13 +327,13 @@ class _SettingsPageState extends State<SettingsPage> {
             const SizedBox(height: 16),
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(24),
+                padding: cardPadding,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       '密码',
-                      style: theme.textTheme.titleLarge,
+                      style: sectionTitleStyle,
                     ),
                     const SizedBox(height: 12),
                     if (_passwordError != null)
@@ -279,7 +341,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         padding: const EdgeInsets.only(bottom: 12),
                         child: Text(
                           _passwordError!,
-                          style: const TextStyle(color: Color(0xFFA12E2E)),
+                          style: TextStyle(color: theme.colorScheme.error),
                         ),
                       ),
                     TextFormField(
@@ -314,13 +376,13 @@ class _SettingsPageState extends State<SettingsPage> {
             const SizedBox(height: 16),
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(24),
+                padding: cardPadding,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       '高级设置',
-                      style: theme.textTheme.titleLarge,
+                      style: sectionTitleStyle,
                     ),
                     const SizedBox(height: 12),
                     Text(
@@ -362,7 +424,7 @@ class _SettingsPageState extends State<SettingsPage> {
             const SizedBox(height: 16),
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(24),
+                padding: cardPadding,
                 child: Form(
                   key: _formKey,
                   child: Column(
@@ -370,7 +432,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     children: [
                       Text(
                         '个人资料',
-                        style: theme.textTheme.titleLarge,
+                        style: sectionTitleStyle,
                       ),
                       const SizedBox(height: 12),
                       if (_profileController.errorMessage != null)
@@ -378,7 +440,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           padding: const EdgeInsets.only(bottom: 12),
                           child: Text(
                             _profileController.errorMessage!,
-                            style: const TextStyle(color: Color(0xFFA12E2E)),
+                            style: TextStyle(color: theme.colorScheme.error),
                           ),
                         ),
                       Wrap(
@@ -455,7 +517,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       Text(
                         '创建时间：${formatDateTime(profile?.createdAt)}\n更新时间：${formatDateTime(profile?.updatedAt)}',
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: const Color(0xFF5B4D47),
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                       const SizedBox(height: 20),
@@ -476,7 +538,7 @@ class _SettingsPageState extends State<SettingsPage> {
             const SizedBox(height: 16),
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(24),
+                padding: cardPadding,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -485,7 +547,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         Expanded(
                           child: Text(
                             '通知方式',
-                            style: theme.textTheme.titleLarge,
+                            style: sectionTitleStyle,
                           ),
                         ),
                         FilledButton.icon(
@@ -508,7 +570,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         padding: const EdgeInsets.only(bottom: 12),
                         child: Text(
                           _endpointsController.errorMessage!,
-                          style: const TextStyle(color: Color(0xFFA12E2E)),
+                          style: TextStyle(color: theme.colorScheme.error),
                         ),
                       ),
                     if (_endpointsController.isLoading)
@@ -999,7 +1061,8 @@ class _SettingsPageState extends State<SettingsPage> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF6F0E6),
+                      color:
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: SelectableText(
@@ -1021,7 +1084,8 @@ class _SettingsPageState extends State<SettingsPage> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFEFF5F3),
+                      color:
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: SelectableText(
@@ -1080,7 +1144,7 @@ class _MetaChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF6F0E6),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Text('$label：$value'),
@@ -1138,7 +1202,7 @@ class _EndpointCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFFF6F0E6),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
@@ -1190,7 +1254,7 @@ class _EndpointCard extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.65),
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Text(
@@ -1258,7 +1322,7 @@ class _DeviceCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF6F0E6),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(18),
       ),
       child: isMobile

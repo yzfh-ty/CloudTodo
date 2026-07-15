@@ -17,12 +17,12 @@ Future<AppConfig> loadAppConfig() async {
         response.body.isNotEmpty) {
       final payload = jsonDecode(response.body);
       if (payload is Map<String, dynamic>) {
-        return AppConfig.fromJson(payload);
+        return AppConfig.fromJson(payload).alignLoopbackHost(Uri.base);
       }
     }
   } catch (_) {
-    return AppConfig.defaults();
+    return AppConfig.defaults().alignLoopbackHost(Uri.base);
   }
 
-  return AppConfig.defaults();
+  return AppConfig.defaults().alignLoopbackHost(Uri.base);
 }

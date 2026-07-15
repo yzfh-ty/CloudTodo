@@ -86,7 +86,8 @@ class _RegisterPageState extends State<RegisterPage> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF6F0E6),
+                    color:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(18),
                   ),
                   child: Column(
@@ -193,7 +194,9 @@ class _RegisterPageState extends State<RegisterPage> {
                   const SizedBox(height: 16),
                   Text(
                     sessionController.lastError!,
-                    style: const TextStyle(color: Color(0xFFA12E2E)),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 ],
                 const SizedBox(height: 24),

@@ -39,6 +39,10 @@ class AppSessionController extends ChangeNotifier {
     _status = AppSessionStatus.initializing;
     _lastError = null;
     notifyListeners();
+    if (!_authRepository.hasSessionHint) {
+      forceLogout();
+      return;
+    }
     await refreshSessionSilently();
   }
 

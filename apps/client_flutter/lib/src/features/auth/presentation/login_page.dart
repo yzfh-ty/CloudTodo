@@ -31,7 +31,8 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    _backendUrlController.text = AppScope.of(context).controller.currentApiBaseUrl;
+    _backendUrlController.text =
+        AppScope.of(context).controller.currentApiBaseUrl;
     _backendInitialized = true;
   }
 
@@ -60,7 +61,8 @@ class _LoginPageState extends State<LoginPage> {
             children: [
               const Text('还没有账号？'),
               TextButton(
-                onPressed: sessionController.isBusy ? null : widget.onGoRegister,
+                onPressed:
+                    sessionController.isBusy ? null : widget.onGoRegister,
                 child: const Text('去注册'),
               ),
             ],
@@ -78,7 +80,8 @@ class _LoginPageState extends State<LoginPage> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF6F0E6),
+                    color:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(18),
                   ),
                   child: Column(
@@ -114,7 +117,8 @@ class _LoginPageState extends State<LoginPage> {
                             labelText: '后端地址',
                             helperText: '输入 http://localhost:3000 或完整的 /api 地址',
                           ),
-                          validator: (value) => appController.validateApiBaseUrl(value ?? ''),
+                          validator: (value) =>
+                              appController.validateApiBaseUrl(value ?? ''),
                         ),
                       ],
                     ],
@@ -150,7 +154,9 @@ class _LoginPageState extends State<LoginPage> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    onPressed: sessionController.isBusy ? null : _openPasswordResetDialog,
+                    onPressed: sessionController.isBusy
+                        ? null
+                        : _openPasswordResetDialog,
                     child: const Text('使用重置令牌设置新密码'),
                   ),
                 ),
@@ -158,7 +164,9 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 16),
                   Text(
                     sessionController.lastError!,
-                    style: const TextStyle(color: Color(0xFFA12E2E)),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 ],
                 const SizedBox(height: 24),
@@ -183,7 +191,8 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     final appScope = AppScope.of(context);
-    final services = await appScope.controller.updateApiBaseUrl(_backendUrlController.text);
+    final services =
+        await appScope.controller.updateApiBaseUrl(_backendUrlController.text);
     final sessionController = services.sessionController;
     await sessionController.login(
       account: _accountController.text,
@@ -230,7 +239,9 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(height: 12),
                       Text(
                         errorMessage!,
-                        style: const TextStyle(color: Color(0xFFA12E2E)),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
                       ),
                     ],
                   ],
@@ -238,7 +249,8 @@ class _LoginPageState extends State<LoginPage> {
               ),
               actions: [
                 TextButton(
-                  onPressed: isSubmitting ? null : () => Navigator.of(context).pop(),
+                  onPressed:
+                      isSubmitting ? null : () => Navigator.of(context).pop(),
                   child: const Text('取消'),
                 ),
                 FilledButton(
@@ -247,7 +259,8 @@ class _LoginPageState extends State<LoginPage> {
                       : () async {
                           final token = tokenController.text.trim();
                           final newPassword = newPasswordController.text;
-                          final confirmPassword = confirmPasswordController.text;
+                          final confirmPassword =
+                              confirmPasswordController.text;
                           if (token.isEmpty ||
                               newPassword.length < 8 ||
                               newPassword != confirmPassword) {
@@ -263,7 +276,10 @@ class _LoginPageState extends State<LoginPage> {
                           });
 
                           try {
-                            await AppScope.of(context).services.authRepository.confirmPasswordReset(
+                            await AppScope.of(context)
+                                .services
+                                .authRepository
+                                .confirmPasswordReset(
                                   token: token,
                                   newPassword: newPassword,
                                   confirmPassword: confirmPassword,

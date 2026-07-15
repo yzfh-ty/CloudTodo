@@ -128,8 +128,10 @@ npm run start:dev
 ```bat
 cd apps/client_flutter
 flutter pub get
-flutter run -d chrome --web-hostname localhost
+flutter run -d chrome --web-hostname localhost --no-web-resources-cdn
 ```
+
+`--no-web-resources-cdn` 会将 Flutter Web 渲染资源随应用本地提供，浏览器无需访问 Google CDN。
 
 ### Docker 部署
 

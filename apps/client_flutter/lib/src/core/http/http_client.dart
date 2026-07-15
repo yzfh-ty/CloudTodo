@@ -20,6 +20,8 @@ class RawHttpResponse {
 }
 
 abstract class PlatformHttpClient {
+  bool get hasSessionHint;
+
   Future<RawHttpResponse> request({
     required String method,
     required String path,
@@ -40,6 +42,8 @@ class ApiClient {
   Future<bool> Function()? _refreshSession;
   void Function()? _clearSession;
   Future<bool>? _refreshFuture;
+
+  bool get hasSessionHint => _httpClient.hasSessionHint;
 
   void registerSessionHooks({
     required Future<bool> Function() refreshSession,

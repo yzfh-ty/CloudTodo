@@ -73,7 +73,7 @@ if "%SKIP_PUB_GET%"=="0" (
 
 echo.
 echo ==^> Starting CloudTodo Web on http://%WEB_HOSTNAME%:%WEB_PORT%
-call flutter run -d chrome --web-hostname %WEB_HOSTNAME% --web-port %WEB_PORT%
+call flutter run -d chrome --web-hostname %WEB_HOSTNAME% --web-port %WEB_PORT% --no-web-resources-cdn
 set "EXIT_CODE=%ERRORLEVEL%"
 popd
 exit /b %EXIT_CODE%

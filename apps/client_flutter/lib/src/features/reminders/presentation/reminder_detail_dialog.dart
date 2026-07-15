@@ -38,10 +38,15 @@ class ReminderDetailDialog extends StatelessWidget {
                   spacing: 12,
                   runSpacing: 12,
                   children: [
-                    _DetailChip(label: '通道', value: reminderChannelText(item.channel)),
-                    _DetailChip(label: '重复', value: reminderRepeatTypeText(item.repeatType)),
-                    _DetailChip(label: '状态', value: reminderStatusText(item.status)),
-                    _DetailChip(label: '时区', value: timezoneText(item.timezone)),
+                    _DetailChip(
+                        label: '通道', value: reminderChannelText(item.channel)),
+                    _DetailChip(
+                        label: '重复',
+                        value: reminderRepeatTypeText(item.repeatType)),
+                    _DetailChip(
+                        label: '状态', value: reminderStatusText(item.status)),
+                    _DetailChip(
+                        label: '时区', value: timezoneText(item.timezone)),
                   ],
                 ),
                 const SizedBox(height: 20),
@@ -49,7 +54,8 @@ class ReminderDetailDialog extends StatelessWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF6F0E6),
+                    color:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(18),
                   ),
                   child: Column(
@@ -60,7 +66,8 @@ class ReminderDetailDialog extends StatelessWidget {
                         style: theme.textTheme.titleMedium,
                       ),
                       const SizedBox(height: 8),
-                      Text('任务标题：${todoTitle?.trim().isNotEmpty == true ? todoTitle! : '未找到任务标题'}'),
+                      Text(
+                          '任务标题：${todoTitle?.trim().isNotEmpty == true ? todoTitle! : '未找到任务标题'}'),
                       Text('任务 ID：${item.todoId}'),
                       Text('提醒时间：${formatDateTime(item.remindAt)}'),
                       Text('原始时区：${item.timezone}'),
@@ -98,7 +105,7 @@ class _DetailChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFFF6F0E6),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Text('$label：$value'),

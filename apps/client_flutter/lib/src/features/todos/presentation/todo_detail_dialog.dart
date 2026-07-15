@@ -44,17 +44,23 @@ class TodoDetailDialog extends StatelessWidget {
                   spacing: 12,
                   runSpacing: 12,
                   children: [
-                    _DetailChip(label: '状态', value: todoStatusText(item.status)),
-                    _DetailChip(label: '优先级', value: todoPriorityText(item.priority)),
-                    _DetailChip(label: '截止时间', value: formatDateTime(item.dueAt)),
-                    _DetailChip(label: '全天事项', value: item.isAllDay ? '是' : '否'),
+                    _DetailChip(
+                        label: '状态', value: todoStatusText(item.status)),
+                    _DetailChip(
+                        label: '优先级', value: todoPriorityText(item.priority)),
+                    _DetailChip(
+                        label: '截止时间', value: formatDateTime(item.dueAt)),
+                    _DetailChip(
+                        label: '全天事项', value: item.isAllDay ? '是' : '否'),
                   ],
                 ),
                 const SizedBox(height: 20),
                 _Section(
                   title: '描述',
                   child: Text(
-                    item.description?.trim().isNotEmpty == true ? item.description! : '暂无描述',
+                    item.description?.trim().isNotEmpty == true
+                        ? item.description!
+                        : '暂无描述',
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -87,21 +93,25 @@ class TodoDetailDialog extends StatelessWidget {
                                   width: double.infinity,
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.65),
+                                    color: theme.colorScheme.surface,
                                     borderRadius: BorderRadius.circular(14),
                                   ),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         '${reminderChannelText(reminder.channel)} · ${reminderRepeatTypeText(reminder.repeatType)}',
-                                        style: theme.textTheme.bodyMedium?.copyWith(
+                                        style: theme.textTheme.bodyMedium
+                                            ?.copyWith(
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
                                       const SizedBox(height: 4),
-                                      Text('提醒时间：${formatDateTime(reminder.remindAt)}'),
-                                      Text('状态：${reminderStatusText(reminder.status)}'),
+                                      Text(
+                                          '提醒时间：${formatDateTime(reminder.remindAt)}'),
+                                      Text(
+                                          '状态：${reminderStatusText(reminder.status)}'),
                                     ],
                                   ),
                                 ),
@@ -142,7 +152,7 @@ class _Section extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF6F0E6),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
@@ -174,7 +184,7 @@ class _DetailChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFFF6F0E6),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Text('$label：$value'),

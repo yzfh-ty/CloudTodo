@@ -126,8 +126,10 @@ flutter test
 ### 运行 Web
 
 ```bash
-flutter run -d chrome --web-hostname localhost
+flutter run -d chrome --web-hostname localhost --no-web-resources-cdn
 ```
+
+`--no-web-resources-cdn` 会将 CanvasKit 等渲染资源随应用本地提供，开发和部署时均不依赖 Google CDN。
 
 ### 运行 Windows
 

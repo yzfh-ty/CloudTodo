@@ -6,7 +6,7 @@ COPY pubspec.yaml ./
 RUN flutter pub get
 
 COPY . .
-RUN flutter build web --release
+RUN flutter build web --release --no-web-resources-cdn
 
 FROM nginx:1.27-alpine AS runner
 
