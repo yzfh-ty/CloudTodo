@@ -43,6 +43,11 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // Keep the supported device ABIs explicit to avoid packaging unused binaries.
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86_64")
+        }
     }
 
     signingConfigs {
@@ -61,6 +66,14 @@ android {
             if (releaseSigningConfigured) {
                 signingConfig = signingConfigs.getByName("release")
             }
+        }
+    }
+
+    packaging {
+        jniLibs {
+            excludes += setOf(
+                "lib/x86/**",
+            )
         }
     }
 }

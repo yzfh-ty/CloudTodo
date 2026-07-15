@@ -139,8 +139,8 @@ pushd "%SERVER_DIR%" || exit /b 1
 if "%SKIP_INSTALL%"=="0" (
   if not exist "node_modules" (
     echo.
-    echo ==^> Installing server dependencies
-    call npm install
+    echo ==^> Installing server dependencies from package-lock.json
+    call npm ci
     if errorlevel 1 goto fail
   )
 )
@@ -189,7 +189,7 @@ echo.
 echo Options:
 echo   --use-docker-db             Start PostgreSQL from apps/server/docker-compose.yml
 echo   --seed-admin                Run npm run seed:admin before starting
-echo   --skip-install              Skip npm install
+echo   --skip-install              Skip npm ci
 echo   --skip-prisma-generate      Skip Prisma client generation
 echo   --skip-migrate              Skip database migration deployment
 echo   --port 3000                 Set backend port

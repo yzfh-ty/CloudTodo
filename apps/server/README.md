@@ -92,7 +92,7 @@ start-server.bat --use-docker-db --seed-admin
 
 - `--use-docker-db`：启动 `apps/server/docker-compose.yml` 中的 PostgreSQL
 - `--seed-admin`：执行 `npm run seed:admin`
-- `--skip-install`：跳过 `npm install`
+- `--skip-install`：跳过 `npm ci`
 - `--skip-prisma-generate`：跳过 Prisma Client 生成
 - `--skip-migrate`：跳过数据库迁移
 - `--port 3001`：指定后端端口
@@ -114,7 +114,7 @@ start-server.bat --use-docker-db --seed-admin
 ### 1. 安装依赖
 
 ```bash
-npm install
+npm ci
 ```
 
 ### 2. 复制环境变量
@@ -128,6 +128,14 @@ Windows CMD / BAT:
 ```bat
 copy .env.example .env
 ```
+
+本地开发也可以直接使用精简模板：
+
+```bash
+cp .env.development.example .env
+```
+
+仓库根目录的 `make setup` 会在 `.env` 不存在时自动执行这一步。
 
 ### 3. 生成 Prisma Client
 
@@ -163,7 +171,7 @@ docker compose up --build
 ## 常用命令
 
 ```bash
-npm install
+npm ci
 npm run build
 npm run start:dev
 npm run prisma:generate

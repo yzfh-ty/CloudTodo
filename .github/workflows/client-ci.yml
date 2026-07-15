@@ -32,6 +32,7 @@ jobs:
       - run: flutter analyze
       - run: flutter test
       - run: flutter build web --release
+      - run: flutter build linux --release
       - name: Create temporary Android release key
         run: >-
           keytool -genkeypair
@@ -50,7 +51,7 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: cloudtodo-ci-test
           ANDROID_KEY_ALIAS: cloudtodo-ci-test
           ANDROID_KEY_PASSWORD: cloudtodo-ci-test
-        run: flutter build apk --release
+        run: flutter build apk --release --target-platform android-arm,android-arm64,android-x64
 
   windows-release:
     runs-on: windows-latest

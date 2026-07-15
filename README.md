@@ -5,12 +5,13 @@ CloudTodo 是一个面向多端的 Todo 与提醒服务，目标覆盖：
 - Web
 - Android
 - Windows
+- Linux
 
 当前仓库采用单仓结构，已经包含：
 
 - 后端服务
 - 后端内置管理后台
-- Flutter 三端客户端
+- Flutter 多端客户端（Web、Android、Windows、Linux）
 
 ## 仓库结构
 
@@ -66,6 +67,32 @@ CloudTodo/
 
 ## 快速开始
 
+### Linux / macOS / WSL
+
+仓库根目录提供 `Makefile`，用于统一执行本地开发任务。首次准备环境：
+
+```bash
+make setup
+make db-migrate
+```
+
+然后分别在两个终端运行：
+
+```bash
+make server-dev
+make client-dev
+```
+
+常用质量检查：
+
+```bash
+make check
+```
+
+`make db-migrate` 会启动 Docker PostgreSQL、等待健康检查通过并应用 Prisma 迁移。完整的服务端集成测试需要这个本地数据库；只检查 TypeScript 可运行 `make server-lint`，只运行客户端检查可运行 `make client-lint`。
+
+环境版本约束为 Node.js 22（见 `.nvmrc`）和 Flutter 3.44.6（见 `apps/client_flutter/.fvmrc`）。如果服务端没有 `.env`，`make setup` 会从 `apps/server/.env.development.example` 创建本地配置；生产环境请继续使用 `.env.example` 并替换所有密钥。
+
 ### Windows BAT 手动启动开发环境
 
 从仓库根目录执行：
@@ -96,7 +123,7 @@ start-client-web.bat
 
 - `--api-port 3001`：指定后端端口
 - `--web-port 8081`：指定 Flutter Web 端口
-- `--skip-install`：跳过后端 `npm install`
+- `--skip-install`：跳过后端 `npm ci`
 - `--skip-prisma-generate`：跳过 Prisma Client 生成
 - `--skip-migrate`：跳过数据库迁移
 - `--skip-pub-get`：跳过 `flutter pub get`
@@ -118,7 +145,7 @@ start-client-web.bat
 
 ```bat
 cd apps/server
-npm install
+npm ci
 npm run prisma:generate
 npm run start:dev
 ```

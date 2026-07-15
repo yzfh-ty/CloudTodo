@@ -146,8 +146,24 @@ export ANDROID_KEYSTORE_PATH=/absolute/path/to/release.jks
 export ANDROID_KEYSTORE_PASSWORD='your-keystore-password'
 export ANDROID_KEY_ALIAS='your-key-alias'
 export ANDROID_KEY_PASSWORD='your-key-password'
-flutter build apk --release
+flutter build apk --release --target-platform android-arm,android-arm64,android-x64
 ```
+
+当前 Android 包支持 `armeabi-v7a`、`arm64-v8a` 和 `x86_64`，不会包含 32 位的 `x86` 原生库。本地验证包可从仓库根目录执行：
+
+```bash
+make client-build-android
+```
+
+### 构建 Linux
+
+当前 Linux 工程面向 Linux ARM64 主机，可在仓库根目录执行：
+
+```bash
+make client-build-linux
+```
+
+产物位于 `build/linux/arm64/release/bundle/`。
 
 ## Docker
 
