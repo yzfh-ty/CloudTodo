@@ -42,12 +42,18 @@ prisma/dev.db-journal
 .pub/
 .pub-cache/
 build/
+.fvm/
 
 # Flutter platform outputs
 android/.gradle/
 android/app/debug/
 android/app/profile/
 android/app/release/
+android/.cxx/
+android/local.properties
+*.apk
+*.aab
+*.apks
 ios/Pods/
 ios/.symlinks/
 ios/Flutter/.last_build_id
@@ -66,4 +72,12 @@ tmp/
 temp/
 *.tmp
 
+# Local Android and Flutter tooling state
+.android/
+android-sdk/
+flutter-sdk/
+
 docs/
+!docs/
+!docs/android-debugging.md
+docs/linux-ui-todo.md
