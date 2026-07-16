@@ -77,7 +77,9 @@ temp/
 android-sdk/
 flutter-sdk/
 
-docs/
+# Development notes are local-only; README files remain trackable.
+docs/*
 !docs/
-!docs/android-debugging.md
-docs/linux-ui-todo.md
+!docs/README*
+!docs/**/
+!docs/**/README*
