@@ -2,14 +2,8 @@ name: Server CI
 
 on:
   push:
-    paths:
-      - "apps/server/**"
-      - ".github/workflows/server-ci.yml"
-  pull_request:
-    paths:
-      - "apps/server/**"
-      - ".github/workflows/server-ci.yml"
-  workflow_dispatch:
+    tags:
+      - "*"
 
 jobs:
   server:

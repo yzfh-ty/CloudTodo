@@ -1,12 +1,12 @@
 # CloudTodo Flutter Client
 
-CloudTodo Flutter Client 是面向 Web、Android、Windows 的统一客户端实现。
+CloudTodo Flutter Client 是面向 Web、Android、Windows、Linux 的统一客户端实现。
 
 ## 当前状态
 
 当前客户端已经具备可联调、可预览的基础能力：
 
-- Flutter Web / Android / Windows 工程骨架
+- Flutter Web / Android / Windows / Linux 工程骨架
 - 统一分层结构：`core` / `features` / `routing`
 - Cookie 会话恢复
 - 应用级运行时后端地址切换
@@ -88,6 +88,9 @@ apps/client_flutter/
 │  ├─ config.json
 │  ├─ index.html
 │  └─ manifest.json
+├─ linux/
+│  ├─ CMakeLists.txt
+│  └─ runner/
 └─ Dockerfile.web
 ```
 
@@ -135,6 +138,12 @@ flutter run -d chrome --web-hostname localhost --no-web-resources-cdn
 
 ```bash
 flutter run -d windows
+```
+
+### 运行 Linux
+
+```bash
+flutter run -d linux
 ```
 
 ### 打包 Android Release

@@ -2,14 +2,8 @@ name: Client CI
 
 on:
   push:
-    paths:
-      - "apps/client_flutter/**"
-      - ".github/workflows/client-ci.yml"
-  pull_request:
-    paths:
-      - "apps/client_flutter/**"
-      - ".github/workflows/client-ci.yml"
-  workflow_dispatch:
+    tags:
+      - "*"
 
 permissions:
   contents: read
@@ -33,6 +27,11 @@ jobs:
       - run: flutter test
       - run: flutter build web --release
       - run: flutter build linux --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cloudtodo-linux-release
+          path: apps/client_flutter/build/linux/*/release/bundle
+          if-no-files-found: error
       - name: Create temporary Android release key
         run: >-
           keytool -genkeypair
