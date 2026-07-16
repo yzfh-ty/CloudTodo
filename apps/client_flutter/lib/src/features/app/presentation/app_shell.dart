@@ -52,40 +52,24 @@ class _AppShellState extends State<AppShell> {
       color: Theme.of(context).colorScheme.surface,
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          toolbarHeight: isMobile ? 56 : 72,
-          titleSpacing: isMobile ? 16 : 24,
-          title: isMobile
-              ? Text(
+        appBar: isCompact
+            ? AppBar(
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                toolbarHeight: isMobile ? 56 : 64,
+                titleSpacing: isMobile ? 16 : 24,
+                title: Text(
                   services.config.appName,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      services.config.appName,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    Text(
-                      '任务、提醒和设置',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                  ],
                 ),
-          actions: const [
-            _ThemeModeButton(),
-            SizedBox(width: 8),
-          ],
-        ),
+                actions: const [
+                  _ThemeModeButton(),
+                  SizedBox(width: 8),
+                ],
+              )
+            : null,
         body: Row(
           children: [
             if (!isCompact)
@@ -194,22 +178,34 @@ class _SideRail extends StatelessWidget {
       borderRadius: BorderRadius.circular(28),
       child: ColoredBox(
         color: Theme.of(context).colorScheme.surfaceContainerLow,
-        child: NavigationRail(
-          backgroundColor: Colors.transparent,
-          selectedIndex: section == AppSection.settings
-              ? 2 + settingsSection.index
-              : section.index,
-          groupAlignment: -0.7,
-          labelType: NavigationRailLabelType.all,
-          onDestinationSelected: (index) {
-            if (index >= 2) {
-              onSettingsSectionChanged(SettingsSection.values[index - 2]);
-              onNavigate(AppSection.settings);
-              return;
-            }
-            onNavigate(AppSection.values[index]);
-          },
-          destinations: destinations,
+        child: Column(
+          children: [
+            Expanded(
+              child: NavigationRail(
+                backgroundColor: Colors.transparent,
+                selectedIndex: section == AppSection.settings
+                    ? 2 + settingsSection.index
+                    : section.index,
+                groupAlignment: -0.7,
+                labelType: NavigationRailLabelType.all,
+                onDestinationSelected: (index) {
+                  if (index >= 2) {
+                    onSettingsSectionChanged(
+                      SettingsSection.values[index - 2],
+                    );
+                    onNavigate(AppSection.settings);
+                    return;
+                  }
+                  onNavigate(AppSection.values[index]);
+                },
+                destinations: destinations,
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: _ThemeModeButton(),
+            ),
+          ],
         ),
       ),
     );
