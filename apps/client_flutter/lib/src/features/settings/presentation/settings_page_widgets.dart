@@ -1,5 +1,24 @@
 part of 'settings_page.dart';
 
+class _CenteredEmptyState extends StatelessWidget {
+  const _CenteredEmptyState({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 640),
+        child: SizedBox(
+          width: double.infinity,
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
 class _MetaChip extends StatelessWidget {
   const _MetaChip({required this.label, required this.value});
 

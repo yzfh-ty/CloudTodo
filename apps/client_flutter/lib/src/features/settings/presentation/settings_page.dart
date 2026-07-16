@@ -67,6 +67,7 @@ class _SettingsPageState extends State<SettingsPage> {
       widget.onSectionChanged?.call(value);
     }
   }
+
   @override
   void didUpdateWidget(covariant SettingsPage oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -363,10 +364,12 @@ class _SettingsPageState extends State<SettingsPage> {
                                         child: CircularProgressIndicator()),
                                   )
                                 else if (_devices.isEmpty)
-                                  const EmptyStateCard(
-                                    icon: Icons.devices_other_rounded,
-                                    title: '暂无设备',
-                                    description: '登录成功后客户端会自动注册当前设备。',
+                                  const _CenteredEmptyState(
+                                    child: EmptyStateCard(
+                                      icon: Icons.devices_other_rounded,
+                                      title: '暂无设备',
+                                      description: '登录成功后客户端会自动注册当前设备。',
+                                    ),
                                   )
                                 else
                                   ..._devices.map(
@@ -679,16 +682,19 @@ class _SettingsPageState extends State<SettingsPage> {
                                         child: CircularProgressIndicator()),
                                   )
                                 else if (_endpointsController.items.isEmpty)
-                                  EmptyStateCard(
-                                    icon: Icons.notifications_off_rounded,
-                                    title: '当前还没有通知方式',
-                                    description:
-                                        '如果你希望把提醒推送到企业微信机器人或自己的服务，可以先新增一种通知方式。',
-                                    action: FilledButton.tonal(
-                                      onPressed: _endpointsController.isLoading
-                                          ? null
-                                          : _createEndpoint,
-                                      child: const Text('新增通知方式'),
+                                  _CenteredEmptyState(
+                                    child: EmptyStateCard(
+                                      icon: Icons.notifications_off_rounded,
+                                      title: '当前还没有通知方式',
+                                      description:
+                                          '如果你希望把提醒推送到企业微信机器人或自己的服务，可以先新增一种通知方式。',
+                                      action: FilledButton.tonal(
+                                        onPressed:
+                                            _endpointsController.isLoading
+                                                ? null
+                                                : _createEndpoint,
+                                        child: const Text('新增通知方式'),
+                                      ),
                                     ),
                                   )
                                 else
@@ -724,6 +730,7 @@ class _SettingsPageState extends State<SettingsPage> {
       },
     );
   }
+
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -743,6 +750,7 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
     );
   }
+
   Future<void> _changePassword() async {
     final currentPassword = _currentPasswordController.text;
     final newPassword = _newPasswordController.text;
@@ -787,6 +795,7 @@ class _SettingsPageState extends State<SettingsPage> {
       }
     }
   }
+
   Future<void> _loadDevices() async {
     if (!mounted) {
       return;
@@ -819,6 +828,7 @@ class _SettingsPageState extends State<SettingsPage> {
       }
     }
   }
+
   Future<void> _deleteDevice(DeviceItem device) async {
     final confirmed = await showDialog<bool>(
           context: context,
@@ -868,10 +878,12 @@ class _SettingsPageState extends State<SettingsPage> {
       }
     }
   }
+
   Future<void> _syncBootstrap() {
     return _runSync(
         () => AppScope.of(context).services.syncRepository.bootstrap());
   }
+
   Future<void> _syncChanges() {
     final cursor = _syncCursor;
     if (cursor == null) {
@@ -880,6 +892,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return _runSync(() =>
         AppScope.of(context).services.syncRepository.changes(cursor: cursor));
   }
+
   Future<void> _runSync(Future<SyncSnapshot> Function() action) async {
     setState(() {
       _isSyncing = true;
@@ -929,6 +942,7 @@ class _SettingsPageState extends State<SettingsPage> {
       return '${entry.value}: $count';
     }).join('  ');
   }
+
   Future<void> _applyBackendUrl(AppScope appScope) async {
     final validation =
         appScope.controller.validateApiBaseUrl(_backendUrlController.text);
