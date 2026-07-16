@@ -34,6 +34,8 @@ class _BootstrapFailureApp extends StatelessWidget {
           seedColor: Colors.black,
           dynamicSchemeVariant: DynamicSchemeVariant.monochrome,
         ),
+        fontFamily: 'DejaVuSans',
+        fontFamilyFallback: const ['DroidSansFallback'],
       ),
       darkTheme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -41,6 +43,8 @@ class _BootstrapFailureApp extends StatelessWidget {
           brightness: Brightness.dark,
           dynamicSchemeVariant: DynamicSchemeVariant.monochrome,
         ),
+        fontFamily: 'DejaVuSans',
+        fontFamilyFallback: const ['DroidSansFallback'],
       ),
       themeMode: ThemeMode.system,
       home: Scaffold(

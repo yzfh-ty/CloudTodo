@@ -159,7 +159,6 @@ class _SideRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final showSettingsSections = section == AppSection.settings;
     final destinations = [
       const NavigationRailDestination(
         icon: Icon(Icons.format_list_bulleted_rounded),
@@ -170,31 +169,25 @@ class _SideRail extends StatelessWidget {
         label: Text('提醒'),
       ),
       const NavigationRailDestination(
-        icon: Icon(Icons.settings_outlined),
-        label: Text('设置'),
+        icon: Icon(Icons.manage_accounts_outlined),
+        selectedIcon: Icon(Icons.manage_accounts_rounded),
+        label: Text('账户资料'),
       ),
-      if (showSettingsSections) ...[
-        const NavigationRailDestination(
-          icon: Icon(Icons.manage_accounts_outlined),
-          selectedIcon: Icon(Icons.manage_accounts_rounded),
-          label: Text('账户资料'),
-        ),
-        const NavigationRailDestination(
-          icon: Icon(Icons.sync_outlined),
-          selectedIcon: Icon(Icons.sync_rounded),
-          label: Text('同步设备'),
-        ),
-        const NavigationRailDestination(
-          icon: Icon(Icons.notifications_outlined),
-          selectedIcon: Icon(Icons.notifications_rounded),
-          label: Text('通知方式'),
-        ),
-        const NavigationRailDestination(
-          icon: Icon(Icons.tune_outlined),
-          selectedIcon: Icon(Icons.tune_rounded),
-          label: Text('外观连接'),
-        ),
-      ],
+      const NavigationRailDestination(
+        icon: Icon(Icons.sync_outlined),
+        selectedIcon: Icon(Icons.sync_rounded),
+        label: Text('同步设备'),
+      ),
+      const NavigationRailDestination(
+        icon: Icon(Icons.notifications_outlined),
+        selectedIcon: Icon(Icons.notifications_rounded),
+        label: Text('通知方式'),
+      ),
+      const NavigationRailDestination(
+        icon: Icon(Icons.tune_outlined),
+        selectedIcon: Icon(Icons.tune_rounded),
+        label: Text('外观连接'),
+      ),
     ];
 
     return ClipRRect(
@@ -203,13 +196,15 @@ class _SideRail extends StatelessWidget {
         color: Theme.of(context).colorScheme.surfaceContainerLow,
         child: NavigationRail(
           backgroundColor: Colors.transparent,
-          selectedIndex:
-              showSettingsSections ? 3 + settingsSection.index : section.index,
+          selectedIndex: section == AppSection.settings
+              ? 2 + settingsSection.index
+              : section.index,
           groupAlignment: -0.7,
           labelType: NavigationRailLabelType.all,
           onDestinationSelected: (index) {
-            if (showSettingsSections && index >= 3) {
-              onSettingsSectionChanged(SettingsSection.values[index - 3]);
+            if (index >= 2) {
+              onSettingsSectionChanged(SettingsSection.values[index - 2]);
+              onNavigate(AppSection.settings);
               return;
             }
             onNavigate(AppSection.values[index]);

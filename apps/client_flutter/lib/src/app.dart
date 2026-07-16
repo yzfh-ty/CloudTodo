@@ -170,6 +170,8 @@ class _AppState extends State<App> {
       brightness: brightness,
       scaffoldBackgroundColor: scheme.surface,
       useMaterial3: true,
+      fontFamily: 'DejaVuSans',
+      fontFamilyFallback: const ['DroidSansFallback'],
       textTheme: TextTheme(
         headlineLarge: TextStyle(
           fontSize: 40,

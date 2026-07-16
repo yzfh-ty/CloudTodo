@@ -137,6 +137,8 @@ cp .env.development.example .env
 
 仓库根目录的 `make setup` 会在 `.env` 不存在时自动执行这一步。
 
+完成迁移后，使用仓库根目录的 `make seed-admin` 创建本地管理员账号，默认登录名为 `admin`，密码为 `admin123456`。
+
 ### 3. 生成 Prisma Client
 
 ```bash

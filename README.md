@@ -74,6 +74,7 @@ CloudTodo/
 ```bash
 make setup
 make db-migrate
+make seed-admin
 ```
 
 然后分别在两个终端运行：
@@ -90,6 +91,8 @@ make check
 ```
 
 `make db-migrate` 会启动 Docker PostgreSQL、等待健康检查通过并应用 Prisma 迁移。完整的服务端集成测试需要这个本地数据库；只检查 TypeScript 可运行 `make server-lint`，只运行客户端检查可运行 `make client-lint`。
+
+`make seed-admin` 会创建或重置本地管理员账号，默认账号为 `admin` / `admin123456`；也可以通过 `apps/server/.env` 中的 `ADMIN_SEED_*` 变量覆盖。
 
 环境版本约束为 Node.js 22（见 `.nvmrc`）和 Flutter 3.44.6（见 `apps/client_flutter/.fvmrc`）。如果服务端没有 `.env`，`make setup` 会从 `apps/server/.env.development.example` 创建本地配置；生产环境请继续使用 `.env.example` 并替换所有密钥。
 
@@ -187,6 +190,7 @@ docker compose up --build
 
 - [后端说明](apps/server/README.md)
 - [客户端说明](apps/client_flutter/README.md)
+- [Android 调试环境说明](docs/android-debugging.md)
 
 ## 当前导航
 

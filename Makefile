@@ -4,13 +4,14 @@ SHELL := /bin/sh
 SERVER_DIR := apps/server
 CLIENT_DIR := apps/client_flutter
 
-.PHONY: help setup local-env server-install server-generate db-up db-migrate db-down server-dev client-get client-dev server-test client-test test server-lint client-lint lint server-build client-build client-build-android client-build-linux build check
+.PHONY: help setup local-env server-install server-generate db-up db-migrate seed-admin db-down server-dev client-get client-dev server-test client-test test server-lint client-lint lint server-build client-build client-build-android client-build-linux build check
 
 help:
 	@printf '%s\n' \
 		'CloudTodo development commands:' \
 		'  make setup          Install dependencies and prepare local configuration' \
 		'  make db-up          Start the local PostgreSQL container' \
+		'  make seed-admin     Create or reset the local admin account' \
 		'  make db-down        Stop the local PostgreSQL container' \
 		'  make server-dev     Start the NestJS development server' \
 		'  make client-dev     Start Flutter Web in Chrome' \
@@ -38,6 +39,9 @@ db-up:
 
 db-migrate: local-env db-up server-generate
 	npm run prisma:migrate:deploy --prefix $(SERVER_DIR)
+
+seed-admin: db-migrate
+	npm run seed:admin --prefix $(SERVER_DIR)
 
 db-down:
 	docker compose -f $(SERVER_DIR)/docker-compose.yml down
