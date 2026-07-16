@@ -54,7 +54,7 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _isLoadingDevices = false;
   bool _isDeletingDevice = false;
   bool _isSyncing = false;
-  bool _isRequestingNotificationPermission = false;
+  bool _isUpdatingLocalNotifications = false;
   late SettingsSection _selectedSettingsSection = widget.initialSection;
   String? _passwordError;
   String? _deviceError;
@@ -671,8 +671,6 @@ class _SettingsPageState extends State<SettingsPage> {
                                 const SizedBox(height: 16),
                                 if (localNotificationService
                                     .supportsLocalNotifications) ...[
-                                  Text('本地通知', style: sectionTitleStyle),
-                                  const SizedBox(height: 8),
                                   Container(
                                     width: double.infinity,
                                     decoration: BoxDecoration(
@@ -682,8 +680,18 @@ class _SettingsPageState extends State<SettingsPage> {
                                     ),
                                     child: Column(
                                       children: [
+                                        SwitchListTile.adaptive(
+                                          value: localNotificationService
+                                              .localNotificationsEnabled,
+                                          title: const Text('本地通知'),
+                                          subtitle: const Text('在当前设备显示提醒通知'),
+                                          onChanged: _isUpdatingLocalNotifications
+                                              ? null
+                                              : _setLocalNotificationsEnabled,
+                                        ),
                                         if (localNotificationService
-                                            .supportsAutostart)
+                                            .supportsAutostart) ...[
+                                          const Divider(height: 1),
                                           SwitchListTile.adaptive(
                                             value: localNotificationService
                                                 .autostartEnabled,
@@ -697,28 +705,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                               }
                                             },
                                           ),
-                                        if (localNotificationService
-                                            .supportsPermissionRequest)
-                                          Padding(
-                                            padding: const EdgeInsets.fromLTRB(
-                                                16, 0, 16, 16),
-                                            child: Align(
-                                              alignment: Alignment.centerLeft,
-                                              child: OutlinedButton.icon(
-                                                onPressed:
-                                                    _isRequestingNotificationPermission
-                                                        ? null
-                                                        : _requestNotificationPermission,
-                                                icon: const Icon(Icons
-                                                    .notifications_active_outlined),
-                                                label: Text(
-                                                  _isRequestingNotificationPermission
-                                                      ? '请求中...'
-                                                      : '允许 Android 通知',
-                                                ),
-                                              ),
-                                            ),
-                                          ),
+                                        ],
                                       ],
                                     ),
                                   ),
@@ -809,19 +796,23 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Future<void> _requestNotificationPermission() async {
-    setState(() => _isRequestingNotificationPermission = true);
-    final granted = await AppScope.of(context)
-        .services
-        .localNotificationService
-        .requestPermission();
+  Future<void> _setLocalNotificationsEnabled(bool enabled) async {
+    setState(() => _isUpdatingLocalNotifications = true);
+    final service = AppScope.of(context).services.localNotificationService;
+    var nextValue = enabled;
+    if (enabled && service.supportsPermissionRequest) {
+      nextValue = await service.requestPermission();
+    }
+    await service.setLocalNotificationsEnabled(nextValue);
     if (!mounted) {
       return;
     }
-    setState(() => _isRequestingNotificationPermission = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(granted ? 'Android 通知已允许' : 'Android 通知未允许')),
-    );
+    setState(() => _isUpdatingLocalNotifications = false);
+    if (enabled && !nextValue) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Android 通知未允许')),
+      );
+    }
   }
 
   Future<void> _changePassword() async {

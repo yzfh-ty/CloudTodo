@@ -16,6 +16,7 @@ class LocalNotificationService {
         _plugin = FlutterLocalNotificationsPlugin();
 
   static const _scheduledIdsKey = 'local_notification_scheduled_ids';
+  static const _localNotificationsEnabledKey = 'local_notifications_enabled';
   static const _notificationChannelId = 'cloudtodo_reminders';
 
   final LocalAutostart _autostart;
@@ -24,6 +25,7 @@ class LocalNotificationService {
   Set<int> _knownScheduledIds = <int>{};
   bool _initialized = false;
   bool _autostartEnabled = false;
+  bool _localNotificationsEnabled = true;
 
   bool get supportsAutostart => _autostart.isSupported;
   bool get supportsPermissionRequest =>
@@ -34,6 +36,7 @@ class LocalNotificationService {
           defaultTargetPlatform == TargetPlatform.linux ||
           defaultTargetPlatform == TargetPlatform.windows);
   bool get autostartEnabled => _autostartEnabled;
+  bool get localNotificationsEnabled => _localNotificationsEnabled;
 
   Future<void> initialize() async {
     if (_initialized || !supportsLocalNotifications) {
@@ -54,11 +57,27 @@ class LocalNotificationService {
     _initialized = true;
     _autostartEnabled = await _autostart.isEnabled();
     final preferences = await SharedPreferences.getInstance();
+    _localNotificationsEnabled =
+        preferences.getBool(_localNotificationsEnabledKey) ?? true;
     _knownScheduledIds =
         (preferences.getStringList(_scheduledIdsKey) ?? const [])
             .map(int.tryParse)
             .whereType<int>()
             .toSet();
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      final plugin = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      final systemEnabled = await plugin?.areNotificationsEnabled();
+      _localNotificationsEnabled =
+          _localNotificationsEnabled && (systemEnabled ?? true);
+    }
+    if (!_localNotificationsEnabled) {
+      for (final id in _knownScheduledIds) {
+        await _plugin.cancel(id: id);
+      }
+      _knownScheduledIds = <int>{};
+      await preferences.setStringList(_scheduledIdsKey, const []);
+    }
   }
 
   void dispose() {
@@ -75,7 +94,7 @@ class LocalNotificationService {
 
     final plugin = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
-    return await plugin?.requestNotificationsPermission() ?? false;
+    return await plugin?.requestNotificationsPermission() ?? true;
   }
 
   Future<void> setAutostartEnabled(bool enabled) async {
@@ -83,9 +102,29 @@ class LocalNotificationService {
     _autostartEnabled = enabled && supportsAutostart;
   }
 
+  Future<void> setLocalNotificationsEnabled(bool enabled) async {
+    await initialize();
+    _localNotificationsEnabled = enabled;
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setBool(_localNotificationsEnabledKey, enabled);
+    if (enabled) {
+      return;
+    }
+
+    for (final id in _knownScheduledIds) {
+      await _plugin.cancel(id: id);
+    }
+    _knownScheduledIds = <int>{};
+    _scheduledReminderKeys.clear();
+    await preferences.setStringList(_scheduledIdsKey, const []);
+  }
+
   Future<void> syncReminders(List<ReminderItem> reminders) async {
     await initialize();
     if (!_initialized) {
+      return;
+    }
+    if (!_localNotificationsEnabled) {
       return;
     }
 
@@ -139,12 +178,13 @@ class LocalNotificationService {
 
   Future<bool> shouldShowEvent(ReminderEventItem event) async {
     await initialize();
-    return !_knownScheduledIds.contains(_notificationId(event.reminderId));
+    return _localNotificationsEnabled &&
+        !_knownScheduledIds.contains(_notificationId(event.reminderId));
   }
 
   Future<void> showEvent(ReminderEventItem event) async {
     await initialize();
-    if (!_initialized) {
+    if (!_initialized || !_localNotificationsEnabled) {
       return;
     }
 
