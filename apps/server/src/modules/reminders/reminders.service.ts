@@ -160,6 +160,12 @@ export class RemindersService {
       createdAt: true,
       updatedAt: true,
       deletedAt: true,
+      todo: {
+        select: {
+          title: true,
+          description: true,
+        },
+      },
     };
   }
 }

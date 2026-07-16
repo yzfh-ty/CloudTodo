@@ -6,6 +6,11 @@ const defaultAppTimezone = 'Asia/Shanghai';
 bool _initialized = false;
 late timezone.Location _currentLocation;
 
+timezone.Location get appTimezoneLocation {
+  initializeAppTimezone();
+  return _currentLocation;
+}
+
 void initializeAppTimezone() {
   if (_initialized) {
     return;

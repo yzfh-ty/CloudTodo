@@ -54,6 +54,7 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _isLoadingDevices = false;
   bool _isDeletingDevice = false;
   bool _isSyncing = false;
+  bool _isRequestingNotificationPermission = false;
   late SettingsSection _selectedSettingsSection = widget.initialSection;
   String? _passwordError;
   String? _deviceError;
@@ -131,6 +132,8 @@ class _SettingsPageState extends State<SettingsPage> {
             : theme.textTheme.titleLarge;
         final appScope = AppScope.of(context);
         final currentUser = appScope.services.sessionController.currentUser;
+        final localNotificationService =
+            appScope.services.localNotificationService;
         final profile = _profileController.profile;
         if (profile != null) {
           _bindProfile(profile);
@@ -666,6 +669,61 @@ class _SettingsPageState extends State<SettingsPage> {
                                   style: theme.textTheme.bodyMedium,
                                 ),
                                 const SizedBox(height: 16),
+                                if (localNotificationService
+                                    .supportsLocalNotifications) ...[
+                                  Text('本地通知', style: sectionTitleStyle),
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    width: double.infinity,
+                                    decoration: BoxDecoration(
+                                      color: theme
+                                          .colorScheme.surfaceContainerHighest,
+                                      borderRadius: BorderRadius.circular(18),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        if (localNotificationService
+                                            .supportsAutostart)
+                                          SwitchListTile.adaptive(
+                                            value: localNotificationService
+                                                .autostartEnabled,
+                                            title: const Text('开机后在后台运行'),
+                                            subtitle: const Text('用于接收桌面提醒'),
+                                            onChanged: (value) async {
+                                              await localNotificationService
+                                                  .setAutostartEnabled(value);
+                                              if (mounted) {
+                                                setState(() {});
+                                              }
+                                            },
+                                          ),
+                                        if (localNotificationService
+                                            .supportsPermissionRequest)
+                                          Padding(
+                                            padding: const EdgeInsets.fromLTRB(
+                                                16, 0, 16, 16),
+                                            child: Align(
+                                              alignment: Alignment.centerLeft,
+                                              child: OutlinedButton.icon(
+                                                onPressed:
+                                                    _isRequestingNotificationPermission
+                                                        ? null
+                                                        : _requestNotificationPermission,
+                                                icon: const Icon(Icons
+                                                    .notifications_active_outlined),
+                                                label: Text(
+                                                  _isRequestingNotificationPermission
+                                                      ? '请求中...'
+                                                      : '允许 Android 通知',
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+                                ],
                                 if (_endpointsController.errorMessage != null)
                                   Padding(
                                     padding: const EdgeInsets.only(bottom: 12),
@@ -748,6 +806,21 @@ class _SettingsPageState extends State<SettingsPage> {
         content: Text(
             updated ? '资料已更新' : (_profileController.errorMessage ?? '资料更新失败')),
       ),
+    );
+  }
+
+  Future<void> _requestNotificationPermission() async {
+    setState(() => _isRequestingNotificationPermission = true);
+    final granted = await AppScope.of(context)
+        .services
+        .localNotificationService
+        .requestPermission();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _isRequestingNotificationPermission = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(granted ? 'Android 通知已允许' : 'Android 通知未允许')),
     );
   }
 

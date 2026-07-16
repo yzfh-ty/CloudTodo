@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../core/utils/date_time_formatter.dart';
 import '../../../core/utils/display_texts.dart';
@@ -32,7 +33,10 @@ class _ReminderEditorDialogState extends State<ReminderEditorDialog> {
   @override
   void initState() {
     super.initState();
-    _channel = widget.initialValue.channel;
+    _channel = switch (widget.initialValue.channel) {
+      'android_local' || 'windows_local' => _localChannel,
+      _ => widget.initialValue.channel,
+    };
     _repeatType = widget.initialValue.repeatType;
     _customUnit = _inferCustomUnit(widget.initialValue.repeatRule);
     _remindAt = dateTimeInAppTimezone(widget.initialValue.remindAt);
@@ -67,9 +71,7 @@ class _ReminderEditorDialogState extends State<ReminderEditorDialog> {
                     style: Theme.of(context).textTheme.headlineMedium,
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    '提醒配置仍走统一业务模型，后续 Android 和 Windows 的本地提醒能力都可以继续挂在这层领域对象上。',
-                  ),
+                  const Text('选择提醒时间和发送方式。'),
                   const SizedBox(height: 20),
                   DropdownButtonFormField<String>(
                     initialValue: _channel,
@@ -79,12 +81,12 @@ class _ReminderEditorDialogState extends State<ReminderEditorDialog> {
                           value: 'webhook',
                           child: Text(reminderChannelText('webhook'))),
                       DropdownMenuItem(
-                        value: 'android_local',
-                        child: Text(reminderChannelText('android_local')),
+                        value: _localChannel,
+                        child: Text(reminderChannelText(_localChannel)),
                       ),
-                      DropdownMenuItem(
-                        value: 'windows_local',
-                        child: Text(reminderChannelText('windows_local')),
+                      const DropdownMenuItem(
+                        value: 'both',
+                        child: Text('Webhook + 本地通知'),
                       ),
                     ],
                     onChanged: (value) {
@@ -291,6 +293,10 @@ class _ReminderEditorDialogState extends State<ReminderEditorDialog> {
       _ => {'interval_minutes': interval},
     };
   }
+
+  String get _localChannel => defaultTargetPlatform == TargetPlatform.android
+      ? 'android_local'
+      : 'windows_local';
 
   String _inferCustomUnit(Map<String, dynamic>? rule) {
     if (rule == null) {

@@ -8,6 +8,8 @@ class ReminderItem {
     required this.remindAt,
     required this.timezone,
     required this.status,
+    required this.todoTitle,
+    required this.todoDescription,
   });
 
   final String id;
@@ -18,6 +20,8 @@ class ReminderItem {
   final DateTime remindAt;
   final String timezone;
   final String status;
+  final String todoTitle;
+  final String? todoDescription;
 
   factory ReminderItem.fromJson(Map<String, dynamic> json) {
     return ReminderItem(
@@ -31,6 +35,10 @@ class ReminderItem {
       remindAt: DateTime.parse(json['remindAt'] as String),
       timezone: json['timezone'] as String? ?? 'UTC',
       status: json['status'] as String? ?? 'pending',
+      todoTitle: (json['todo'] as Map<String, dynamic>?)?['title'] as String? ??
+          '待办提醒',
+      todoDescription:
+          (json['todo'] as Map<String, dynamic>?)?['description'] as String?,
     );
   }
 }

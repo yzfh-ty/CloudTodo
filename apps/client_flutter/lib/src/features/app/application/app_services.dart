@@ -1,5 +1,6 @@
 import '../../../core/config/app_config.dart';
 import '../../../core/http/http_client.dart';
+import '../../../core/notifications/local_notification_service.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../devices/data/device_repository.dart';
 import '../../notification_endpoints/data/notification_endpoints_repository.dart';
@@ -22,6 +23,7 @@ class AppServices {
     required this.remindersRepository,
     required this.syncRepository,
     required this.notificationEndpointsRepository,
+    required this.localNotificationService,
     required this.sessionController,
   });
 
@@ -35,18 +37,28 @@ class AppServices {
   final RemindersRepository remindersRepository;
   final SyncRepository syncRepository;
   final NotificationEndpointsRepository notificationEndpointsRepository;
+  final LocalNotificationService localNotificationService;
   final AppSessionController sessionController;
 
-  factory AppServices.create(AppConfig config) {
+  factory AppServices.create(
+    AppConfig config, {
+    LocalNotificationService? localNotificationService,
+  }) {
+    final notificationService =
+        localNotificationService ?? LocalNotificationService();
     final apiClient = ApiClient(createHttpClient(config.apiBaseUrl));
     final authRepository = AuthRepository(apiClient);
     final deviceRepository = DeviceRepository(apiClient);
     final profileRepository = ProfileRepository(apiClient);
     final todoRepository = TodoRepository(apiClient);
     final todoMetadataRepository = TodoMetadataRepository(apiClient);
-    final remindersRepository = RemindersRepository(apiClient);
+    final remindersRepository = RemindersRepository(
+      apiClient,
+      localNotificationService: notificationService,
+    );
     final syncRepository = SyncRepository(apiClient);
-    final notificationEndpointsRepository = NotificationEndpointsRepository(apiClient);
+    final notificationEndpointsRepository =
+        NotificationEndpointsRepository(apiClient);
     final sessionController = AppSessionController(
       authRepository: authRepository,
       onAuthenticated: (_) => deviceRepository.registerCurrentDevice(),
@@ -68,6 +80,7 @@ class AppServices {
       remindersRepository: remindersRepository,
       syncRepository: syncRepository,
       notificationEndpointsRepository: notificationEndpointsRepository,
+      localNotificationService: notificationService,
       sessionController: sessionController,
     );
   }

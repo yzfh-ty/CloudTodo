@@ -7,6 +7,8 @@ class ReminderEventItem {
     required this.scheduledFor,
     required this.triggeredAt,
     required this.status,
+    required this.todoTitle,
+    required this.todoDescription,
   });
 
   final String id;
@@ -16,6 +18,8 @@ class ReminderEventItem {
   final DateTime scheduledFor;
   final DateTime triggeredAt;
   final String status;
+  final String todoTitle;
+  final String? todoDescription;
 
   factory ReminderEventItem.fromJson(Map<String, dynamic> json) {
     return ReminderEventItem(
@@ -26,6 +30,11 @@ class ReminderEventItem {
       scheduledFor: DateTime.parse(json['scheduledFor'] as String),
       triggeredAt: DateTime.parse(json['triggeredAt'] as String),
       status: json['status'] as String? ?? 'pending',
+      todoTitle: (json['payload'] as Map<String, dynamic>?)?['todo_title']
+              as String? ??
+          '待办提醒',
+      todoDescription: (json['payload']
+          as Map<String, dynamic>?)?['todo_description'] as String?,
     );
   }
 }

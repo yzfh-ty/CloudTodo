@@ -154,7 +154,7 @@ describe('App integration', () => {
       .post(`/api/todos/${todoId}/reminders`)
       .set('X-CSRF-Token', userCsrfToken)
       .send({
-        channel: 'webhook',
+        channel: 'both',
         remind_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
         timezone: 'UTC',
       })
@@ -172,6 +172,8 @@ describe('App integration', () => {
       (item: { id: string }) => item.id === reminderId,
     );
     expect(syncedReminder.timezone).toBe('Asia/Tokyo');
+    expect(syncedReminder.channel).toBe('both');
+    expect(syncedReminder.todo.title).toBe('Integration Todo');
 
     const listResponse = await agent.get('/api/todos?page=1&page_size=10').expect(200);
     expect(listResponse.body.data.items.some((item: { id: string }) => item.id === todoId)).toBe(true);

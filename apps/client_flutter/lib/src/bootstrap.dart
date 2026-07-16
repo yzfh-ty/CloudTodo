@@ -12,6 +12,7 @@ Future<void> bootstrap() async {
   try {
     final config = await loadAppConfig();
     final controller = AppController(initialConfig: config);
+    await controller.localNotificationService.initialize();
     await controller.restoreThemeMode();
     controller.restoreSession();
     runApp(App(controller: controller));

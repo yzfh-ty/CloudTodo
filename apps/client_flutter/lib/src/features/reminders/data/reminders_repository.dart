@@ -1,14 +1,19 @@
 import '../../../core/http/http_client.dart';
+import '../../../core/notifications/local_notification_service.dart';
 import '../domain/reminder_event_item.dart';
 import '../domain/reminder_item.dart';
 
 class RemindersRepository {
-  RemindersRepository(this._apiClient);
+  RemindersRepository(
+    this._apiClient, {
+    required LocalNotificationService localNotificationService,
+  }) : _localNotificationService = localNotificationService;
 
   final ApiClient _apiClient;
+  final LocalNotificationService _localNotificationService;
 
-  Future<List<ReminderItem>> getUpcomingReminders() {
-    return _apiClient.get(
+  Future<List<ReminderItem>> getUpcomingReminders() async {
+    final reminders = await _apiClient.get(
       '/reminders/upcoming',
       parser: (data) {
         final payload = data as Map<String, dynamic>;
@@ -19,6 +24,8 @@ class RemindersRepository {
             .toList(growable: false);
       },
     );
+    await _localNotificationService.syncReminders(reminders);
+    return reminders;
   }
 
   Future<ReminderItem> createReminder({
@@ -27,8 +34,8 @@ class RemindersRepository {
     required DateTime remindAt,
     required String repeatType,
     Map<String, dynamic>? repeatRule,
-  }) {
-    return _apiClient.post(
+  }) async {
+    final reminder = await _apiClient.post(
       '/todos/$todoId/reminders',
       body: {
         'channel': channel,
@@ -38,6 +45,8 @@ class RemindersRepository {
       },
       parser: (data) => ReminderItem.fromJson(data as Map<String, dynamic>),
     );
+    await _localNotificationService.syncReminders([reminder]);
+    return reminder;
   }
 
   Future<ReminderItem> updateReminder({
@@ -46,8 +55,8 @@ class RemindersRepository {
     required DateTime remindAt,
     required String repeatType,
     Map<String, dynamic>? repeatRule,
-  }) {
-    return _apiClient.patch(
+  }) async {
+    final reminder = await _apiClient.patch(
       '/reminders/$reminderId',
       body: {
         'channel': channel,
@@ -57,13 +66,17 @@ class RemindersRepository {
       },
       parser: (data) => ReminderItem.fromJson(data as Map<String, dynamic>),
     );
+    await _localNotificationService.syncReminders([reminder]);
+    return reminder;
   }
 
-  Future<ReminderItem> deleteReminder(String reminderId) {
-    return _apiClient.delete(
+  Future<ReminderItem> deleteReminder(String reminderId) async {
+    final reminder = await _apiClient.delete(
       '/reminders/$reminderId',
       parser: (data) => ReminderItem.fromJson(data as Map<String, dynamic>),
     );
+    await _localNotificationService.cancelReminder(reminderId);
+    return reminder;
   }
 
   Future<List<ReminderEventItem>> getPendingLocalEvents() {
@@ -80,7 +93,8 @@ class RemindersRepository {
             .map(ReminderEventItem.fromJson)
             .where((item) =>
                 item.channel == 'android_local' ||
-                item.channel == 'windows_local')
+                item.channel == 'windows_local' ||
+                item.channel == 'both')
             .toList(growable: false);
       },
     );

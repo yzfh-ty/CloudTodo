@@ -172,7 +172,10 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
             },
           });
 
-          if (reminder.channel === ReminderChannel.webhook) {
+          if (
+            reminder.channel === ReminderChannel.webhook ||
+            reminder.channel === ReminderChannel.both
+          ) {
             const endpoints = await tx.notificationEndpoint.findMany({
               where: {
                 userId: reminder.userId,
@@ -356,12 +359,16 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
               lastResponseSummary: responseBody.slice(0, 255),
             },
           }),
-          this.prisma.reminderEvent.update({
-            where: { id: delivery.reminderEventId },
-            data: {
-              status: ReminderEventStatus.processed,
-            },
-          }),
+          ...(delivery.reminderEvent.channel === ReminderChannel.both
+            ? []
+            : [
+                this.prisma.reminderEvent.update({
+                  where: { id: delivery.reminderEventId },
+                  data: {
+                    status: ReminderEventStatus.processed,
+                  },
+                }),
+              ]),
         ]);
 
         return;

@@ -4,21 +4,30 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/config/app_config.dart';
+import '../../../core/notifications/local_notification_service.dart';
 import 'app_services.dart';
 
 class AppController extends ChangeNotifier {
   AppController({required AppConfig initialConfig})
       : _config = initialConfig,
-        _services = AppServices.create(initialConfig);
+        _localNotificationService = LocalNotificationService() {
+    _services = AppServices.create(
+      initialConfig,
+      localNotificationService: _localNotificationService,
+    );
+  }
 
   AppConfig _config;
-  AppServices _services;
+  late AppServices _services;
+  final LocalNotificationService _localNotificationService;
   ThemeMode _themeMode = ThemeMode.system;
 
   static const _themeModePreferenceKey = 'theme_mode';
 
   AppConfig get config => _config;
   AppServices get services => _services;
+  LocalNotificationService get localNotificationService =>
+      _localNotificationService;
   String get currentApiBaseUrl => _config.apiBaseUrl;
   ThemeMode get themeMode => _themeMode;
 
@@ -62,7 +71,10 @@ class AppController extends ChangeNotifier {
     }
 
     _config = _config.copyWith(apiBaseUrl: normalized);
-    _services = AppServices.create(_config);
+    _services = AppServices.create(
+      _config,
+      localNotificationService: _localNotificationService,
+    );
     _services.sessionController.forceLogout();
     notifyListeners();
     return _services;
@@ -103,6 +115,12 @@ class AppController extends ChangeNotifier {
     } on FormatException catch (error) {
       return error.message;
     }
+  }
+
+  @override
+  void dispose() {
+    _localNotificationService.dispose();
+    super.dispose();
   }
 
   Future<void> _saveThemeMode() async {

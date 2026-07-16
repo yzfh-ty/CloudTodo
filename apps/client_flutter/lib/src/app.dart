@@ -129,14 +129,15 @@ class _AppState extends State<App> {
     }
 
     try {
+      await services.remindersRepository.getUpcomingReminders();
       final events = await services.remindersRepository.getPendingLocalEvents();
       for (final event in events) {
         if (!mounted) {
           return;
         }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('提醒触发：${event.todoId}')),
-        );
+        if (await services.localNotificationService.shouldShowEvent(event)) {
+          await services.localNotificationService.showEvent(event);
+        }
         await services.remindersRepository.ackReminderEvent(event.id);
       }
     } catch (_) {

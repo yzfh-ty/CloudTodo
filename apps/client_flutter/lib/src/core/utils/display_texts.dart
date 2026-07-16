@@ -33,7 +33,9 @@ String reminderChannelText(String value) {
     case 'android_local':
       return 'Android 本地提醒';
     case 'windows_local':
-      return 'Windows 本地提醒';
+      return '桌面通知';
+    case 'both':
+      return 'Webhook + 本地通知';
     default:
       return value;
   }
