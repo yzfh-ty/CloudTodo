@@ -46,3 +46,12 @@ String settingsSectionLabel(SettingsSection section) {
     SettingsSection.preferences => '外观连接',
   };
 }
+
+String settingsSectionDescription(SettingsSection section) {
+  return switch (section) {
+    SettingsSection.profile => '管理账户资料、密码和登录信息。',
+    SettingsSection.sync => '查看设备状态并执行数据同步。',
+    SettingsSection.notifications => '选择本地通知、开机自启和 Webhook 通知方式。',
+    SettingsSection.preferences => '调整主题和客户端连接地址。',
+  };
+}

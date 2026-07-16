@@ -123,7 +123,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('app provides monochrome light and dark themes', (tester) async {
+  testWidgets('app provides branded light and dark themes', (tester) async {
     final controller = AppController(
       initialConfig: const AppConfig(
         appName: 'CloudTodo',
@@ -137,10 +137,10 @@ void main() {
 
     final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
     expect(app.themeMode, ThemeMode.system);
-    expect(app.theme?.colorScheme.surface, Colors.white);
-    expect(app.theme?.colorScheme.primary, const Color(0xFF111111));
-    expect(app.darkTheme?.colorScheme.surface, Colors.black);
-    expect(app.darkTheme?.colorScheme.primary, const Color(0xFFF5F5F5));
+    expect(app.theme?.colorScheme.surface, const Color(0xFFF7F8FA));
+    expect(app.theme?.colorScheme.primary, const Color(0xFF0F766E));
+    expect(app.darkTheme?.colorScheme.surface, const Color(0xFF101315));
+    expect(app.darkTheme?.colorScheme.primary, const Color(0xFF5EEAD4));
 
     await tester.pumpWidget(const SizedBox.shrink());
   });

@@ -78,6 +78,7 @@ class _AppShellState extends State<AppShell> {
                 child: _SideRail(
                   section: widget.section,
                   settingsSection: _settingsSection,
+                  extended: true,
                   onNavigate: widget.onNavigate,
                   onSettingsSectionChanged: (value) {
                     setState(() => _settingsSection = value);
@@ -85,14 +86,20 @@ class _AppShellState extends State<AppShell> {
                 ),
               ),
             Expanded(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  isMobile ? 12 : 16,
-                  isMobile ? 8 : 16,
-                  isMobile ? 12 : 16,
-                  isMobile ? 12 : 16,
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1200),
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      isMobile ? 12 : 24,
+                      isMobile ? 8 : 24,
+                      isMobile ? 12 : 24,
+                      isMobile ? 12 : 24,
+                    ),
+                    child: body,
+                  ),
                 ),
-                child: body,
               ),
             ),
           ],
@@ -132,12 +139,14 @@ class _SideRail extends StatelessWidget {
   const _SideRail({
     required this.section,
     required this.settingsSection,
+    required this.extended,
     required this.onNavigate,
     required this.onSettingsSectionChanged,
   });
 
   final AppSection section;
   final SettingsSection settingsSection;
+  final bool extended;
   final ValueChanged<AppSection> onNavigate;
   final ValueChanged<SettingsSection> onSettingsSectionChanged;
 
@@ -175,19 +184,29 @@ class _SideRail extends StatelessWidget {
     ];
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(28),
-      child: ColoredBox(
-        color: Theme.of(context).colorScheme.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(16),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerLow,
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+        ),
         child: Column(
           children: [
             Expanded(
               child: NavigationRail(
                 backgroundColor: Colors.transparent,
+                extended: extended,
+                minExtendedWidth: 224,
+                leading: extended ? const _RailBrand() : null,
                 selectedIndex: section == AppSection.settings
                     ? 2 + settingsSection.index
                     : section.index,
-                groupAlignment: -0.7,
-                labelType: NavigationRailLabelType.all,
+                groupAlignment: extended ? -1 : -0.7,
+                labelType: extended
+                    ? NavigationRailLabelType.none
+                    : NavigationRailLabelType.all,
                 onDestinationSelected: (index) {
                   if (index >= 2) {
                     onSettingsSectionChanged(
@@ -220,6 +239,40 @@ class SplashPage extends StatelessWidget {
     return const Scaffold(
       body: Center(
         child: CircularProgressIndicator(),
+      ),
+    );
+  }
+}
+
+class _RailBrand extends StatelessWidget {
+  const _RailBrand();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 16, 18),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'CloudTodo',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              '任务与提醒',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

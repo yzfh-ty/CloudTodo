@@ -4,6 +4,7 @@ import 'package:flutter/rendering.dart';
 import '../../../core/utils/date_time_formatter.dart';
 import '../../../core/utils/display_texts.dart';
 import '../../../core/widgets/empty_state_card.dart';
+import '../../../core/widgets/page_header.dart';
 import '../../app/application/app_scope.dart';
 import '../../reminders/domain/reminder_form_data.dart';
 import '../../reminders/presentation/reminder_editor_dialog.dart';
@@ -109,49 +110,25 @@ class _TodoPageState extends State<TodoPage> {
                           ? const SizedBox.shrink()
                           : Column(
                               children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            '待办',
-                                            style: isMobile
-                                                ? theme.textTheme.titleLarge
-                                                : theme.textTheme.headlineSmall,
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            '${summary['pending'] ?? 0} 项待办 · ${summary['completed'] ?? 0} 项已完成',
-                                            style: theme.textTheme.bodyMedium
-                                                ?.copyWith(
-                                              color: theme
-                                                  .colorScheme.onSurfaceVariant,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    if (isMobile)
-                                      IconButton.filled(
-                                        tooltip: '新建任务',
-                                        onPressed: _controller.isSubmitting
-                                            ? null
-                                            : _openCreateDialog,
-                                        icon: const Icon(Icons.add_rounded),
-                                      )
-                                    else
-                                      FilledButton.icon(
-                                        onPressed: _controller.isSubmitting
-                                            ? null
-                                            : _openCreateDialog,
-                                        icon: const Icon(Icons.add_rounded),
-                                        label: const Text('新建任务'),
-                                      ),
-                                  ],
+                                PageHeader(
+                                  title: '待办',
+                                  description:
+                                      '${summary['pending'] ?? 0} 项待办 · ${summary['completed'] ?? 0} 项已完成',
+                                  action: isMobile
+                                      ? IconButton.filled(
+                                          tooltip: '新建任务',
+                                          onPressed: _controller.isSubmitting
+                                              ? null
+                                              : _openCreateDialog,
+                                          icon: const Icon(Icons.add_rounded),
+                                        )
+                                      : FilledButton.icon(
+                                          onPressed: _controller.isSubmitting
+                                              ? null
+                                              : _openCreateDialog,
+                                          icon: const Icon(Icons.add_rounded),
+                                          label: const Text('新建任务'),
+                                        ),
                                 ),
                                 const SizedBox(height: 16),
                                 _buildFocusedToolbar(isMobile),

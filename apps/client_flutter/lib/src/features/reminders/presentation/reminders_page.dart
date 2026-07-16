@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/utils/date_time_formatter.dart';
 import '../../../core/utils/display_texts.dart';
 import '../../../core/widgets/empty_state_card.dart';
+import '../../../core/widgets/page_header.dart';
 import '../../app/application/app_scope.dart';
 import '../application/reminders_controller.dart';
 import '../domain/reminder_form_data.dart';
@@ -64,18 +65,9 @@ class _RemindersPageState extends State<RemindersPage> {
 
             return ListView(
               children: [
-                Text(
-                  '提醒中心',
-                  style: isMobile
-                      ? theme.textTheme.titleLarge
-                      : theme.textTheme.headlineMedium,
-                ),
-                SizedBox(height: isMobile ? 8 : 12),
-                Text(
-                  '统一查看、创建和维护近期提醒。',
-                  style: isMobile
-                      ? theme.textTheme.bodyMedium
-                      : theme.textTheme.bodyLarge,
+                const PageHeader(
+                  title: '提醒中心',
+                  description: '统一查看、创建和维护近期提醒。',
                 ),
                 SizedBox(height: isMobile ? 16 : 20),
                 Card(

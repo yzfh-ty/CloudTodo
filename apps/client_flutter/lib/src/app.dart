@@ -148,23 +148,23 @@ class _AppState extends State<App> {
   ThemeData _buildTheme(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
     final scheme = ColorScheme.fromSeed(
-      seedColor: Colors.black,
+      seedColor: const Color(0xFF0F766E),
       brightness: brightness,
-      dynamicSchemeVariant: DynamicSchemeVariant.monochrome,
+      dynamicSchemeVariant: DynamicSchemeVariant.tonalSpot,
     ).copyWith(
-      primary: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF111111),
-      onPrimary: isDark ? const Color(0xFF111111) : Colors.white,
-      secondary: isDark ? const Color(0xFFC7C7C7) : const Color(0xFF555555),
-      onSecondary: isDark ? const Color(0xFF111111) : Colors.white,
-      surface: isDark ? Colors.black : Colors.white,
-      onSurface: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF171717),
+      primary: isDark ? const Color(0xFF5EEAD4) : const Color(0xFF0F766E),
+      onPrimary: isDark ? const Color(0xFF042F2E) : Colors.white,
+      secondary: isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309),
+      onSecondary: isDark ? const Color(0xFF422006) : Colors.white,
+      surface: isDark ? const Color(0xFF101315) : const Color(0xFFF7F8FA),
+      onSurface: isDark ? const Color(0xFFF3F4F6) : const Color(0xFF17202A),
     );
     final fieldColor =
-        isDark ? const Color(0xFF161616) : const Color(0xFFF5F5F5);
+        isDark ? const Color(0xFF1B2024) : const Color(0xFFF1F3F5);
     final cardColor =
-        isDark ? const Color(0xFF101010) : const Color(0xFFFFFFFF);
+        isDark ? const Color(0xFF161A1D) : const Color(0xFFFFFFFF);
     final borderColor =
-        isDark ? const Color(0xFF303030) : const Color(0xFFE5E5E5);
+        isDark ? const Color(0xFF30363B) : const Color(0xFFDDE2E6);
 
     return ThemeData(
       colorScheme: scheme,
@@ -205,15 +205,15 @@ class _AppState extends State<App> {
         filled: true,
         fillColor: fieldColor,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide(color: borderColor),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide(color: borderColor),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide(color: scheme.primary, width: 1.5),
         ),
       ),
@@ -221,8 +221,61 @@ class _AppState extends State<App> {
         color: cardColor,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(8),
           side: BorderSide(color: borderColor),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, 44),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(0, 44),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          minimumSize: const Size(44, 44),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          minimumSize: const Size.square(44),
+        ),
+      ),
+      dividerTheme: DividerThemeData(
+        color: borderColor,
+        thickness: 1,
+        space: 1,
+      ),
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: Colors.transparent,
+        useIndicator: true,
+        indicatorColor: scheme.primaryContainer,
+        selectedIconTheme: IconThemeData(color: scheme.onPrimaryContainer),
+        selectedLabelTextStyle: TextStyle(
+          color: scheme.onSurface,
+          fontWeight: FontWeight.w700,
+          fontFamily: 'DejaVuSans',
+          fontFamilyFallback: const ['DroidSansFallback'],
+        ),
+        unselectedLabelTextStyle: TextStyle(
+          color: scheme.onSurfaceVariant,
+          fontFamily: 'DejaVuSans',
+          fontFamilyFallback: const ['DroidSansFallback'],
         ),
       ),
       snackBarTheme: SnackBarThemeData(
@@ -233,7 +286,7 @@ class _AppState extends State<App> {
           color: isDark ? const Color(0xFF171717) : Colors.white,
         ),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(8),
         ),
       ),
     );

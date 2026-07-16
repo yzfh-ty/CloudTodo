@@ -7,6 +7,7 @@ import '../../../core/utils/date_time_formatter.dart';
 import '../../../core/utils/display_texts.dart';
 import '../../../core/utils/timezone_options.dart';
 import '../../../core/widgets/empty_state_card.dart';
+import '../../../core/widgets/page_header.dart';
 import '../../app/application/app_scope.dart';
 import '../../devices/domain/device_item.dart';
 import '../../notification_endpoints/application/notification_endpoints_controller.dart';
@@ -153,18 +154,11 @@ class _SettingsPageState extends State<SettingsPage> {
                   isMobile: isMobile,
                   content: ListView(
                     children: [
-                      Text(
-                        '设置',
-                        style: isMobile
-                            ? theme.textTheme.titleLarge
-                            : theme.textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        '按左侧分类切换账户、同步、通知和外观连接设置。',
-                        style: isMobile
-                            ? theme.textTheme.bodyMedium
-                            : theme.textTheme.bodyLarge,
+                      PageHeader(
+                        title: settingsSectionLabel(_selectedSettingsSection),
+                        description: settingsSectionDescription(
+                          _selectedSettingsSection,
+                        ),
                       ),
                       const SizedBox(height: 20),
                       if (_selectedSettingsSection ==
@@ -676,7 +670,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                     decoration: BoxDecoration(
                                       color: theme
                                           .colorScheme.surfaceContainerHighest,
-                                      borderRadius: BorderRadius.circular(18),
+                                      borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Column(
                                       children: [
