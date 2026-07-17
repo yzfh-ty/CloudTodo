@@ -89,6 +89,7 @@ class _RemindersPageState extends State<RemindersPage> {
                             SizedBox(
                               width: selectorWidth,
                               child: DropdownButtonFormField<String>(
+                                isExpanded: true,
                                 initialValue: _controller.selectedTodoId,
                                 decoration: const InputDecoration(
                                   labelText: '选择任务',
@@ -97,7 +98,11 @@ class _RemindersPageState extends State<RemindersPage> {
                                     .map(
                                       (todo) => DropdownMenuItem<String>(
                                         value: todo.id,
-                                        child: Text(todo.title),
+                                        child: Text(
+                                          todo.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                       ),
                                     )
                                     .toList(growable: false),
@@ -176,7 +181,6 @@ class _RemindersPageState extends State<RemindersPage> {
                                 spacing: 12,
                                 runSpacing: 8,
                                 children: [
-                                  _MetaChip(label: '任务 ID', value: item.todoId),
                                   _MetaChip(
                                       label: '通道',
                                       value: reminderChannelText(item.channel)),
@@ -243,6 +247,9 @@ class _RemindersPageState extends State<RemindersPage> {
           child: const Text('编辑'),
         ),
         TextButton(
+          style: TextButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.error,
+          ),
           onPressed: _controller.submittingId == item.id
               ? null
               : () => _deleteReminder(item),
@@ -356,6 +363,10 @@ class _RemindersPageState extends State<RemindersPage> {
                   child: const Text('取消'),
                 ),
                 FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                    foregroundColor: Theme.of(context).colorScheme.onError,
+                  ),
                   onPressed: () => Navigator.of(context).pop(true),
                   child: const Text('删除'),
                 ),

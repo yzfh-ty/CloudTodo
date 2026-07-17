@@ -5,24 +5,29 @@ class _StatusFilterChip extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onSelected,
+    this.compact = false,
   });
 
   final String label;
   final bool selected;
   final VoidCallback onSelected;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 96,
+      width: compact ? 78 : 96,
       height: 44,
       child: ChoiceChip(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+        padding: EdgeInsets.symmetric(horizontal: compact ? 4 : 8),
         labelPadding: EdgeInsets.zero,
-        avatar: SizedBox(
-          width: 18,
-          child: selected ? const Icon(Icons.check_rounded, size: 18) : null,
-        ),
+        avatar: compact
+            ? null
+            : SizedBox(
+                width: 18,
+                child:
+                    selected ? const Icon(Icons.check_rounded, size: 18) : null,
+              ),
         label: SizedBox(
           width: 44,
           child: Text(

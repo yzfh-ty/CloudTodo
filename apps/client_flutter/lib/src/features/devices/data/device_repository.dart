@@ -50,6 +50,7 @@ class DeviceRepository {
     return switch (defaultTargetPlatform) {
       TargetPlatform.android => 'android',
       TargetPlatform.windows => 'windows',
+      TargetPlatform.linux => 'linux',
       _ => 'web',
     };
   }
@@ -62,6 +63,7 @@ class DeviceRepository {
     return switch (defaultTargetPlatform) {
       TargetPlatform.android => 'Android Client',
       TargetPlatform.windows => 'Windows Client',
+      TargetPlatform.linux => 'Linux Client',
       _ => 'Flutter Client',
     };
   }
@@ -74,6 +76,7 @@ class DeviceRepository {
     return switch (defaultTargetPlatform) {
       TargetPlatform.android => 'android-client',
       TargetPlatform.windows => 'windows-client',
+      TargetPlatform.linux => 'linux-client',
       _ => 'flutter-client',
     };
   }

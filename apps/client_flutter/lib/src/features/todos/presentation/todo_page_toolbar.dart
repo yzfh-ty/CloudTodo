@@ -24,21 +24,25 @@ extension _TodoPageToolbar on _TodoPageState {
       children: [
         _StatusFilterChip(
           label: '待办',
+          compact: isMobile,
           selected: _controller.statusFilter == 'pending',
           onSelected: () => _controller.setStatusFilter('pending'),
         ),
         _StatusFilterChip(
           label: '已完成',
+          compact: isMobile,
           selected: _controller.statusFilter == 'completed',
           onSelected: () => _controller.setStatusFilter('completed'),
         ),
         _StatusFilterChip(
           label: '已归档',
+          compact: isMobile,
           selected: _controller.statusFilter == 'archived',
           onSelected: () => _controller.setStatusFilter('archived'),
         ),
         _StatusFilterChip(
           label: '全部',
+          compact: isMobile,
           selected: _controller.statusFilter == null,
           onSelected: () => _controller.setStatusFilter(null),
         ),
@@ -53,7 +57,7 @@ extension _TodoPageToolbar on _TodoPageState {
       onSubmitted: _controller.setKeyword,
     );
     final filterButton = IconButton.outlined(
-      tooltip: _showAdvancedFilters ? '收起高级筛选' : '高级筛选',
+      tooltip: _showAdvancedFilters ? '收起清单与标签' : '清单与标签',
       onPressed: _toggleAdvancedFilters,
       icon: Icon(
         _showAdvancedFilters
@@ -80,10 +84,7 @@ extension _TodoPageToolbar on _TodoPageState {
               children: [
                 quickInput,
                 const SizedBox(height: 8),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: statusFilters,
-                ),
+                statusFilters,
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -121,81 +122,6 @@ extension _TodoPageToolbar on _TodoPageState {
                 ),
               ],
             ),
-    );
-  }
-
-  Widget _buildQuickAddControls(bool isMobile) {
-    final input = TextField(
-      controller: _createController,
-      decoration: const InputDecoration(hintText: '输入一条新的任务标题'),
-      onSubmitted: (_) => _createTodo(),
-    );
-    final addButton = FilledButton(
-      onPressed: _controller.isSubmitting ? null : _createTodo,
-      child: Text(_controller.isSubmitting ? '提交中...' : '添加'),
-    );
-    final formButton = OutlinedButton(
-      onPressed: _controller.isSubmitting ? null : _openCreateDialog,
-      child: const Text('完整表单'),
-    );
-
-    if (isMobile) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          input,
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 12,
-            runSpacing: 8,
-            children: [addButton, formButton],
-          ),
-        ],
-      );
-    }
-
-    return Row(
-      children: [
-        Expanded(child: input),
-        const SizedBox(width: 12),
-        addButton,
-        const SizedBox(width: 12),
-        formButton,
-      ],
-    );
-  }
-
-  Widget _buildSearchControls(bool isMobile) {
-    final input = TextField(
-      controller: _searchController,
-      decoration: const InputDecoration(
-        hintText: '按标题或描述搜索',
-        prefixIcon: Icon(Icons.search_rounded),
-      ),
-      onSubmitted: _controller.setKeyword,
-    );
-    final button = FilledButton.tonal(
-      onPressed: () => _controller.setKeyword(_searchController.text),
-      child: const Text('筛选'),
-    );
-
-    if (isMobile) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          input,
-          const SizedBox(height: 12),
-          Align(alignment: Alignment.centerLeft, child: button),
-        ],
-      );
-    }
-
-    return Row(
-      children: [
-        Expanded(child: input),
-        const SizedBox(width: 12),
-        button,
-      ],
     );
   }
 }

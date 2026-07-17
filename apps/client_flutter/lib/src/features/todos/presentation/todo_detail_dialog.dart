@@ -94,7 +94,7 @@ class TodoDetailDialog extends StatelessWidget {
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
                                     color: theme.colorScheme.surface,
-                                    borderRadius: BorderRadius.circular(14),
+                                    borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Column(
                                     crossAxisAlignment:
@@ -153,7 +153,7 @@ class _Section extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

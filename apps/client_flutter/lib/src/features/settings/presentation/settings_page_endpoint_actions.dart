@@ -87,6 +87,10 @@ extension _SettingsPageEndpointActions on _SettingsPageState {
                   child: const Text('取消'),
                 ),
                 FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                    foregroundColor: Theme.of(context).colorScheme.onError,
+                  ),
                   onPressed: () => Navigator.of(context).pop(true),
                   child: const Text('删除'),
                 ),
@@ -203,12 +207,13 @@ class _PayloadPreview extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: SelectableText(
         value,
         style: const TextStyle(
-          fontFamily: 'Consolas',
+          fontFamily: 'DejaVuSans',
+          fontFamilyFallback: ['DroidSansFallback'],
           fontSize: 12,
           height: 1.5,
         ),

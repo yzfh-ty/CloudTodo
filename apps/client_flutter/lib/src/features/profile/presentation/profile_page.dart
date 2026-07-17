@@ -61,7 +61,7 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
             const SizedBox(height: 12),
             Text(
-              '这里直接对接 `/api/users/me`。用户资料和会话资料拆开建模，避免后续 Android / Windows 端继续开发时混成一个“大而全”的状态对象。',
+              '更新昵称、邮箱和时区，保存后会同步到你的账户。',
               style: theme.textTheme.bodyLarge,
             ),
             const SizedBox(height: 20),
@@ -93,8 +93,6 @@ class _ProfilePageState extends State<ProfilePage> {
                           spacing: 16,
                           runSpacing: 12,
                           children: [
-                            _MetaChip(
-                                label: '用户 ID', value: profile?.id ?? '-'),
                             _MetaChip(
                               label: '角色',
                               value: profile == null

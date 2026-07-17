@@ -4,10 +4,10 @@ enum SettingsSection { profile, sync, notifications, preferences }
 
 extension _SettingsPageNavigation on _SettingsPageState {
   Widget _buildSettingsScaffold({
-    required bool isMobile,
+    required bool showCategorySelector,
     required Widget content,
   }) {
-    if (isMobile) {
+    if (showCategorySelector) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

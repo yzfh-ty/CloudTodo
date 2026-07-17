@@ -125,3 +125,18 @@ String timezoneText(String value) {
       return value;
   }
 }
+
+String devicePlatformText(String value) {
+  switch (value) {
+    case 'web':
+      return '网页';
+    case 'android':
+      return 'Android';
+    case 'windows':
+      return 'Windows';
+    case 'linux':
+      return 'Linux';
+    default:
+      return value;
+  }
+}

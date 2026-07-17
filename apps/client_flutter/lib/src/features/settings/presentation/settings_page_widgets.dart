@@ -79,6 +79,9 @@ class _EndpointCard extends StatelessWidget {
           child: const Text('编辑'),
         ),
         TextButton(
+          style: TextButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.error,
+          ),
           onPressed: busy ? null : onDelete,
           child: const Text('删除'),
         ),
@@ -188,7 +191,7 @@ class _DeviceCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                '平台：${item.platform}\n版本：${item.appVersion ?? '-'}\n最近活跃：${formatDateTime(item.lastActiveAt)}',
+                '平台：${devicePlatformText(item.platform)}\n版本：${item.appVersion ?? '-'}\n最近活跃：${formatDateTime(item.lastActiveAt)}',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             ],
@@ -203,6 +206,9 @@ class _DeviceCard extends StatelessWidget {
       children: [
         _MetaChip(label: '状态', value: item.isOnline ? '在线' : '离线'),
         TextButton(
+          style: TextButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.error,
+          ),
           onPressed: busy ? null : onDelete,
           child: const Text('删除'),
         ),

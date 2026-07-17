@@ -104,7 +104,9 @@ class _TodoPageState extends State<TodoPage> {
                   padding: const EdgeInsets.only(bottom: 24),
                   children: [
                     AnimatedSize(
-                      duration: const Duration(milliseconds: 180),
+                      duration: MediaQuery.disableAnimationsOf(context)
+                          ? Duration.zero
+                          : const Duration(milliseconds: 180),
                       alignment: Alignment.topCenter,
                       child: _headerCollapsed
                           ? const SizedBox.shrink()
@@ -143,49 +145,12 @@ class _TodoPageState extends State<TodoPage> {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          _buildQuickAddControls(isMobile),
-                                          const SizedBox(height: 12),
-                                          _buildSearchControls(isMobile),
-                                          const SizedBox(height: 12),
-                                          Wrap(
-                                            spacing: 8,
-                                            runSpacing: 8,
-                                            children: [
-                                              _StatusFilterChip(
-                                                label: '待办',
-                                                selected:
-                                                    _controller.statusFilter ==
-                                                        'pending',
-                                                onSelected: () => _controller
-                                                    .setStatusFilter('pending'),
-                                              ),
-                                              _StatusFilterChip(
-                                                label: '已完成',
-                                                selected:
-                                                    _controller.statusFilter ==
-                                                        'completed',
-                                                onSelected: () =>
-                                                    _controller.setStatusFilter(
-                                                        'completed'),
-                                              ),
-                                              _StatusFilterChip(
-                                                label: '已归档',
-                                                selected:
-                                                    _controller.statusFilter ==
-                                                        'archived',
-                                                onSelected: () =>
-                                                    _controller.setStatusFilter(
-                                                        'archived'),
-                                              ),
-                                              _StatusFilterChip(
-                                                label: '全部',
-                                                selected:
-                                                    _controller.statusFilter ==
-                                                        null,
-                                                onSelected: () => _controller
-                                                    .setStatusFilter(null),
-                                              ),
-                                            ],
+                                          Text(
+                                            '清单与标签',
+                                            style: theme.textTheme.titleMedium
+                                                ?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                            ),
                                           ),
                                           const SizedBox(height: 12),
                                           Wrap(
@@ -658,6 +623,10 @@ class _TodoPageState extends State<TodoPage> {
                   child: const Text('取消'),
                 ),
                 FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                    foregroundColor: Theme.of(context).colorScheme.onError,
+                  ),
                   onPressed: () => Navigator.of(context).pop(true),
                   child: const Text('删除'),
                 ),
@@ -724,6 +693,10 @@ class _TodoPageState extends State<TodoPage> {
                   child: const Text('取消'),
                 ),
                 FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                    foregroundColor: Theme.of(context).colorScheme.onError,
+                  ),
                   onPressed: () => Navigator.of(context).pop(true),
                   child: const Text('删除'),
                 ),

@@ -177,6 +177,9 @@ class _NotificationEndpointsPageState extends State<NotificationEndpointsPage> {
           child: const Text('编辑'),
         ),
         TextButton(
+          style: TextButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.error,
+          ),
           onPressed:
               _controller.submittingId == item.id ? null : () => _delete(item),
           child: const Text('删除'),
@@ -303,6 +306,10 @@ class _NotificationEndpointsPageState extends State<NotificationEndpointsPage> {
                   child: const Text('取消'),
                 ),
                 FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                    foregroundColor: Theme.of(context).colorScheme.onError,
+                  ),
                   onPressed: () => Navigator.of(context).pop(true),
                   child: const Text('删除'),
                 ),

@@ -56,7 +56,7 @@ class ReminderDetailDialog extends StatelessWidget {
                   decoration: BoxDecoration(
                     color:
                         Theme.of(context).colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -68,9 +68,8 @@ class ReminderDetailDialog extends StatelessWidget {
                       const SizedBox(height: 8),
                       Text(
                           '任务标题：${todoTitle?.trim().isNotEmpty == true ? todoTitle! : '未找到任务标题'}'),
-                      Text('任务 ID：${item.todoId}'),
                       Text('提醒时间：${formatDateTime(item.remindAt)}'),
-                      Text('原始时区：${item.timezone}'),
+                      Text('时区：${timezoneText(item.timezone)}'),
                     ],
                   ),
                 ),

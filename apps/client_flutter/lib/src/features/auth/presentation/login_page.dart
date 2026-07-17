@@ -23,6 +23,7 @@ class _LoginPageState extends State<LoginPage> {
   final _backendUrlController = TextEditingController();
   bool _backendInitialized = false;
   bool _showAdvanced = false;
+  bool _obscurePassword = true;
 
   @override
   void didChangeDependencies() {
@@ -54,10 +55,11 @@ class _LoginPageState extends State<LoginPage> {
       animation: sessionController,
       builder: (context, _) {
         return AuthPageFrame(
-          title: 'CloudTodo 客户端',
-          subtitle: '当前先把登录、会话恢复、任务列表和用户自助资料页打通，后续继续扩展三端共用能力。',
-          footer: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          title: 'CloudTodo',
+          subtitle: '继续处理你的任务与提醒。',
+          footer: Wrap(
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               const Text('还没有账号？'),
               TextButton(
@@ -76,57 +78,15 @@ class _LoginPageState extends State<LoginPage> {
                   '登录',
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
-                const SizedBox(height: 20),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color:
-                        Theme.of(context).colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '高级连接设置',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              setState(() {
-                                _showAdvanced = !_showAdvanced;
-                              });
-                            },
-                            child: Text(_showAdvanced ? '收起' : '展开'),
-                          ),
-                        ],
-                      ),
-                      Text(
-                        '当前后端：${_backendUrlController.text}',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                      if (_showAdvanced) ...[
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _backendUrlController,
-                          decoration: const InputDecoration(
-                            labelText: '后端地址',
-                            helperText: '输入 http://localhost:3000 或完整的 /api 地址',
-                          ),
-                          validator: (value) =>
-                              appController.validateApiBaseUrl(value ?? ''),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _accountController,
+                  autofocus: true,
+                  autofillHints: const [
+                    AutofillHints.username,
+                    AutofillHints.email,
+                  ],
+                  textInputAction: TextInputAction.next,
                   decoration: const InputDecoration(
                     labelText: '邮箱或用户名',
                   ),
@@ -140,9 +100,23 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _passwordController,
-                  obscureText: true,
-                  decoration: const InputDecoration(
+                  obscureText: _obscurePassword,
+                  autofillHints: const [AutofillHints.password],
+                  textInputAction: TextInputAction.done,
+                  onFieldSubmitted: (_) => _submit(),
+                  decoration: InputDecoration(
                     labelText: '密码',
+                    suffixIcon: IconButton(
+                      tooltip: _obscurePassword ? '显示密码' : '隐藏密码',
+                      onPressed: () => setState(
+                        () => _obscurePassword = !_obscurePassword,
+                      ),
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                    ),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -160,6 +134,40 @@ class _LoginPageState extends State<LoginPage> {
                     child: const Text('使用重置令牌设置新密码'),
                   ),
                 ),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
+                  ),
+                  child: ExpansionTile(
+                    initiallyExpanded: _showAdvanced,
+                    onExpansionChanged: (value) {
+                      setState(() => _showAdvanced = value);
+                    },
+                    tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+                    childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    title: const Text('连接设置'),
+                    subtitle: Text(
+                      _backendUrlController.text,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    children: [
+                      TextFormField(
+                        controller: _backendUrlController,
+                        decoration: const InputDecoration(
+                          labelText: '后端地址',
+                          helperText: '例如 http://localhost:3000/api',
+                        ),
+                        validator: (value) =>
+                            appController.validateApiBaseUrl(value ?? ''),
+                      ),
+                    ],
+                  ),
+                ),
                 if (sessionController.lastError != null) ...[
                   const SizedBox(height: 16),
                   Text(
@@ -172,10 +180,7 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 24),
                 FilledButton(
                   onPressed: sessionController.isBusy ? null : _submit,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    child: Text(sessionController.isBusy ? '登录中...' : '进入我的任务'),
-                  ),
+                  child: Text(sessionController.isBusy ? '登录中...' : '登录'),
                 ),
               ],
             ),

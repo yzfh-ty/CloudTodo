@@ -126,7 +126,9 @@ class _SettingsPageState extends State<SettingsPage> {
       ]),
       builder: (context, _) {
         final theme = Theme.of(context);
-        final isMobile = MediaQuery.sizeOf(context).width < 600;
+        final viewportWidth = MediaQuery.sizeOf(context).width;
+        final isMobile = viewportWidth < 600;
+        final usesCompactNavigation = viewportWidth < 900;
         final cardPadding = EdgeInsets.all(isMobile ? 16 : 24);
         final sectionTitleStyle = isMobile
             ? theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)
@@ -151,7 +153,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 width: contentWidth,
                 height: constraints.maxHeight,
                 child: _buildSettingsScaffold(
-                  isMobile: isMobile,
+                  showCategorySelector: usesCompactNavigation,
                   content: ListView(
                     children: [
                       PageHeader(
@@ -529,9 +531,6 @@ class _SettingsPageState extends State<SettingsPage> {
                                     runSpacing: 12,
                                     children: [
                                       _MetaChip(
-                                          label: '用户 ID',
-                                          value: profile?.id ?? '-'),
-                                      _MetaChip(
                                         label: '角色',
                                         value: profile == null
                                             ? '-'
@@ -648,13 +647,16 @@ class _SettingsPageState extends State<SettingsPage> {
                                         style: sectionTitleStyle,
                                       ),
                                     ),
-                                    FilledButton.icon(
-                                      onPressed: _endpointsController.isLoading
-                                          ? null
-                                          : _createEndpoint,
-                                      icon: const Icon(Icons.add_link_rounded),
-                                      label: const Text('新增方式'),
-                                    ),
+                                    if (_endpointsController.items.isNotEmpty)
+                                      FilledButton.icon(
+                                        onPressed:
+                                            _endpointsController.isLoading
+                                                ? null
+                                                : _createEndpoint,
+                                        icon:
+                                            const Icon(Icons.add_link_rounded),
+                                        label: const Text('新增方式'),
+                                      ),
                                   ],
                                 ),
                                 const SizedBox(height: 12),
@@ -723,6 +725,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                 else if (_endpointsController.items.isEmpty)
                                   _CenteredEmptyState(
                                     child: EmptyStateCard(
+                                      framed: false,
                                       icon: Icons.notifications_off_rounded,
                                       title: '当前还没有通知方式',
                                       description:
@@ -900,6 +903,10 @@ class _SettingsPageState extends State<SettingsPage> {
                   child: const Text('取消'),
                 ),
                 FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                    foregroundColor: Theme.of(context).colorScheme.onError,
+                  ),
                   onPressed: () => Navigator.of(context).pop(true),
                   child: const Text('删除'),
                 ),

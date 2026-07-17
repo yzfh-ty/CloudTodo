@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/utils/app_timezone.dart';
 import 'features/app/application/app_controller.dart';
@@ -73,6 +74,12 @@ class _AppState extends State<App> {
         debugShowCheckedModeBanner: false,
         routerDelegate: _routerDelegate,
         routeInformationParser: _routeInformationParser,
+        locale: const Locale('zh', 'CN'),
+        supportedLocales: const [
+          Locale('zh', 'CN'),
+          Locale('en'),
+        ],
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
         theme: _buildTheme(Brightness.light),
         darkTheme: _buildTheme(Brightness.dark),
         themeMode: widget.controller.themeMode,

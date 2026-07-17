@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/form_dialog_frame.dart';
 import '../domain/notification_endpoint_form_data.dart';
 
 class NotificationEndpointEditorDialog extends StatefulWidget {
@@ -58,259 +59,229 @@ class _NotificationEndpointEditorDialogState
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      insetPadding: const EdgeInsets.all(24),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Form(
-            key: _formKey,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.title,
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    widget.isEditing
-                        ? '你可以更新通知方式名称、地址、启用状态，也可以轮换或清空密钥。'
-                        : '先选择一种通知方式，再填写地址即可。企业微信机器人和标准 Webhook 都支持。',
-                  ),
-                  const SizedBox(height: 20),
-                  DropdownButtonFormField<String>(
-                    initialValue: _deliveryKind,
-                    decoration: const InputDecoration(labelText: '通知方式'),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'wecom_robot',
-                        child: Text('企业微信机器人'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'standard_webhook',
-                        child: Text('标准 Webhook'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value == null) {
-                        return;
-                      }
-
-                      setState(() {
-                        _deliveryKind = value;
-                        if (_nameController.text.trim().isEmpty) {
-                          _nameController.text = defaultNameForKind(value);
-                        }
-                        if (_payloadTemplateController.text.trim().isEmpty) {
-                          _payloadTemplateController.text =
-                              defaultPayloadTemplateForKind(value);
-                        }
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(labelText: '名称'),
-                    maxLength: 64,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return '请输入名称';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _targetUrlController,
-                    decoration: InputDecoration(
-                      labelText: _deliveryKind == 'wecom_robot'
-                          ? '机器人地址'
-                          : 'Webhook 地址',
-                      helperText: _deliveryKind == 'wecom_robot'
-                          ? '粘贴企业微信机器人 Webhook 地址'
-                          : '粘贴接收提醒的 Webhook 地址',
-                    ),
-                    validator: (value) {
-                      final text = value?.trim() ?? '';
-                      final uri = Uri.tryParse(text);
-                      if (text.isEmpty ||
-                          uri == null ||
-                          !uri.hasScheme ||
-                          !(uri.scheme == 'http' || uri.scheme == 'https') ||
-                          uri.host.isEmpty) {
-                        return '请输入合法的地址';
-                      }
-                      if (_deliveryKind == 'wecom_robot' &&
-                          !text
-                              .contains('weixin.qq.com/cgi-bin/webhook/send')) {
-                        return '请输入企业微信机器人的 Webhook 地址';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _secretController,
-                    decoration: InputDecoration(
-                      labelText: _deliveryKind == 'wecom_robot'
-                          ? (widget.isEditing ? '新签名密钥' : '签名密钥')
-                          : (widget.isEditing ? '新密钥' : '密钥'),
-                      hintText: _deliveryKind == 'wecom_robot'
-                          ? (widget.isEditing
-                              ? '留空则保持不变，可选'
-                              : '如果企业微信机器人启用了签名，可填这里')
-                          : (widget.isEditing ? '留空则保持不变' : '可选'),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _payloadTemplateController,
-                    minLines: 10,
-                    maxLines: 16,
-                    decoration: const InputDecoration(
-                      labelText: '请求体模板',
-                      helperText:
-                          '支持占位符，如 {{todo_title}}、{{scheduled_for}}、{{payload_json}}',
-                    ),
-                    validator: (value) {
-                      final text = value?.trim() ?? '';
-                      if (text.isEmpty) {
-                        return '请输入请求体模板';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      FilledButton.tonal(
-                        onPressed: () {
-                          setState(() {
-                            _payloadTemplateController.text =
-                                defaultPayloadTemplateForKind(_deliveryKind);
-                            if (_nameController.text.trim().isEmpty) {
-                              _nameController.text =
-                                  defaultNameForKind(_deliveryKind);
-                            }
-                          });
-                        },
-                        child: const Text('恢复默认模板'),
-                      ),
-                      Text(
-                        '模板里的占位符会在测试通知和真实提醒投递时自动替换。',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color:
-                          Theme.of(context).colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text(
-                          '可用占位符',
-                          style: TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        SizedBox(height: 8),
-                        Text('{{todo_title}}：任务标题'),
-                        Text('{{todo_status}}：任务状态'),
-                        Text('{{todo_priority}}：任务优先级'),
-                        Text('{{scheduled_for}}：计划提醒时间'),
-                        Text('{{triggered_at}}：实际触发时间'),
-                        Text('{{endpoint_name}}：通知方式名称'),
-                        Text('{{user_timezone}}：用户时区'),
-                        Text('{{payload_text}}：提醒内容文本'),
-                        Text('{{payload_json}}：提醒内容 JSON 对象'),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color:
-                          Theme.of(context).colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          '示例预览',
-                          style: TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 8),
-                        SelectableText(
-                          _buildPreview(),
-                          style: const TextStyle(
-                            fontFamily: 'Consolas',
-                            fontSize: 12,
-                            height: 1.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (widget.isEditing) ...[
-                    const SizedBox(height: 8),
-                    CheckboxListTile(
-                      value: _clearSecret,
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('清空现有密钥'),
-                      onChanged: (value) {
-                        setState(() {
-                          _clearSecret = value ?? false;
-                        });
-                      },
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                  SwitchListTile.adaptive(
-                    value: _isEnabled,
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('启用此方式'),
-                    onChanged: (value) {
-                      setState(() {
-                        _isEnabled = value;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('取消'),
-                      ),
-                      const SizedBox(width: 12),
-                      FilledButton(
-                        onPressed: _submit,
-                        child: Text(widget.submitLabel),
-                      ),
-                    ],
-                  ),
-                ],
+    return FormDialogFrame(
+      formKey: _formKey,
+      title: widget.title,
+      description: widget.isEditing ? '更新地址、模板、启用状态或密钥。' : '选择通知方式并填写接收地址。',
+      maxWidth: 600,
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          DropdownButtonFormField<String>(
+            initialValue: _deliveryKind,
+            decoration: const InputDecoration(labelText: '通知方式'),
+            items: const [
+              DropdownMenuItem(
+                value: 'wecom_robot',
+                child: Text('企业微信机器人'),
               ),
+              DropdownMenuItem(
+                value: 'standard_webhook',
+                child: Text('标准 Webhook'),
+              ),
+            ],
+            onChanged: (value) {
+              if (value == null) {
+                return;
+              }
+
+              setState(() {
+                _deliveryKind = value;
+                if (_nameController.text.trim().isEmpty) {
+                  _nameController.text = defaultNameForKind(value);
+                }
+                if (_payloadTemplateController.text.trim().isEmpty) {
+                  _payloadTemplateController.text =
+                      defaultPayloadTemplateForKind(value);
+                }
+              });
+            },
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _nameController,
+            decoration: const InputDecoration(labelText: '名称'),
+            maxLength: 64,
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return '请输入名称';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _targetUrlController,
+            decoration: InputDecoration(
+              labelText:
+                  _deliveryKind == 'wecom_robot' ? '机器人地址' : 'Webhook 地址',
+              helperText: _deliveryKind == 'wecom_robot'
+                  ? '粘贴企业微信机器人 Webhook 地址'
+                  : '粘贴接收提醒的 Webhook 地址',
+            ),
+            validator: (value) {
+              final text = value?.trim() ?? '';
+              final uri = Uri.tryParse(text);
+              if (text.isEmpty ||
+                  uri == null ||
+                  !uri.hasScheme ||
+                  !(uri.scheme == 'http' || uri.scheme == 'https') ||
+                  uri.host.isEmpty) {
+                return '请输入合法的地址';
+              }
+              if (_deliveryKind == 'wecom_robot' &&
+                  !text.contains('weixin.qq.com/cgi-bin/webhook/send')) {
+                return '请输入企业微信机器人的 Webhook 地址';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _secretController,
+            decoration: InputDecoration(
+              labelText: _deliveryKind == 'wecom_robot'
+                  ? (widget.isEditing ? '新签名密钥' : '签名密钥')
+                  : (widget.isEditing ? '新密钥' : '密钥'),
+              hintText: _deliveryKind == 'wecom_robot'
+                  ? (widget.isEditing ? '留空则保持不变，可选' : '如果企业微信机器人启用了签名，可填这里')
+                  : (widget.isEditing ? '留空则保持不变' : '可选'),
             ),
           ),
-        ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _payloadTemplateController,
+            minLines: 10,
+            maxLines: 16,
+            decoration: const InputDecoration(
+              labelText: '请求体模板',
+              helperText:
+                  '支持占位符，如 {{todo_title}}、{{scheduled_for}}、{{payload_json}}',
+            ),
+            validator: (value) {
+              final text = value?.trim() ?? '';
+              if (text.isEmpty) {
+                return '请输入请求体模板';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              FilledButton.tonal(
+                onPressed: () {
+                  setState(() {
+                    _payloadTemplateController.text =
+                        defaultPayloadTemplateForKind(_deliveryKind);
+                    if (_nameController.text.trim().isEmpty) {
+                      _nameController.text = defaultNameForKind(_deliveryKind);
+                    }
+                  });
+                },
+                child: const Text('恢复默认模板'),
+              ),
+              Text(
+                '模板里的占位符会在测试通知和真实提醒投递时自动替换。',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  '可用占位符',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                SizedBox(height: 8),
+                Text('{{todo_title}}：任务标题'),
+                Text('{{todo_status}}：任务状态'),
+                Text('{{todo_priority}}：任务优先级'),
+                Text('{{scheduled_for}}：计划提醒时间'),
+                Text('{{triggered_at}}：实际触发时间'),
+                Text('{{endpoint_name}}：通知方式名称'),
+                Text('{{user_timezone}}：用户时区'),
+                Text('{{payload_text}}：提醒内容文本'),
+                Text('{{payload_json}}：提醒内容 JSON 对象'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '示例预览',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                SelectableText(
+                  _buildPreview(),
+                  style: const TextStyle(
+                    fontFamily: 'DejaVuSans',
+                    fontFamilyFallback: ['DroidSansFallback'],
+                    fontSize: 12,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (widget.isEditing) ...[
+            const SizedBox(height: 8),
+            CheckboxListTile(
+              value: _clearSecret,
+              contentPadding: EdgeInsets.zero,
+              title: const Text('清空现有密钥'),
+              onChanged: (value) {
+                setState(() {
+                  _clearSecret = value ?? false;
+                });
+              },
+            ),
+          ],
+          const SizedBox(height: 8),
+          SwitchListTile.adaptive(
+            value: _isEnabled,
+            contentPadding: EdgeInsets.zero,
+            title: const Text('启用此方式'),
+            onChanged: (value) {
+              setState(() {
+                _isEnabled = value;
+              });
+            },
+          ),
+        ],
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: Text(widget.submitLabel),
+        ),
+      ],
     );
   }
 
