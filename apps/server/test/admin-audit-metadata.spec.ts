@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import { sanitizeMetadata } from '../src/common/security/security-audit.service';
 import { createAuditLogTx } from '../src/modules/admin/admin-security.util';
 import type { SecurityRequestContextService } from '../src/common/security/security-request-context.service';
 
@@ -58,5 +59,23 @@ describe('admin operation log metadata sanitization', () => {
     });
 
     expect(metadata).toEqual({ reset_token: 'secret' });
+  });
+});
+
+describe('value-level secret scanning', () => {
+  it('redacts secrets embedded in string values under innocent keys', () => {
+    const sanitized = sanitizeMetadata({
+      url: 'https://hooks.example.com/path?api_key=abc123&channel=ops',
+      db: 'postgresql://svc:hunter2@db.internal:5432/app',
+      header: 'Authorization: Bearer sk-live-abcdef123456',
+      jwt: 'prefix eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.dGVzdC1zaWduYXR1cmU suffix',
+      plain: 'nothing sensitive here',
+    }) as Record<string, string>;
+
+    expect(sanitized.url).toBe('https://hooks.example.com/path?api_key=[REDACTED]&channel=ops');
+    expect(sanitized.db).toBe('postgresql://[REDACTED]@db.internal:5432/app');
+    expect(sanitized.header).toBe('Authorization: Bearer [REDACTED]');
+    expect(sanitized.jwt).toBe('prefix [REDACTED] suffix');
+    expect(sanitized.plain).toBe('nothing sensitive here');
   });
 });

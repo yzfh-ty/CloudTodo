@@ -66,13 +66,29 @@ export class SecurityAuditService {
 const SECRET_KEY_PATTERN =
   /(pass(word)?|token|secret|cookie|authorization|signature|private.?key|otp|totp|recovery|credential)/i;
 
+// Value-level scanning: secrets hidden inside otherwise innocent values.
+const URL_USERINFO_PATTERN = /\b([a-z][a-z0-9+.-]*:\/\/)[^/\s@]+@/gi;
+const URL_SECRET_QUERY_PATTERN =
+  /([?&][^=&\s]*(?:token|secret|key|password|signature|auth|code|credential)[^=&\s]*=)[^&\s"']+/gi;
+const BEARER_PATTERN = /\b(bearer|basic)\s+[a-z0-9._~+/=-]{6,}/gi;
+const JWT_PATTERN = /\beyJ[a-z0-9_-]{8,}\.[a-z0-9_-]{4,}\.[a-z0-9_-]{4,}\b/gi;
+
+function sanitizeStringValue(value: string): string {
+  return value
+    .replace(URL_USERINFO_PATTERN, '$1[REDACTED]@')
+    .replace(URL_SECRET_QUERY_PATTERN, '$1[REDACTED]')
+    .replace(BEARER_PATTERN, '$1 [REDACTED]')
+    .replace(JWT_PATTERN, '[REDACTED]');
+}
+
 export function sanitizeMetadata(value: unknown): Prisma.JsonValue {
   if (value === null || typeof value === 'boolean' || typeof value === 'number') {
     return value;
   }
 
   if (typeof value === 'string') {
-    return value.length > 512 ? `${value.slice(0, 512)}...` : value;
+    const scanned = sanitizeStringValue(value);
+    return scanned.length > 512 ? `${scanned.slice(0, 512)}...` : scanned;
   }
 
   if (Array.isArray(value)) {

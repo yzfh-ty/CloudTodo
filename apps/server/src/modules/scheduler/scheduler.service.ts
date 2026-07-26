@@ -432,6 +432,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       'X-CloudTodo-Timestamp': String(Math.floor(Date.now() / 1000)),
       'X-CloudTodo-Event-Id': delivery.reminderEventId,
       'X-CloudTodo-Delivery-Id': delivery.id,
+      'X-CloudTodo-Signature-Version': '2',
     };
 
     let requestUrl = delivery.endpoint.targetUrl;
@@ -447,9 +448,11 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       url.searchParams.set('sign', sign);
       requestUrl = url.toString();
     } else if (endpointSecret) {
+      // v2 signature also covers the delivery id so a relay cannot swap the
+      // X-CloudTodo-Delivery-Id header between two signed requests.
       headers['X-CloudTodo-Signature'] = createHmac('sha256', endpointSecret)
         .update(
-          `${headers['X-CloudTodo-Timestamp']}.${headers['X-CloudTodo-Event-Id']}.${body}`,
+          `${headers['X-CloudTodo-Timestamp']}.${headers['X-CloudTodo-Event-Id']}.${delivery.id}.${body}`,
         )
         .digest('hex');
     }

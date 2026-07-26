@@ -4,6 +4,7 @@ import { validate } from 'class-validator';
 import type { PrismaService } from '../src/common/database/prisma.service';
 import {
   getAdminOperationLogs,
+  getAdminSecurityAuditLogs,
   getAdminUsers,
 } from '../src/modules/admin/admin-query.functions';
 import { AdminOperationLogQueryDto } from '../src/modules/admin/dto/admin-operation-log-query.dto';
@@ -16,6 +17,10 @@ function createPrisma() {
       count: jest.fn().mockResolvedValue(0),
     },
     adminOperationLog: {
+      findMany: jest.fn().mockResolvedValue([]),
+      count: jest.fn().mockResolvedValue(0),
+    },
+    securityAuditLog: {
       findMany: jest.fn().mockResolvedValue([]),
       count: jest.fn().mockResolvedValue(0),
     },
@@ -97,4 +102,57 @@ describe('admin query bounds', () => {
       );
     },
   );
+});
+
+describe('security audit log queries', () => {
+  it('clamps pagination and keeps an explicit field selection', async () => {
+    const prisma = createPrisma();
+    await getAdminSecurityAuditLogs(prisma as unknown as PrismaService, {
+      page: 999_999,
+      page_size: 100_000,
+    });
+
+    const call = prisma.securityAuditLog.findMany.mock.calls[0][0];
+    expect(call.take).toBe(100);
+    expect(call.skip).toBe((500 - 1) * 100);
+    expect(call.orderBy).toEqual([{ createdAt: 'desc' }, { id: 'desc' }]);
+    expect(Object.keys(call.select).sort()).toEqual([
+      'action',
+      'actorUserId',
+      'createdAt',
+      'id',
+      'ipAddress',
+      'metadata',
+      'requestId',
+      'result',
+      'sessionId',
+      'targetUserId',
+    ]);
+  });
+
+  it('rejects an inverted date range before querying', async () => {
+    const prisma = createPrisma();
+    await expect(
+      getAdminSecurityAuditLogs(prisma as unknown as PrismaService, {
+        start: '2026-02-01T00:00:00.000Z',
+        end: '2026-01-01T00:00:00.000Z',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.securityAuditLog.findMany).not.toHaveBeenCalled();
+  });
+
+  it('applies enum and actor filters verbatim', async () => {
+    const prisma = createPrisma();
+    await getAdminSecurityAuditLogs(prisma as unknown as PrismaService, {
+      action: 'admin_login_failure' as never,
+      result: 'failure' as never,
+      actor_user_id: '00000000-0000-0000-0000-000000000009',
+    });
+
+    expect(prisma.securityAuditLog.findMany.mock.calls[0][0].where).toEqual({
+      action: 'admin_login_failure',
+      result: 'failure',
+      actorUserId: '00000000-0000-0000-0000-000000000009',
+    });
+  });
 });

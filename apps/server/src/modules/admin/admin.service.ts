@@ -30,12 +30,14 @@ import { AdminChangePasswordDto } from './dto/admin-change-password.dto';
 import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import { AdminOperationLogQueryDto } from './dto/admin-operation-log-query.dto';
+import { AdminSecurityAuditLogQueryDto } from './dto/admin-security-audit-log-query.dto';
 import { AdminResetPasswordDto } from './dto/admin-reset-password.dto';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
 import { AdminUserListQueryDto } from './dto/admin-user-list-query.dto';
 import {
   getAdminDashboardSummary,
   getAdminOperationLogs,
+  getAdminSecurityAuditLogs,
   getAdminUserById,
   getAdminUserDevices,
   getAdminUsers,
@@ -981,6 +983,9 @@ export class AdminService {
   }
   async getOperationLogs(query: AdminOperationLogQueryDto) {
     return getAdminOperationLogs(this.prisma, query);
+  }
+  async getSecurityAuditLogs(query: AdminSecurityAuditLogQueryDto) {
+    return getAdminSecurityAuditLogs(this.prisma, query);
   }
   placeholder(action: string) {
     return {

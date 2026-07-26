@@ -32,6 +32,8 @@ CloudTodo Server 是项目的后端服务，提供：
 
 - 管理员登录与会话鉴权
 - 管理员动态口令 MFA（TOTP + 一次性恢复码，后台"安全设置"中启用）
+- 高风险操作（禁用用户、重置密码）在启用 MFA 后需附带 `X-CloudTodo-MFA-Code` 二次确认
+- 安全审计日志查询 `GET /api/admin/security-audit-logs`（分页/筛选，元数据写入时脱敏）
 - 用户列表
 - 用户详情
 - 用户资料更新

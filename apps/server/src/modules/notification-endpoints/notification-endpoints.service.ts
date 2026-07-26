@@ -324,12 +324,14 @@ export class NotificationEndpointsService {
       'User-Agent': 'CloudTodo-Webhook-Test/1.0',
       'X-CloudTodo-Timestamp': String(Math.floor(testedAt.getTime() / 1000)),
       'X-CloudTodo-Event-Id': 'test_event',
+      'X-CloudTodo-Delivery-Id': 'test_delivery',
+      'X-CloudTodo-Signature-Version': '2',
     };
 
     if (secret && !isWeComRobot) {
       headers['X-CloudTodo-Signature'] = createHmac('sha256', secret)
         .update(
-          `${headers['X-CloudTodo-Timestamp']}.${headers['X-CloudTodo-Event-Id']}.${body}`,
+          `${headers['X-CloudTodo-Timestamp']}.${headers['X-CloudTodo-Event-Id']}.${headers['X-CloudTodo-Delivery-Id']}.${body}`,
         )
         .digest('hex');
     }

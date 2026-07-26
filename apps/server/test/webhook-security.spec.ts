@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import { HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -14,6 +15,7 @@ import type { PrismaService } from '../src/common/database/prisma.service';
 import type { OutboundHttpService } from '../src/common/security/outbound-http.service';
 import type { RateLimitService } from '../src/common/security/rate-limit.service';
 import type { AuthenticatedUser } from '../src/modules/auth/user-session.service';
+import { encryptSecret } from '../src/common/security/secret.util';
 import { NotificationEndpointsService } from '../src/modules/notification-endpoints/notification-endpoints.service';
 import { SchedulerService } from '../src/modules/scheduler/scheduler.service';
 
@@ -141,6 +143,92 @@ describe('webhook delivery processing lease', () => {
     await scheduler.processPendingDeliveries();
 
     expect(deliverWebhook).not.toHaveBeenCalled();
+  });
+
+  it('signs deliveries with the v2 scheme covering the delivery id', async () => {
+    const previousKey = process.env.WEBHOOK_SECRET_ENCRYPTION_KEY;
+    process.env.WEBHOOK_SECRET_ENCRYPTION_KEY = 'webhook-signature-test-key';
+    try {
+      const claimUpdatedAt = new Date('2026-01-01T12:00:00.000Z');
+      const transition = jest.fn().mockResolvedValue({ count: 1 });
+      const tx = {
+        notificationDelivery: { updateMany: transition },
+        notificationEndpoint: { update: jest.fn() },
+        reminderEvent: { update: jest.fn() },
+      };
+      const delivery = {
+        id: 'delivery-sig-1',
+        reminderEventId: 'event-sig-1',
+        endpointId: 'endpoint-1',
+        status: NotificationDeliveryStatus.processing,
+        attemptCount: 0,
+        updatedAt: claimUpdatedAt,
+        endpoint: {
+          ...endpointRecord('https://hooks.example.com/events'),
+          secret: encryptSecret('signing-secret'),
+        },
+        reminderEvent: {
+          id: 'event-sig-1',
+          userId: user.id,
+          channel: ReminderChannel.webhook,
+          scheduledFor: new Date('2026-01-01T11:59:00.000Z'),
+          triggeredAt: new Date('2026-01-01T11:59:00.000Z'),
+          payload: {},
+          user: { id: user.id, status: UserStatus.active, timezone: 'UTC' },
+          todo: {
+            id: 'todo-1',
+            userId: user.id,
+            title: 'Todo',
+            description: null,
+            status: TodoStatus.pending,
+            priority: TodoPriority.medium,
+            dueAt: null,
+            deletedAt: null,
+          },
+          reminder: {
+            id: 'reminder-1',
+            userId: user.id,
+            todoId: 'todo-1',
+            status: ReminderStatus.pending,
+            deletedAt: null,
+          },
+        },
+      };
+      const prisma = {
+        notificationDelivery: { findUnique: jest.fn().mockResolvedValue(delivery) },
+        $transaction: jest.fn(
+          async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx),
+        ),
+      };
+      const postJson = jest.fn().mockResolvedValue({ status: 204, ok: true, body: '' });
+      const service = new SchedulerService(
+        new ConfigService({ DELIVERY_MAX_ATTEMPTS: '3' }),
+        prisma as unknown as PrismaService,
+        { postJson } as unknown as OutboundHttpService,
+      );
+
+      await (service as unknown as SchedulerTestApi).deliverWebhook(
+        delivery.id,
+        claimUpdatedAt,
+      );
+
+      expect(postJson).toHaveBeenCalledTimes(1);
+      const [, headers, body] = postJson.mock.calls[0] as [
+        string,
+        Record<string, string>,
+        string,
+      ];
+      expect(headers['X-CloudTodo-Delivery-Id']).toBe('delivery-sig-1');
+      expect(headers['X-CloudTodo-Signature-Version']).toBe('2');
+      const expected = createHmac('sha256', 'signing-secret')
+        .update(
+          `${headers['X-CloudTodo-Timestamp']}.${headers['X-CloudTodo-Event-Id']}.delivery-sig-1.${body}`,
+        )
+        .digest('hex');
+      expect(headers['X-CloudTodo-Signature']).toBe(expected);
+    } finally {
+      process.env.WEBHOOK_SECRET_ENCRYPTION_KEY = previousKey;
+    }
   });
 
   it('does not let a previous lease owner commit after the delivery was reclaimed', async () => {

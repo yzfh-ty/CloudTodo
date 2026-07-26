@@ -415,6 +415,12 @@ ${ADMIN_MFA_SECTION_HTML}
         });
         const json = await res.json().catch(() => ({}));
         if (!res.ok) {
+          const mfaCode = json?.code === 'MFA_CONFIRMATION_REQUIRED' && !options.mfaPrompted
+            ? window.prompt('该操作需要动态口令确认，请输入 6 位口令或恢复码：') : null;
+          if (mfaCode && mfaCode.trim()) {
+            return fetchJson(url, { ...options, mfaPrompted: true,
+              headers: { ...headers, 'X-CloudTodo-MFA-Code': mfaCode.trim() } });
+          }
           throw new Error(json?.message || '请求失败');
         }
         return json;

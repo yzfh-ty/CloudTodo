@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -260,6 +261,47 @@ export class AdminMfaService {
         metadata: { reason: 'login_code_invalid' },
       });
       throw new UnauthorizedException({
+        code: 'MFA_CODE_INVALID',
+        message: 'the provided TOTP or recovery code is invalid',
+      });
+    }
+  }
+
+  /**
+   * Per-action confirmation for high-risk admin operations. Enforced only
+   * for admins with MFA enrolled; the code is consumed through the same
+   * replay-guarded path as login, so one code authorizes one action.
+   */
+  async assertActionConfirmation(adminId: string, code: string | undefined) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: adminId },
+      select: { totpEnabledAt: true, totpSecretEncrypted: true },
+    });
+    if (!user?.totpEnabledAt || !user.totpSecretEncrypted) {
+      return;
+    }
+
+    if (!code || code.trim().length === 0) {
+      throw new ForbiddenException({
+        code: 'MFA_CONFIRMATION_REQUIRED',
+        message: 'this action requires a TOTP or recovery code',
+      });
+    }
+
+    const verified = await this.verifyCodeOrRecovery(
+      adminId,
+      user.totpSecretEncrypted,
+      code,
+    );
+    if (!verified) {
+      await this.securityAuditService.record({
+        action: 'admin_mfa_failure',
+        result: 'failure',
+        actorUserId: adminId,
+        targetUserId: adminId,
+        metadata: { reason: 'action_confirmation_code_invalid' },
+      });
+      throw new ForbiddenException({
         code: 'MFA_CODE_INVALID',
         message: 'the provided TOTP or recovery code is invalid',
       });

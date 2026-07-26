@@ -8,6 +8,7 @@ import {
 } from '@prisma/client';
 import type { PrismaService } from '../../common/database/prisma.service';
 import { AdminOperationLogQueryDto } from './dto/admin-operation-log-query.dto';
+import { AdminSecurityAuditLogQueryDto } from './dto/admin-security-audit-log-query.dto';
 import { AdminUserListQueryDto } from './dto/admin-user-list-query.dto';
 
 export async function getAdminDashboardSummary(prisma: PrismaService) {
@@ -345,6 +346,91 @@ export async function getAdminOperationLogs(prisma: PrismaService, query: AdminO
     message: 'success',
     data: {
       items,
+      page,
+      page_size: pageSize,
+      total,
+      has_more: skip + items.length < total,
+    },
+  };
+}
+
+export async function getAdminSecurityAuditLogs(
+  prisma: PrismaService,
+  query: AdminSecurityAuditLogQueryDto,
+) {
+  const { page, pageSize, skip } = clampPagination(query.page, query.page_size);
+  const where: Prisma.SecurityAuditLogWhereInput = {};
+
+  if (query.start && query.end && new Date(query.start) > new Date(query.end)) {
+    throw new BadRequestException({
+      code: 'VALIDATION_ERROR',
+      message: 'start must be earlier than or equal to end',
+    });
+  }
+
+  if (query.actor_user_id) {
+    where.actorUserId = query.actor_user_id;
+  }
+
+  if (query.target_user_id) {
+    where.targetUserId = query.target_user_id;
+  }
+
+  if (query.action) {
+    where.action = query.action;
+  }
+
+  if (query.result) {
+    where.result = query.result;
+  }
+
+  if (query.start || query.end) {
+    where.createdAt = {
+      ...(query.start ? { gte: new Date(query.start) } : {}),
+      ...(query.end ? { lte: new Date(query.end) } : {}),
+    };
+  }
+
+  const [items, total] = await prisma.$transaction([
+    prisma.securityAuditLog.findMany({
+      where,
+      skip,
+      take: pageSize,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      // Metadata is sanitized at write time; the selection stays explicit so
+      // future columns never leak into the admin API by default.
+      select: {
+        id: true,
+        action: true,
+        result: true,
+        actorUserId: true,
+        targetUserId: true,
+        ipAddress: true,
+        sessionId: true,
+        requestId: true,
+        metadata: true,
+        createdAt: true,
+      },
+    }),
+    prisma.securityAuditLog.count({ where }),
+  ]);
+
+  return {
+    code: 'OK',
+    message: 'success',
+    data: {
+      items: items.map((item) => ({
+        id: item.id,
+        action: item.action,
+        result: item.result,
+        actor_user_id: item.actorUserId,
+        target_user_id: item.targetUserId,
+        ip_address: item.ipAddress,
+        session_id: item.sessionId,
+        request_id: item.requestId,
+        metadata: item.metadata,
+        created_at: item.createdAt,
+      })),
       page,
       page_size: pageSize,
       total,

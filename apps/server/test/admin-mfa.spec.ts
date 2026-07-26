@@ -129,3 +129,75 @@ describe('AdminMfaService login verification', () => {
     });
   });
 });
+
+describe('AdminMfaService per-action confirmation', () => {
+  const previousKey = process.env.WEBHOOK_SECRET_ENCRYPTION_KEY;
+  let encryptedSecret: string;
+
+  beforeAll(() => {
+    process.env.WEBHOOK_SECRET_ENCRYPTION_KEY = 'test-webhook-secret-encryption-key';
+    encryptedSecret = encryptSecret(SECRET_BASE32);
+  });
+
+  afterAll(() => {
+    process.env.WEBHOOK_SECRET_ENCRYPTION_KEY = previousKey;
+  });
+
+  function buildService(userRow: unknown) {
+    const userUpdateMany = jest.fn().mockResolvedValue({ count: 1 });
+    const auditRecord = jest.fn().mockResolvedValue(undefined);
+    const service = new AdminMfaService(
+      {
+        user: {
+          findUnique: jest.fn().mockResolvedValue(userRow),
+          updateMany: userUpdateMany,
+        },
+        mfaRecoveryCode: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      } as never,
+      { get: () => undefined } as never,
+      { record: auditRecord } as never,
+    );
+    return { service, userUpdateMany, auditRecord };
+  }
+
+  it('passes through when the admin has no MFA enrolled', async () => {
+    const { service } = buildService({ totpEnabledAt: null, totpSecretEncrypted: null });
+    await expect(service.assertActionConfirmation('u1', undefined)).resolves.toBeUndefined();
+  });
+
+  it('demands a code when MFA is enrolled and none is provided', async () => {
+    const { service } = buildService({
+      totpEnabledAt: new Date(),
+      totpSecretEncrypted: encryptedSecret,
+    });
+    await expect(service.assertActionConfirmation('u1', undefined)).rejects.toMatchObject({
+      response: { code: 'MFA_CONFIRMATION_REQUIRED' },
+    });
+  });
+
+  it('accepts a valid code and consumes its time step', async () => {
+    const { service, userUpdateMany } = buildService({
+      totpEnabledAt: new Date(),
+      totpSecretEncrypted: encryptedSecret,
+    });
+    const code = totpCodeAt(SECRET_BASE32, Date.now());
+    await expect(service.assertActionConfirmation('u1', code)).resolves.toBeUndefined();
+    expect(userUpdateMany).toHaveBeenCalled();
+  });
+
+  it('rejects an invalid code and records the failure', async () => {
+    const { service, auditRecord } = buildService({
+      totpEnabledAt: new Date(),
+      totpSecretEncrypted: encryptedSecret,
+    });
+    await expect(service.assertActionConfirmation('u1', '000000')).rejects.toMatchObject({
+      response: { code: 'MFA_CODE_INVALID' },
+    });
+    expect(auditRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'admin_mfa_failure',
+        metadata: { reason: 'action_confirmation_code_invalid' },
+      }),
+    );
+  });
+});
