@@ -118,10 +118,8 @@ class _EndpointCard extends StatelessWidget {
             children: [
               _MetaChip(
                 label: '方式',
-                value: item.targetUrl
-                        .contains('weixin.qq.com/cgi-bin/webhook/send')
-                    ? '企业微信机器人'
-                    : '标准 Webhook',
+                value:
+                    item.provider == 'wecom_robot' ? '企业微信机器人' : '标准 Webhook',
               ),
               _MetaChip(label: '状态', value: enabledStatusText(item.isEnabled)),
               _MetaChip(label: '最近结果', value: _latestResultText(item)),

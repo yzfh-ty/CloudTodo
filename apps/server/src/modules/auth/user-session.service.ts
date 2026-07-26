@@ -8,7 +8,9 @@ interface UserSessionPayload {
   sub: string;
   role: UserRole;
   iat: number;
+  iatMs: number;
   exp: number;
+  passwordChangeOnly?: boolean;
 }
 
 export interface AuthenticatedUser {
@@ -26,7 +28,10 @@ export interface AuthenticatedUser {
 export class UserSessionService {
   static readonly COOKIE_NAME = 'cloudtodo_user_session';
   static readonly REFRESH_COOKIE_NAME = 'cloudtodo_user_refresh_token';
-  static readonly SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
+  // Access tokens are deliberately short lived. The server-side revocation
+  // marker below still handles immediate logout and account security events.
+  static readonly SESSION_TTL_SECONDS = 15 * 60;
+  static readonly PASSWORD_CHANGE_SESSION_TTL_SECONDS = 10 * 60;
   static readonly REFRESH_TTL_SECONDS = 60 * 60 * 24 * 30;
 
   constructor(
@@ -34,13 +39,25 @@ export class UserSessionService {
     private readonly prisma: PrismaService,
   ) {}
 
-  createSessionToken(userId: string, role: UserRole): string {
-    const nowSeconds = Math.floor(Date.now() / 1000);
+  createSessionToken(
+    userId: string,
+    role: UserRole,
+    options: { passwordChangeOnly?: boolean; issuedAtMs?: number } = {},
+  ): string {
+    const issuedAtMs = options.issuedAtMs ?? Date.now();
+    const nowSeconds = Math.floor(issuedAtMs / 1000);
+    const passwordChangeOnly = options.passwordChangeOnly === true;
     const payload: UserSessionPayload = {
       sub: userId,
       role,
       iat: nowSeconds,
-      exp: nowSeconds + UserSessionService.SESSION_TTL_SECONDS,
+      iatMs: issuedAtMs,
+      exp:
+        nowSeconds +
+        (passwordChangeOnly
+          ? UserSessionService.PASSWORD_CHANGE_SESSION_TTL_SECONDS
+          : UserSessionService.SESSION_TTL_SECONDS),
+      ...(passwordChangeOnly ? { passwordChangeOnly: true } : {}),
     };
 
     const encodedPayload = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
@@ -70,6 +87,7 @@ export class UserSessionService {
         timezone: true,
         forcePasswordChange: true,
         passwordChangedAt: true,
+        sessionRevokedAt: true,
       },
     });
 
@@ -81,13 +99,25 @@ export class UserSessionService {
     }
 
     if (user.passwordChangedAt) {
-      const passwordChangedAtSeconds = Math.floor(user.passwordChangedAt.getTime() / 1000);
-      if (payload.iat <= passwordChangedAtSeconds) {
+      const issuedAtMs = payload.iatMs ?? payload.iat * 1000;
+      if (issuedAtMs <= user.passwordChangedAt.getTime()) {
         throw new UnauthorizedException({
           code: 'UNAUTHORIZED',
           message: 'user session is no longer valid',
         });
       }
+    }
+
+    if (
+      user.sessionRevokedAt &&
+      (payload.iatMs
+        ? payload.iatMs <= user.sessionRevokedAt.getTime()
+        : payload.iat <= Math.floor(user.sessionRevokedAt.getTime() / 1000))
+    ) {
+      throw new UnauthorizedException({
+        code: 'UNAUTHORIZED',
+        message: 'user session has been revoked',
+      });
     }
 
     return {
@@ -139,7 +169,12 @@ export class UserSessionService {
     }
     const nowSeconds = Math.floor(Date.now() / 1000);
 
-    if (!payload.sub || payload.exp <= nowSeconds) {
+    if (
+      !payload.sub ||
+      typeof payload.exp !== 'number' ||
+      typeof payload.iat !== 'number' ||
+      payload.exp <= nowSeconds
+    ) {
       throw new UnauthorizedException({
         code: 'UNAUTHORIZED',
         message: 'user session has expired',

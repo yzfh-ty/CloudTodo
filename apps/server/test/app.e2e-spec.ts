@@ -5,6 +5,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/common/database/prisma.service';
 import { hashPassword } from '../src/common/security/password.util';
+import { UserSessionService } from '../src/modules/auth/user-session.service';
 import { UserRole, UserStatus } from '@prisma/client';
 
 describe('App integration', () => {
@@ -208,6 +209,91 @@ describe('App integration', () => {
     await agent.get('/api/users/me').expect(401);
   });
 
+  it('revokes a rotated refresh family when the access session has expired', async () => {
+    const suffix = Date.now();
+    const email = `itest_expired_logout_${suffix}@example.com`;
+    const username = `itest_expired_logout_${suffix}`;
+    const registerResponse = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({
+        email,
+        username,
+        password: 'user123456',
+        nickname: 'Expired Logout User',
+        timezone: 'UTC',
+      })
+      .expect(201);
+
+    const csrfToken = csrfTokenFrom(registerResponse, 'cloudtodo_user_csrf_token');
+    const authenticatedCookies = cookieHeaderFrom(registerResponse);
+    const attackerRefreshResponse = await request(app.getHttpServer())
+      .post('/api/auth/refresh')
+      .set('Cookie', authenticatedCookies)
+      .set('X-CSRF-Token', csrfToken)
+      .expect(201);
+    const attackerCookies = cookieHeaderFrom(attackerRefreshResponse);
+    const attackerCsrfToken = csrfTokenFrom(
+      attackerRefreshResponse,
+      'cloudtodo_user_csrf_token',
+    );
+    const expiredSession = app.get(UserSessionService).createSessionToken(
+      registerResponse.body.data.user.id as string,
+      UserRole.user,
+      {
+        issuedAtMs:
+          Date.now() - (UserSessionService.SESSION_TTL_SECONDS + 1) * 1000,
+      },
+    );
+    const expiredAccessCookies = authenticatedCookies
+      .split('; ')
+      .map((cookie) =>
+        cookie.startsWith('cloudtodo_user_session=')
+          ? `cloudtodo_user_session=${expiredSession}`
+          : cookie,
+      )
+      .join('; ');
+
+    const logoutResponse = await request(app.getHttpServer())
+      .post('/api/auth/logout')
+      .set('Cookie', expiredAccessCookies)
+      .set('X-CSRF-Token', csrfToken)
+      .expect(201);
+
+    expect(logoutResponse.headers['set-cookie']).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('cloudtodo_user_session=;'),
+        expect.stringContaining('cloudtodo_user_refresh_token=;'),
+        expect.stringContaining('cloudtodo_user_csrf_token=;'),
+      ]),
+    );
+
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { email },
+      select: {
+        sessionRevokedAt: true,
+        authRefreshTokens: {
+          select: { revokedAt: true, revokeReason: true },
+        },
+      },
+    });
+    expect(user.sessionRevokedAt).not.toBeNull();
+    expect(user.authRefreshTokens).not.toHaveLength(0);
+    expect(user.authRefreshTokens).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          revokedAt: expect.any(Date),
+          revokeReason: 'logout',
+        }),
+      ]),
+    );
+
+    await request(app.getHttpServer())
+      .post('/api/auth/refresh')
+      .set('Cookie', attackerCookies)
+      .set('X-CSRF-Token', attackerCsrfToken)
+      .expect(401);
+  });
+
   function csrfTokenFrom(
     response: request.Response,
     cookieName: 'cloudtodo_user_csrf_token' | 'cloudtodo_admin_csrf_token',
@@ -224,6 +310,16 @@ describe('App integration', () => {
     }
 
     return decodeURIComponent(cookie.split(';')[0].slice(cookieName.length + 1));
+  }
+
+  function cookieHeaderFrom(response: request.Response) {
+    const setCookieHeader = response.headers['set-cookie'] as unknown;
+    const setCookies = Array.isArray(setCookieHeader)
+      ? setCookieHeader
+      : typeof setCookieHeader === 'string'
+        ? [setCookieHeader]
+        : [];
+    return setCookies.map((cookie) => cookie.split(';')[0]).join('; ');
   }
 
   async function cleanupTestUsers() {

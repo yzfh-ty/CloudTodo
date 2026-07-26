@@ -11,7 +11,7 @@ export class CreateNotificationEndpointDto {
   name!: string;
 
   @IsUrl({
-    protocols: ['http', 'https'],
+    protocols: ['https'],
     require_protocol: true,
   })
   @MaxLength(1024)

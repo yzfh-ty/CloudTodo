@@ -233,13 +233,36 @@ export class TodosService {
   async deleteTodo(user: AuthenticatedUser, id: string) {
     await this.findTodoOrThrow(user.id, id);
 
-    const todo = await this.prisma.todo.update({
-      where: { id },
-      data: {
-        status: TodoStatus.deleted,
-        deletedAt: new Date(),
-      },
-      select: this.todoSelect(),
+    const deletedAt = new Date();
+    const todo = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.todo.update({
+        where: { id },
+        data: {
+          status: TodoStatus.deleted,
+          deletedAt,
+        },
+        select: this.todoSelect(),
+      });
+      await tx.reminder.updateMany({
+        where: { todoId: id, deletedAt: null },
+        data: {
+          status: 'cancelled',
+          deletedAt,
+        },
+      });
+      await tx.notificationDelivery.updateMany({
+        where: {
+          reminderEvent: { todoId: id },
+          status: { in: ['pending', 'failed', 'processing'] },
+        },
+        data: {
+          status: 'dead_letter',
+          nextRetryAt: null,
+          responseBody: null,
+          lastError: 'todo_deleted',
+        },
+      });
+      return updated;
     });
 
     return {

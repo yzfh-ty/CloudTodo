@@ -158,6 +158,10 @@ export ANDROID_KEY_PASSWORD='your-key-password'
 flutter build apk --release --target-platform android-arm,android-arm64,android-x64
 ```
 
+在上述命令中同时加入
+`--dart-define=CLOUDTODO_API_BASE_URL=https://api.example.com/api`，否则原生 Release
+会在启动时拒绝缺失的后端配置。
+
 当前 Android 包支持 `armeabi-v7a`、`arm64-v8a` 和 `x86_64`，不会包含 32 位的 `x86` 原生库。本地验证包可从仓库根目录执行：
 
 ```bash
@@ -169,7 +173,7 @@ make client-build-android
 当前 Linux 工程面向 Linux ARM64 主机，可在仓库根目录执行：
 
 ```bash
-make client-build-linux
+CLOUDTODO_API_BASE_URL=https://api.example.com/api make client-build-linux
 ```
 
 产物位于 `build/linux/arm64/release/bundle/`。
@@ -185,13 +189,18 @@ make client-build-linux
 在当前目录执行：
 
 ```bat
-docker compose up --build
+API_BASE_URL=https://todo.example.com/api docker compose up --build
 ```
 
 默认访问地址：
 
 - Web：`http://localhost:8080`
 - 当前 Web 容器使用 `nginx` 托管 Flutter Web 静态资源
+
+这是 Release 镜像，必须通过 TLS 终止代理提供 HTTPS 页面，并把
+`API_BASE_URL` 设置为页面同源的 `https://.../api`（或 `/api`）。未设置该变量时
+Compose 会直接拒绝启动；本地 HTTP 调试请使用 `flutter run -d chrome`，不要把
+Release 镜像降级为明文配置。
 
 ## 后端地址
 
@@ -205,3 +214,7 @@ docker compose up --build
 - Web：`http://localhost:3000`
 - Windows：`http://127.0.0.1:3000/api`
 - Android 模拟器：`http://10.0.2.2:3000/api`
+
+Release 构建不会回退到本地 HTTP。原生 Release 需要通过
+`--dart-define=CLOUDTODO_API_BASE_URL=https://api.example.com/api` 注入后端地址；
+Web Release 使用与页面同源的 HTTPS `/api` 地址。上述本地 HTTP 地址仅用于调试构建。

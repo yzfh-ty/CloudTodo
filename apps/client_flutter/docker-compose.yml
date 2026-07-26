@@ -5,9 +5,25 @@ services:
       dockerfile: Dockerfile.web
     container_name: cloudtodo-web
     environment:
-      PORT: 80
+      PORT: 8080
       APP_NAME: ${APP_NAME:-CloudTodo Web}
-      APP_ENV: ${APP_ENV:-production}
-      API_BASE_URL: ${API_BASE_URL:-http://localhost:3000/api}
+      # This image is always a Flutter release build. Fail closed unless the
+      # operator supplies the HTTPS API origin (or the same-origin /api path).
+      APP_ENV: production
+      API_BASE_URL: ${API_BASE_URL:?set API_BASE_URL to an HTTPS same-origin URL (or /api)}
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/config.json"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     ports:
-      - "${WEB_PORT:-8080}:80"
+      - "${WEB_PORT:-8080}:8080"

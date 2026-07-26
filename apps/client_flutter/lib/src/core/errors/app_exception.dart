@@ -33,10 +33,15 @@ class AppException implements Exception {
 
   static String describe(Object error) {
     if (error is AppException) {
+      if (error.code == 'SESSION_CHANGED') {
+        return '';
+      }
       return error.message;
     }
 
-    return error.toString();
+    // Never surface exception details such as URLs, response bodies, or
+    // platform stack traces in the UI.
+    return 'request failed';
   }
 
   @override

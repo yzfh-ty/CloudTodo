@@ -8,7 +8,9 @@ interface AdminSessionPayload {
   sub: string;
   role: 'admin';
   iat: number;
+  iatMs: number;
   exp: number;
+  passwordChangeOnly?: boolean;
 }
 
 export interface AuthenticatedAdmin {
@@ -18,25 +20,40 @@ export interface AuthenticatedAdmin {
   nickname: string;
   role: UserRole;
   status: UserStatus;
+  forcePasswordChange: boolean;
+  /** Milliseconds at which the current admin session was authenticated. */
+  sessionIssuedAt?: number;
 }
 
 @Injectable()
 export class AdminSessionService {
   static readonly COOKIE_NAME = 'cloudtodo_admin_session';
+  static readonly SESSION_TTL_SECONDS = 60 * 60 * 8;
+  static readonly PASSWORD_CHANGE_SESSION_TTL_SECONDS = 10 * 60;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
   ) {}
 
-  createSessionToken(adminId: string): string {
-    const nowSeconds = Math.floor(Date.now() / 1000);
-    const ttlSeconds = 60 * 60 * 8;
+  createSessionToken(
+    adminId: string,
+    options: { passwordChangeOnly?: boolean; issuedAtMs?: number } = {},
+  ): string {
+    const issuedAtMs = options.issuedAtMs ?? Date.now();
+    const nowSeconds = Math.floor(issuedAtMs / 1000);
+    const passwordChangeOnly = options.passwordChangeOnly === true;
     const payload: AdminSessionPayload = {
       sub: adminId,
       role: UserRole.admin,
       iat: nowSeconds,
-      exp: nowSeconds + ttlSeconds,
+      iatMs: issuedAtMs,
+      exp:
+        nowSeconds +
+        (passwordChangeOnly
+          ? AdminSessionService.PASSWORD_CHANGE_SESSION_TTL_SECONDS
+          : AdminSessionService.SESSION_TTL_SECONDS),
+      ...(passwordChangeOnly ? { passwordChangeOnly: true } : {}),
     };
 
     const encodedPayload = this.encodePayload(payload);
@@ -64,6 +81,8 @@ export class AdminSessionService {
         role: true,
         status: true,
         passwordChangedAt: true,
+        sessionRevokedAt: true,
+        forcePasswordChange: true,
       },
     });
 
@@ -75,11 +94,25 @@ export class AdminSessionService {
     }
 
     if (admin.passwordChangedAt) {
-      const passwordChangedAtSeconds = Math.floor(admin.passwordChangedAt.getTime() / 1000);
-      if (payload.iat <= passwordChangedAtSeconds) {
+      const issuedAtMs = payload.iatMs ?? payload.iat * 1000;
+      if (issuedAtMs <= admin.passwordChangedAt.getTime()) {
         throw new UnauthorizedException({
           code: 'UNAUTHORIZED',
           message: 'admin session is no longer valid',
+        });
+      }
+    }
+
+    if (admin.sessionRevokedAt) {
+      const revokedAtMs = admin.sessionRevokedAt.getTime();
+      const tokenIssuedAtMs =
+        typeof (payload as AdminSessionPayload & { iatMs?: number }).iatMs === 'number'
+          ? (payload as AdminSessionPayload & { iatMs?: number }).iatMs!
+          : payload.iat * 1000;
+      if (tokenIssuedAtMs <= revokedAtMs) {
+        throw new UnauthorizedException({
+          code: 'UNAUTHORIZED',
+          message: 'admin session has been revoked',
         });
       }
     }
@@ -118,6 +151,8 @@ export class AdminSessionService {
       nickname: admin.nickname,
       role: admin.role,
       status: admin.status,
+      forcePasswordChange: admin.forcePasswordChange,
+      sessionIssuedAt: payload.iatMs ?? payload.iat * 1000,
     };
   }
 

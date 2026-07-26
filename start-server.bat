@@ -4,7 +4,6 @@ setlocal EnableExtensions
 set "ROOT_DIR=%~dp0"
 set "SERVER_DIR=%ROOT_DIR%apps\server"
 set "API_PORT=3000"
-set "DEFAULT_DATABASE_URL=postgresql://cloudtodo:cloudtodo@localhost:5432/cloudtodo?schema=public"
 set "DATABASE_URL_ARG="
 set "USE_DOCKER_DB=0"
 set "SKIP_INSTALL=0"
@@ -108,25 +107,34 @@ goto usage
 
 :after_parse
 set "PORT=%API_PORT%"
-if not defined NODE_ENV set "NODE_ENV=development"
-if not defined APP_NAME set "APP_NAME=CloudTodo Server"
-if not defined APP_BASE_URL set "APP_BASE_URL=http://localhost:%API_PORT%"
-if defined DATABASE_URL_ARG (
-  set "DATABASE_URL=%DATABASE_URL_ARG%"
-) else (
-  if not defined DATABASE_URL set "DATABASE_URL=%DEFAULT_DATABASE_URL%"
+if not exist "%SERVER_DIR%\.env" (
+  if not defined NODE_ENV set "NODE_ENV=development"
+  if not defined APP_NAME set "APP_NAME=CloudTodo Server"
+  if not defined APP_BASE_URL set "APP_BASE_URL=http://localhost:%API_PORT%"
+  if /I not "%NODE_ENV%"=="production" (
+    if not defined POSTGRES_USER set "POSTGRES_USER=cloudtodo"
+    if not defined POSTGRES_PASSWORD set "POSTGRES_PASSWORD=cloudtodo"
+    if not defined POSTGRES_DB set "POSTGRES_DB=cloudtodo"
+    if not defined POSTGRES_BIND_ADDRESS set "POSTGRES_BIND_ADDRESS=127.0.0.1"
+    if not defined POSTGRES_PORT set "POSTGRES_PORT=5432"
+    if not defined JWT_ACCESS_SECRET set "JWT_ACCESS_SECRET=local-access-secret"
+    if not defined JWT_REFRESH_SECRET set "JWT_REFRESH_SECRET=local-refresh-secret"
+    if not defined WEBHOOK_SIGNING_SECRET set "WEBHOOK_SIGNING_SECRET=local-webhook-secret"
+    if not defined ADMIN_SESSION_SECRET set "ADMIN_SESSION_SECRET=local-admin-session-secret"
+    if not defined CSRF_SECRET set "CSRF_SECRET=local-csrf-secret"
+    if not defined WEBHOOK_SECRET_ENCRYPTION_KEY set "WEBHOOK_SECRET_ENCRYPTION_KEY=local-webhook-secret-encryption-key"
+    if not defined PASSWORD_RESET_TOKEN_SECRET set "PASSWORD_RESET_TOKEN_SECRET=local-password-reset-token-secret"
+    if not defined SCHEDULER_ENABLED set "SCHEDULER_ENABLED=true"
+  )
 )
-if not defined JWT_ACCESS_SECRET set "JWT_ACCESS_SECRET=local-access-secret"
-if not defined JWT_REFRESH_SECRET set "JWT_REFRESH_SECRET=local-refresh-secret"
-if not defined WEBHOOK_SIGNING_SECRET set "WEBHOOK_SIGNING_SECRET=local-webhook-secret"
-if not defined ADMIN_SESSION_SECRET set "ADMIN_SESSION_SECRET=local-admin-session-secret"
-if not defined SCHEDULER_ENABLED set "SCHEDULER_ENABLED=true"
+if not exist "%SERVER_DIR%\.env" if /I not "%NODE_ENV%"=="production" if not defined DATABASE_URL set "DATABASE_URL=postgresql://%POSTGRES_USER%:%POSTGRES_PASSWORD%@localhost:%POSTGRES_PORT%/%POSTGRES_DB%?schema=public"
+if defined DATABASE_URL_ARG set "DATABASE_URL=%DATABASE_URL_ARG%"
 
 if "%USE_DOCKER_DB%"=="1" (
   echo.
   echo ==^> Starting PostgreSQL with Docker Compose
   pushd "%SERVER_DIR%" || exit /b 1
-  docker compose up -d postgres
+  docker compose -f docker-compose.yml -f docker-compose.development.yml up -d --wait postgres
   if errorlevel 1 (
     popd
     exit /b 1
@@ -161,7 +169,7 @@ if "%SKIP_MIGRATE%"=="0" (
 
 if "%SEED_ADMIN%"=="1" (
   echo.
-  echo ==^> Seeding admin user
+  echo ==^> Creating the local admin user if missing
   call npm run seed:admin
   if errorlevel 1 goto fail
 )
@@ -187,8 +195,8 @@ echo Usage:
 echo   start-server.bat [options]
 echo.
 echo Options:
-echo   --use-docker-db             Start PostgreSQL from apps/server/docker-compose.yml
-echo   --seed-admin                Run npm run seed:admin before starting
+echo   --use-docker-db             Start local PostgreSQL with the development Compose override
+echo   --seed-admin                Create a missing local admin; never reset passwords
 echo   --skip-install              Skip npm ci
 echo   --skip-prisma-generate      Skip Prisma client generation
 echo   --skip-migrate              Skip database migration deployment

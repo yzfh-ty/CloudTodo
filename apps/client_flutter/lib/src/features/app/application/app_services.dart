@@ -44,6 +44,7 @@ class AppServices {
     AppConfig config, {
     LocalNotificationService? localNotificationService,
   }) {
+    config.validateApiBaseUrl();
     final notificationService =
         localNotificationService ?? LocalNotificationService();
     final apiClient = ApiClient(createHttpClient(config.apiBaseUrl));
@@ -52,21 +53,31 @@ class AppServices {
     final profileRepository = ProfileRepository(apiClient);
     final todoRepository = TodoRepository(apiClient);
     final todoMetadataRepository = TodoMetadataRepository(apiClient);
-    final remindersRepository = RemindersRepository(
-      apiClient,
-      localNotificationService: notificationService,
-    );
     final syncRepository = SyncRepository(apiClient);
     final notificationEndpointsRepository =
         NotificationEndpointsRepository(apiClient);
+
+    Future<void> invalidateSession({bool clearCookies = true}) {
+      apiClient.invalidateSession(clearCookies: clearCookies);
+      return notificationService.clearAccountState();
+    }
+
     final sessionController = AppSessionController(
       authRepository: authRepository,
       onAuthenticated: (_) => deviceRepository.registerCurrentDevice(),
+      onSessionInvalidated: invalidateSession,
+    );
+    final remindersRepository = RemindersRepository(
+      apiClient,
+      localNotificationService: notificationService,
+      sessionGeneration: () => sessionController.sessionGeneration,
     );
 
     apiClient.registerSessionHooks(
       refreshSession: sessionController.refreshSessionSilently,
       clearSession: sessionController.forceLogout,
+      sessionGeneration: () => sessionController.sessionGeneration,
+      sessionUserId: () => sessionController.currentUser?.id,
     );
 
     return AppServices._(
@@ -83,5 +94,10 @@ class AppServices {
       localNotificationService: notificationService,
       sessionController: sessionController,
     );
+  }
+
+  void dispose() {
+    apiClient.dispose();
+    sessionController.dispose();
   }
 }

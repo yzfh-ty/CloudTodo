@@ -15,10 +15,13 @@ import { serializeCookie } from '../../common/http/cookie.util';
 import { CsrfService } from '../../common/security/csrf.service';
 import { RateLimitService } from '../../common/security/rate-limit.service';
 import { CurrentAdmin } from './decorators/current-admin.decorator';
+import { AllowAdminPasswordChangeSession } from './decorators/allow-admin-password-change-session.decorator';
+import { RequireRecentAdminAuth } from './decorators/require-recent-admin-auth.decorator';
 import { Public } from './decorators/public.decorator';
 import { AdminChangePasswordDto } from './dto/admin-change-password.dto';
 import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import { AdminLoginDto } from './dto/admin-login.dto';
+import { AdminOperationLogQueryDto } from './dto/admin-operation-log-query.dto';
 import { AdminResetPasswordDto } from './dto/admin-reset-password.dto';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
 import { AdminUserListQueryDto } from './dto/admin-user-list-query.dto';
@@ -60,20 +63,29 @@ export class AdminController {
     @Body() dto: AdminLoginDto,
     @Res({ passthrough: true }) res: ResponseLike,
   ) {
+    this.csrfService.assertTrustedOriginForPublicRequest(req);
     this.assertRateLimit(req, 'login', dto.account, 8, 15 * 60 * 1000);
     const result = await this.adminService.login(dto);
-    const token = this.adminSessionService.createSessionToken(result.data.admin.id);
+    const token = this.adminSessionService.createSessionToken(result.data.admin.id, {
+      passwordChangeOnly: result.data.admin.forcePasswordChange,
+      issuedAtMs: result.data.admin.lastLoginAt.getTime(),
+    });
 
     res.setHeader(
       'Set-Cookie',
-      this.createAdminCookies(token),
+      this.createAdminCookies(token, result.data.admin.forcePasswordChange),
     );
 
     return result;
   }
 
   @Post('auth/logout')
-  logout(@Res({ passthrough: true }) res: ResponseLike) {
+  @AllowAdminPasswordChangeSession()
+  async logout(
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+    @Res({ passthrough: true }) res: ResponseLike,
+  ) {
+    await this.adminService.logout(admin);
     res.setHeader(
       'Set-Cookie',
       this.clearAdminCookies(),
@@ -87,6 +99,8 @@ export class AdminController {
   }
 
   @Post('auth/change-password')
+  @RequireRecentAdminAuth()
+  @AllowAdminPasswordChangeSession()
   changePassword(
     @CurrentAdmin() admin: AuthenticatedAdmin,
     @Body() dto: AdminChangePasswordDto,
@@ -95,6 +109,7 @@ export class AdminController {
   }
 
   @Post('auth/logout-all-sessions')
+  @RequireRecentAdminAuth()
   logoutAllSessions(
     @CurrentAdmin() admin: AuthenticatedAdmin,
     @Body() dto: AdminUserActionDto,
@@ -113,6 +128,7 @@ export class AdminController {
   }
 
   @Post('users')
+  @RequireRecentAdminAuth()
   createUser(
     @CurrentAdmin() admin: AuthenticatedAdmin,
     @Body() dto: AdminCreateUserDto,
@@ -126,6 +142,7 @@ export class AdminController {
   }
 
   @Patch('users/:id')
+  @RequireRecentAdminAuth()
   updateUser(
     @CurrentAdmin() admin: AuthenticatedAdmin,
     @Param('id') id: string,
@@ -135,6 +152,7 @@ export class AdminController {
   }
 
   @Post('users/:id/disable')
+  @RequireRecentAdminAuth()
   disableUser(
     @CurrentAdmin() admin: AuthenticatedAdmin,
     @Param('id') id: string,
@@ -144,6 +162,7 @@ export class AdminController {
   }
 
   @Post('users/:id/enable')
+  @RequireRecentAdminAuth()
   enableUser(
     @CurrentAdmin() admin: AuthenticatedAdmin,
     @Param('id') id: string,
@@ -153,6 +172,7 @@ export class AdminController {
   }
 
   @Post('users/:id/reset-password')
+  @RequireRecentAdminAuth()
   resetPassword(
     @CurrentAdmin() admin: AuthenticatedAdmin,
     @Param('id') id: string,
@@ -167,11 +187,11 @@ export class AdminController {
   }
 
   @Get('operation-logs')
-  getOperationLogs(@Query() query: Record<string, string | number | undefined>) {
+  getOperationLogs(@Query() query: AdminOperationLogQueryDto) {
     return this.adminService.getOperationLogs(query);
   }
 
-  private createAdminCookies(token: string) {
+  private createAdminCookies(token: string, passwordChangeOnly = false) {
     const secure = this.useSecureCookies();
     return [
       serializeCookie(AdminSessionService.COOKIE_NAME, token, {
@@ -179,14 +199,18 @@ export class AdminController {
         sameSite: 'Lax',
         secure,
         path: '/',
-        maxAge: 60 * 60 * 8,
+        maxAge: passwordChangeOnly
+          ? AdminSessionService.PASSWORD_CHANGE_SESSION_TTL_SECONDS
+          : AdminSessionService.SESSION_TTL_SECONDS,
       }),
       serializeCookie(CsrfService.ADMIN_COOKIE_NAME, this.csrfService.createToken('admin'), {
         httpOnly: false,
         sameSite: 'Lax',
         secure,
         path: '/',
-        maxAge: 60 * 60 * 8,
+        maxAge: passwordChangeOnly
+          ? AdminSessionService.PASSWORD_CHANGE_SESSION_TTL_SECONDS
+          : AdminSessionService.SESSION_TTL_SECONDS,
       }),
     ];
   }

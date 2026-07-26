@@ -1,10 +1,19 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import '../http/http_client.dart';
 import 'app_config.dart';
 
 Future<AppConfig> loadAppConfig() async {
+  if (!kIsWeb) {
+    final config = AppConfig.defaults();
+    config.validateApiBaseUrl();
+    return config;
+  }
+
   final client = createHttpClient('');
+  AppConfig? loadedConfig;
 
   try {
     final response = await client.request(
@@ -17,12 +26,21 @@ Future<AppConfig> loadAppConfig() async {
         response.body.isNotEmpty) {
       final payload = jsonDecode(response.body);
       if (payload is Map<String, dynamic>) {
-        return AppConfig.fromJson(payload).alignLoopbackHost(Uri.base);
+        loadedConfig = AppConfig.fromJson(payload).alignLoopbackHost(Uri.base);
       }
     }
   } catch (_) {
-    return AppConfig.defaults().alignLoopbackHost(Uri.base);
+    if (kReleaseMode) {
+      rethrow;
+    }
+  } finally {
+    if (client is ManagedPlatformHttpClient) {
+      (client as ManagedPlatformHttpClient).dispose();
+    }
   }
 
-  return AppConfig.defaults().alignLoopbackHost(Uri.base);
+  final config =
+      loadedConfig ?? AppConfig.defaults().alignLoopbackHost(Uri.base);
+  config.validateApiBaseUrl(pageUri: Uri.base);
+  return config;
 }

@@ -1,10 +1,20 @@
-import { Body, Controller, Headers, Post, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Headers,
+  Post,
+  Req,
+  Res,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { parseCookies, serializeCookie } from '../../common/http/cookie.util';
 import { CsrfService } from '../../common/security/csrf.service';
 import { RateLimitService } from '../../common/security/rate-limit.service';
 import { Public } from '../admin/decorators/public.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
+import { AllowPasswordChangeSession } from './decorators/allow-password-change-session.decorator';
 import { UserApiSessionGuard } from './guards/user-api-session.guard';
 import type { AuthenticatedUser } from './user-session.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -19,6 +29,7 @@ type ResponseLike = {
 };
 
 type RequestLike = {
+  method?: string;
   ip?: string;
   socket?: {
     remoteAddress?: string;
@@ -43,13 +54,18 @@ export class AuthController {
     @Body() dto: RegisterDto,
     @Res({ passthrough: true }) res: ResponseLike,
   ) {
+    this.csrfService.assertTrustedOriginForPublicRequest(req);
     this.assertRateLimit(req, 'register', dto.email, 10, 15 * 60 * 1000);
     const result = await this.authService.register(dto);
     const token = this.userSessionService.createSessionToken(
       result.data.user.id,
       result.data.user.role,
+      { issuedAtMs: result.data.user.createdAt.getTime() },
     );
-    const refresh = await this.authService.issueRefreshToken(result.data.user.id);
+    const refresh = await this.authService.issueRefreshToken(
+      result.data.user.id,
+      result.data.user.createdAt,
+    );
 
     res.setHeader(
       'Set-Cookie',
@@ -66,17 +82,27 @@ export class AuthController {
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: ResponseLike,
   ) {
+    this.csrfService.assertTrustedOriginForPublicRequest(req);
     this.assertRateLimit(req, 'login', dto.account, 10, 15 * 60 * 1000);
     const result = await this.authService.login(dto);
     const token = this.userSessionService.createSessionToken(
       result.data.user.id,
       result.data.user.role,
+      {
+        passwordChangeOnly: result.data.user.forcePasswordChange,
+        issuedAtMs: result.data.user.lastLoginAt.getTime(),
+      },
     );
-    const refresh = await this.authService.issueRefreshToken(result.data.user.id);
+    const refresh = result.data.user.forcePasswordChange
+      ? null
+      : await this.authService.issueRefreshToken(
+          result.data.user.id,
+          result.data.user.lastLoginAt,
+        );
 
     res.setHeader(
       'Set-Cookie',
-      this.createAuthCookies(token, refresh.refreshToken),
+      this.createAuthCookies(token, refresh?.refreshToken, result.data.user.forcePasswordChange),
     );
 
     return result;
@@ -102,11 +128,19 @@ export class AuthController {
     const sessionToken = this.userSessionService.createSessionToken(
       result.data.user.id,
       result.data.user.role,
+      {
+        passwordChangeOnly: result.data.user.forcePasswordChange,
+        issuedAtMs: result.data.sessionIssuedAt.getTime(),
+      },
     );
 
     res.setHeader(
       'Set-Cookie',
-      this.createAuthCookies(sessionToken, result.data.refreshToken),
+      this.createAuthCookies(
+        sessionToken,
+        result.data.refreshToken,
+        result.data.user.forcePasswordChange,
+      ),
     );
 
     return {
@@ -119,14 +153,35 @@ export class AuthController {
   }
 
   @Post('logout')
-  @UseGuards(UserApiSessionGuard)
+  @Public()
   async logout(
+    @Req() req: RequestLike,
     @Headers('cookie') cookieHeader: string | undefined,
     @Res({ passthrough: true }) res: ResponseLike,
   ) {
     const cookies = parseCookies(cookieHeader);
+    this.csrfService.assertValidRequest(
+      req,
+      cookies,
+      CsrfService.USER_COOKIE_NAME,
+      'user',
+    );
+    this.assertRateLimit(req, 'logout', undefined, 60, 15 * 60 * 1000);
+
+    let authenticatedUserId: string | undefined;
+    const sessionToken = cookies[UserSessionService.COOKIE_NAME];
+    if (sessionToken) {
+      try {
+        authenticatedUserId = (await this.userSessionService.authenticate(sessionToken)).id;
+      } catch (error) {
+        if (!(error instanceof UnauthorizedException)) {
+          throw error;
+        }
+      }
+    }
+
     const refreshToken = cookies[UserSessionService.REFRESH_COOKIE_NAME];
-    await this.authService.logout(refreshToken);
+    await this.authService.logout(refreshToken, authenticatedUserId);
 
     res.setHeader(
       'Set-Cookie',
@@ -142,6 +197,7 @@ export class AuthController {
 
   @Post('change-password')
   @UseGuards(UserApiSessionGuard)
+  @AllowPasswordChangeSession()
   changePassword(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: ChangePasswordDto,
@@ -156,7 +212,11 @@ export class AuthController {
     return this.authService.confirmPasswordReset(dto);
   }
 
-  private createAuthCookies(sessionToken: string, refreshToken: string): string[] {
+  private createAuthCookies(
+    sessionToken: string,
+    refreshToken?: string,
+    passwordChangeOnly = false,
+  ): string[] {
     const secure = this.useSecureCookies();
     return [
       serializeCookie(UserSessionService.COOKIE_NAME, sessionToken, {
@@ -164,21 +224,25 @@ export class AuthController {
         sameSite: 'Lax',
         secure,
         path: '/',
-        maxAge: UserSessionService.SESSION_TTL_SECONDS,
+        maxAge: passwordChangeOnly
+          ? UserSessionService.PASSWORD_CHANGE_SESSION_TTL_SECONDS
+          : UserSessionService.SESSION_TTL_SECONDS,
       }),
-      serializeCookie(UserSessionService.REFRESH_COOKIE_NAME, refreshToken, {
+      serializeCookie(UserSessionService.REFRESH_COOKIE_NAME, refreshToken ?? '', {
         httpOnly: true,
         sameSite: 'Lax',
         secure,
         path: '/',
-        maxAge: UserSessionService.REFRESH_TTL_SECONDS,
+        maxAge: refreshToken ? UserSessionService.REFRESH_TTL_SECONDS : 0,
       }),
       serializeCookie(CsrfService.USER_COOKIE_NAME, this.csrfService.createToken('user'), {
         httpOnly: false,
         sameSite: 'Lax',
         secure,
         path: '/',
-        maxAge: UserSessionService.REFRESH_TTL_SECONDS,
+        maxAge: passwordChangeOnly
+          ? UserSessionService.PASSWORD_CHANGE_SESSION_TTL_SECONDS
+          : UserSessionService.REFRESH_TTL_SECONDS,
       }),
     ];
   }

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'app.dart';
@@ -17,7 +18,11 @@ Future<void> bootstrap() async {
     controller.restoreSession();
     runApp(App(controller: controller));
   } catch (error) {
-    runApp(_BootstrapFailureApp(error: error.toString()));
+    runApp(
+      _BootstrapFailureApp(
+        error: kReleaseMode ? '应用配置不可用，请联系管理员。' : error.toString(),
+      ),
+    );
   }
 }
 

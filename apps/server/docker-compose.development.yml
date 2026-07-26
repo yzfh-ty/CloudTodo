@@ -1,0 +1,7 @@
+# Local-only override for commands that run Prisma/Nest on the host.
+# The production compose file intentionally keeps PostgreSQL on the
+# container network; this file is never needed for a production deployment.
+services:
+  postgres:
+    ports:
+      - "${POSTGRES_BIND_ADDRESS:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"

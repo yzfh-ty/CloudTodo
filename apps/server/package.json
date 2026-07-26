@@ -17,6 +17,7 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "seed:admin": "ts-node prisma/seed.ts",
+    "provision:admin": "ts-node prisma/provision-admin.ts",
     "verify:admin-ui": "node scripts/verify-admin-ui.mjs"
   },
   "dependencies": {

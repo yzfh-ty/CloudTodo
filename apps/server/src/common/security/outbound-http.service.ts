@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { lookup } from 'node:dns/promises';
+import { Resolver } from 'node:dns/promises';
 import http from 'node:http';
 import https from 'node:https';
 import { isIP } from 'node:net';
@@ -18,6 +18,13 @@ export interface ValidatedUrl {
   addresses: string[];
 }
 
+class OutboundHttpDeadlineExceededError extends Error {
+  constructor() {
+    super('webhook request deadline exceeded');
+    this.name = 'OutboundHttpDeadlineExceededError';
+  }
+}
+
 @Injectable()
 export class OutboundHttpService {
   constructor(private readonly configService: ConfigService) {}
@@ -27,13 +34,47 @@ export class OutboundHttpService {
     headers: Record<string, string>,
     body: string,
   ): Promise<OutboundHttpResponse> {
-    const validated = await this.validateUrl(rawUrl);
+    const requestMaxBytes = this.getPositiveNumber('WEBHOOK_REQUEST_MAX_BYTES', 256 * 1024);
+    const bodyBytes = Buffer.byteLength(body, 'utf8');
+    if (bodyBytes > requestMaxBytes) {
+      throw new BadRequestException({
+        code: 'WEBHOOK_REQUEST_TOO_LARGE',
+        message: 'webhook request body exceeds the configured size limit',
+      });
+    }
+
     const timeoutMs = this.getPositiveNumber('WEBHOOK_REQUEST_TIMEOUT_MS', 5000);
+    const deadlineAt = Date.now() + timeoutMs;
+    const validated = await this.validateUrlBefore(rawUrl, deadlineAt);
     const maxBytes = this.getPositiveNumber('WEBHOOK_RESPONSE_MAX_BYTES', 2000);
-    return this.sendPostRequest(validated, headers, body, timeoutMs, maxBytes);
+    return this.sendPostRequest(
+      validated,
+      headers,
+      body,
+      this.remainingTimeMs(deadlineAt),
+      maxBytes,
+    );
   }
 
   async validateUrl(rawUrl: string): Promise<ValidatedUrl> {
+    const timeoutMs = this.getPositiveNumber('WEBHOOK_REQUEST_TIMEOUT_MS', 5000);
+    try {
+      return await this.validateUrlBefore(rawUrl, Date.now() + timeoutMs);
+    } catch (error) {
+      if (error instanceof OutboundHttpDeadlineExceededError) {
+        throw new BadRequestException({
+          code: 'WEBHOOK_URL_HOST_INVALID',
+          message: 'webhook url host could not be resolved',
+        });
+      }
+      throw error;
+    }
+  }
+
+  private async validateUrlBefore(
+    rawUrl: string,
+    deadlineAt: number,
+  ): Promise<ValidatedUrl> {
     let url: URL;
     try {
       url = new URL(rawUrl);
@@ -44,10 +85,10 @@ export class OutboundHttpService {
       });
     }
 
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    if (url.protocol !== 'https:') {
       throw new BadRequestException({
         code: 'WEBHOOK_URL_INVALID',
-        message: 'webhook url must use http or https',
+        message: 'webhook url must use https',
       });
     }
 
@@ -66,19 +107,22 @@ export class OutboundHttpService {
       });
     }
 
-    const addresses = await this.resolvePublicAddresses(url.hostname);
+    const addresses = await this.resolvePublicAddresses(url.hostname, deadlineAt);
     return { url, hostname: url.hostname, addresses };
   }
 
-  private async resolvePublicAddresses(hostname: string) {
+  private async resolvePublicAddresses(hostname: string, deadlineAt: number) {
     const normalized = hostname.replace(/^\[(.*)\]$/, '$1').toLowerCase();
     const directIpVersion = isIP(normalized);
     let lookupResults: { address: string }[];
     try {
       lookupResults = directIpVersion
         ? [{ address: normalized }]
-        : await lookup(normalized, { all: true, verbatim: true });
-    } catch {
+        : await this.lookupBeforeDeadline(normalized, deadlineAt);
+    } catch (error) {
+      if (error instanceof OutboundHttpDeadlineExceededError) {
+        throw error;
+      }
       throw new BadRequestException({
         code: 'WEBHOOK_URL_HOST_INVALID',
         message: 'webhook url host could not be resolved',
@@ -105,12 +149,49 @@ export class OutboundHttpService {
     return addresses;
   }
 
+  private async lookupBeforeDeadline(hostname: string, deadlineAt: number) {
+    const remainingMs = this.remainingTimeMs(deadlineAt);
+    const resolver = this.createResolver();
+    let deadlineTimer: NodeJS.Timeout | undefined;
+
+    try {
+      const results = await Promise.race([
+        Promise.allSettled([
+          resolver.resolve4(hostname),
+          resolver.resolve6(hostname),
+        ]),
+        new Promise<never>((_resolve, reject) => {
+          deadlineTimer = setTimeout(() => {
+            reject(new OutboundHttpDeadlineExceededError());
+            resolver.cancel();
+          }, remainingMs);
+        }),
+      ]);
+      const addresses = results.flatMap((result) =>
+        result.status === 'fulfilled' ? result.value : [],
+      );
+      if (addresses.length === 0) {
+        const failure = results.find((result) => result.status === 'rejected');
+        throw failure?.reason ?? new Error('webhook hostname has no addresses');
+      }
+      return [...new Set(addresses)].map((address) => ({ address }));
+    } finally {
+      if (deadlineTimer) {
+        clearTimeout(deadlineTimer);
+      }
+    }
+  }
+
+  private createResolver() {
+    return new Resolver();
+  }
+
   private isAllowedPort(port: number) {
     const configured =
       this.configService.get<string>('WEBHOOK_ALLOWED_PORTS') ??
-      (this.allowPrivateNetworkTargets() ? '*' : '80,443');
+      '443';
     if (configured.trim() === '*') {
-      return true;
+      return false;
     }
 
     const allowedPorts = configured
@@ -122,10 +203,6 @@ export class OutboundHttpService {
   }
 
   private isBlockedIp(address: string) {
-    if (this.allowPrivateNetworkTargets()) {
-      return false;
-    }
-
     let parsed: ipaddr.IPv4 | ipaddr.IPv6;
     try {
       parsed = ipaddr.parse(address);
@@ -161,15 +238,21 @@ export class OutboundHttpService {
 
     return new Promise<OutboundHttpResponse>((resolve, reject) => {
       let settled = false;
+      let request: http.ClientRequest | undefined;
+      let deadlineTimer: NodeJS.Timeout | undefined;
       const settle = (fn: () => void) => {
         if (settled) {
           return;
         }
         settled = true;
+        if (deadlineTimer) {
+          clearTimeout(deadlineTimer);
+        }
+        request?.destroy();
         fn();
       };
 
-      const request = client.request(
+      request = client.request(
         validated.url,
         {
           method: 'POST',
@@ -220,11 +303,16 @@ export class OutboundHttpService {
       );
 
       request.on('timeout', () => {
-        request.destroy(new Error('webhook request timed out'));
+        settle(() => reject(new Error('webhook request timed out')));
       });
       request.on('error', (error) => {
         settle(() => reject(error));
       });
+
+      deadlineTimer = setTimeout(() => {
+        settle(() => reject(new Error('webhook request deadline exceeded')));
+      }, timeoutMs);
+
       request.end(bodyBuffer);
     });
   }
@@ -234,7 +322,12 @@ export class OutboundHttpService {
     return Number.isFinite(configured) && configured > 0 ? configured : fallback;
   }
 
-  private allowPrivateNetworkTargets() {
-    return this.configService.get<string>('WEBHOOK_ALLOW_PRIVATE_NETWORKS') === 'true';
+  private remainingTimeMs(deadlineAt: number) {
+    const remainingMs = deadlineAt - Date.now();
+    if (remainingMs <= 0) {
+      throw new OutboundHttpDeadlineExceededError();
+    }
+    return remainingMs;
   }
+
 }

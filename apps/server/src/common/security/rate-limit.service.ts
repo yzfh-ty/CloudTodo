@@ -1,4 +1,6 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { createHash } from 'node:crypto';
 
 interface RateLimitBucket {
   count: number;
@@ -16,12 +18,45 @@ export type RateLimitRequestLike = {
 @Injectable()
 export class RateLimitService {
   private readonly buckets = new Map<string, RateLimitBucket>();
+  private readonly maxBuckets: number;
+  private readonly trustedProxyIps: Set<string>;
+
+  constructor(private readonly configService: ConfigService) {
+    const configuredMax = Number(configService.get<string>('RATE_LIMIT_MAX_BUCKETS'));
+    this.maxBuckets = Number.isInteger(configuredMax) && configuredMax >= 100
+      ? Math.min(configuredMax, 100_000)
+      : 10_000;
+    this.trustedProxyIps = new Set(
+      (configService.get<string>('TRUSTED_PROXY_IPS') ?? '')
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean),
+    );
+  }
 
   assertAllowed(key: string, limit: number, windowMs: number) {
+    if (!key || key.length > 512 || !Number.isInteger(limit) || limit < 1 || !Number.isFinite(windowMs) || windowMs <= 0) {
+      throw new HttpException(
+        { code: 'RATE_LIMITED', message: 'rate limit configuration is invalid' },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
     const now = Date.now();
+    this.prune(now);
     const bucket = this.buckets.get(key);
 
     if (!bucket || bucket.resetAt <= now) {
+      if (!bucket && this.buckets.size >= this.maxBuckets) {
+        // Never evict a live bucket in response to an attacker-controlled key.
+        // Eviction would let an attacker churn identifiers until a protected
+        // IP/session bucket disappears and its quota is reset. Fail closed for
+        // new keys until an existing bucket expires instead.
+        throw new HttpException(
+          { code: 'RATE_LIMITED', message: 'rate limiter capacity is temporarily exhausted' },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
       this.buckets.set(key, {
         count: 1,
         resetAt: now + windowMs,
@@ -43,16 +78,41 @@ export class RateLimitService {
   }
 
   clientKey(request: RateLimitRequestLike) {
-    const forwardedFor = this.firstHeader(request, 'x-forwarded-for');
-    if (forwardedFor) {
-      return forwardedFor.split(',')[0].trim();
+    const socketAddress = request.socket?.remoteAddress ?? request.ip ?? 'unknown';
+    if (this.isTrustedProxy(socketAddress)) {
+      // Express computes request.ip from the right-hand trusted proxy chain.
+      // Re-parsing the first X-Forwarded-For entry here would trust values that
+      // an untrusted upstream client can prepend.
+      return this.normalizeKey(request.ip ?? socketAddress);
     }
 
-    return request.ip ?? request.socket?.remoteAddress ?? 'unknown';
+    return this.normalizeKey(socketAddress);
   }
 
-  private firstHeader(request: RateLimitRequestLike, name: string) {
-    const value = request.headers[name] ?? request.headers[name.toLowerCase()];
-    return Array.isArray(value) ? value[0] : value;
+  private isTrustedProxy(address: string) {
+    if (this.trustedProxyIps.size === 0) {
+      return false;
+    }
+    return this.trustedProxyIps.has(address) || this.trustedProxyIps.has(address.replace(/^::ffff:/i, ''));
   }
+
+  private normalizeKey(value: string) {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized || normalized.length > 128) {
+      return createHash('sha256').update(value).digest('hex');
+    }
+    return normalized;
+  }
+
+  private prune(now: number) {
+    if (this.buckets.size < 256 && this.buckets.size < this.maxBuckets) {
+      return;
+    }
+    for (const [key, bucket] of this.buckets) {
+      if (bucket.resetAt <= now) {
+        this.buckets.delete(key);
+      }
+    }
+  }
+
 }

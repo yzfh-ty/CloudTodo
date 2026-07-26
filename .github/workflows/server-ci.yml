@@ -1,9 +1,16 @@
 name: Server CI
 
 on:
+  pull_request:
   push:
+    branches:
+      - main
+      - master
     tags:
       - "*"
+
+permissions:
+  contents: read
 
 jobs:
   server:
@@ -32,6 +39,11 @@ jobs:
       JWT_REFRESH_SECRET: test-refresh-secret
       WEBHOOK_SIGNING_SECRET: test-webhook-secret
       ADMIN_SESSION_SECRET: test-admin-session-secret
+      CSRF_SECRET: test-csrf-secret
+      WEBHOOK_SECRET_ENCRYPTION_KEY: test-webhook-secret-encryption-key
+      PASSWORD_RESET_TOKEN_SECRET: test-password-reset-token-secret
+      COOKIE_SECURE: "false"
+      CORS_ORIGINS: http://127.0.0.1:3000
       SCHEDULER_ENABLED: false
     defaults:
       run:
@@ -51,6 +63,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
       - name: Generate Prisma client
         run: npm run prisma:generate
 
@@ -65,3 +80,10 @@ jobs:
 
       - name: Build server
         run: npm run build
+
+      - name: Check production configuration rejects unsafe values
+        run: >-
+          node -e "process.env.NODE_ENV='production';
+          for (const key of ['JWT_ACCESS_SECRET','JWT_REFRESH_SECRET','WEBHOOK_SIGNING_SECRET','ADMIN_SESSION_SECRET','CSRF_SECRET','WEBHOOK_SECRET_ENCRYPTION_KEY','PASSWORD_RESET_TOKEN_SECRET']) process.env[key]='change-me';
+          try { require('./dist/src/common/config/production-guard').assertProductionSecrets(); process.exit(1); }
+          catch (error) { process.stdout.write(String(error.message)); }"

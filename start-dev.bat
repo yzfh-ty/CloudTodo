@@ -164,8 +164,8 @@ echo Usage:
 echo   start-dev.bat [options]
 echo.
 echo Options:
-echo   --use-docker-db             Start PostgreSQL from apps/server/docker-compose.yml
-echo   --seed-admin                Run npm run seed:admin before starting the server
+echo   --use-docker-db             Start local PostgreSQL with the development Compose override
+echo   --seed-admin                Create a missing local admin; never reset passwords
 echo   --skip-install              Skip npm install for the server
 echo   --skip-prisma-generate      Skip Prisma client generation
 echo   --skip-migrate              Skip database migration deployment

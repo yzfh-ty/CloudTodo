@@ -68,13 +68,29 @@ export class RemindersService {
   async deleteReminder(user: AuthenticatedUser, id: string) {
     await this.findReminderOrThrow(user.id, id);
 
-    const reminder = await this.prisma.reminder.update({
-      where: { id },
-      data: {
-        status: ReminderStatus.cancelled,
-        deletedAt: new Date(),
-      },
-      select: this.reminderSelect(),
+    const deletedAt = new Date();
+    const reminder = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.reminder.update({
+        where: { id },
+        data: {
+          status: ReminderStatus.cancelled,
+          deletedAt,
+        },
+        select: this.reminderSelect(),
+      });
+      await tx.notificationDelivery.updateMany({
+        where: {
+          reminderEvent: { reminderId: id },
+          status: { in: ['pending', 'failed', 'processing'] },
+        },
+        data: {
+          status: 'dead_letter',
+          nextRetryAt: null,
+          responseBody: null,
+          lastError: 'reminder_deleted',
+        },
+      });
+      return updated;
     });
 
     return {

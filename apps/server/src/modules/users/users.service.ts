@@ -1,11 +1,15 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/database/prisma.service';
+import { SecurityAuditService } from '../../common/security/security-audit.service';
 import type { AuthenticatedUser } from '../auth/user-session.service';
 import { UpdateMeDto } from './dto/update-me.dto';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly securityAuditService: SecurityAuditService,
+  ) {}
 
   async getMe(user: AuthenticatedUser) {
     const currentUser = await this.prisma.user.findUnique({
@@ -72,6 +76,13 @@ export class UsersService {
       });
 
       if (emailExists) {
+        void this.securityAuditService.record({
+          action: 'user_profile_updated',
+          result: 'failure',
+          actorUserId: user.id,
+          targetUserId: user.id,
+          metadata: { reason: 'email_already_in_use' },
+        });
         throw new BadRequestException({
           code: 'VALIDATION_ERROR',
           message: 'email is already in use',
@@ -89,7 +100,7 @@ export class UsersService {
       data.timezone = nextTimezone;
     }
 
-    if (Object.keys(data).length === 0 && !nextTimezone) {
+    if (Object.keys(data).length === 0) {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message: 'no user fields to update',
@@ -115,19 +126,30 @@ export class UsersService {
         },
       });
 
-      if (nextTimezone) {
+      if (data.timezone !== undefined) {
         await transaction.reminder.updateMany({
           where: {
             userId: user.id,
             deletedAt: null,
           },
           data: {
-            timezone: nextTimezone,
+            timezone: data.timezone,
           },
         });
       }
 
       return updated;
+    });
+
+    void this.securityAuditService.record({
+      action: 'user_profile_updated',
+      result: 'success',
+      actorUserId: user.id,
+      targetUserId: user.id,
+      metadata: {
+        fields: Object.keys(data).sort(),
+        email_changed: data.email !== undefined,
+      },
     });
 
     return {

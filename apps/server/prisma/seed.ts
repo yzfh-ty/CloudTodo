@@ -5,6 +5,10 @@ import { hashPassword } from '../src/common/security/password.util';
 const prisma = new PrismaClient();
 
 async function main() {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('The development seed is disabled in production; use a one-time provisioning command.');
+  }
+
   // 初始化管理员的用户名
   // 初始化管理员的邮箱
   // 初始化管理员的密码
@@ -33,28 +37,10 @@ async function main() {
     assertSafeSeedPassword('DEMO_USER_PASSWORD', demoPassword);
   }
 
-  const admin = await prisma.user.upsert({
+  // Seeding is intentionally create-only. Re-running a seed must never
+  // replace an administrator's password or silently re-enable an account.
+  const existingAdmin = await prisma.user.findUnique({
     where: { email },
-    update: {
-      username,
-      nickname,
-      timezone,
-      role: UserRole.admin,
-      status: UserStatus.active,
-      passwordHash: hashPassword(password),
-      passwordChangedAt: new Date(),
-      deletedAt: null,
-    },
-    create: {
-      email,
-      username,
-      nickname,
-      timezone,
-      role: UserRole.admin,
-      status: UserStatus.active,
-      passwordHash: hashPassword(password),
-      passwordChangedAt: new Date(),
-    },
     select: {
       id: true,
       email: true,
@@ -63,6 +49,33 @@ async function main() {
       status: true,
     },
   });
+
+  if (existingAdmin && existingAdmin.role !== UserRole.admin) {
+    throw new Error('ADMIN_SEED_EMAIL belongs to a non-admin user');
+  }
+
+  const admin =
+    existingAdmin ??
+    (await prisma.user.create({
+      data: {
+        email,
+        username,
+        nickname,
+        timezone,
+        role: UserRole.admin,
+        status: UserStatus.active,
+        passwordHash: hashPassword(password),
+        passwordChangedAt: new Date(),
+      },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        role: true,
+        status: true,
+      },
+    }));
+  const adminCreated = !existingAdmin;
 
   let demoUser: {
     id: string;
@@ -73,29 +86,8 @@ async function main() {
   } | null = null;
 
   if (demoUserEnabled) {
-    demoUser = await prisma.user.upsert({
+    const existingDemoUser = await prisma.user.findUnique({
       where: { email: demoEmail },
-      update: {
-        username: demoUsername,
-        nickname: demoNickname,
-        timezone: demoTimezone,
-        role: UserRole.user,
-        status: UserStatus.active,
-        passwordHash: hashPassword(demoPassword),
-        passwordChangedAt: new Date(),
-        deletedAt: null,
-        forcePasswordChange: false,
-      },
-      create: {
-        email: demoEmail,
-        username: demoUsername,
-        nickname: demoNickname,
-        timezone: demoTimezone,
-        role: UserRole.user,
-        status: UserStatus.active,
-        passwordHash: hashPassword(demoPassword),
-        passwordChangedAt: new Date(),
-      },
       select: {
         id: true,
         email: true,
@@ -104,6 +96,27 @@ async function main() {
         status: true,
       },
     });
+    demoUser =
+      existingDemoUser ??
+      (await prisma.user.create({
+        data: {
+          email: demoEmail,
+          username: demoUsername,
+          nickname: demoNickname,
+          timezone: demoTimezone,
+          role: UserRole.user,
+          status: UserStatus.active,
+          passwordHash: hashPassword(demoPassword),
+          passwordChangedAt: new Date(),
+        },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          role: true,
+          status: true,
+        },
+      }));
   }
 
   console.log(
@@ -111,12 +124,9 @@ async function main() {
       {
         message: 'Admin seed completed',
         admin,
+        adminCreated,
         demoUserEnabled,
         demoUser,
-        login: {
-          account: email,
-          password,
-        },
       },
       null,
       2,

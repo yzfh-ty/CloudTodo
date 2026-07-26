@@ -1,6 +1,7 @@
 import {
   CanActivate,
   ExecutionContext,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -9,6 +10,7 @@ import { parseCookies } from '../../../common/http/cookie.util';
 import { CsrfService } from '../../../common/security/csrf.service';
 import { IS_PUBLIC_KEY } from '../../admin/decorators/public.decorator';
 import { UserSessionService } from '../user-session.service';
+import { ALLOW_PASSWORD_CHANGE_SESSION_KEY } from '../decorators/allow-password-change-session.decorator';
 
 type RequestWithUser = {
   method?: string;
@@ -52,6 +54,17 @@ export class UserApiSessionGuard implements CanActivate {
 
     if (!user) {
       throw new UnauthorizedException();
+    }
+
+    const allowsPasswordChangeSession = this.reflector.getAllAndOverride<boolean>(
+      ALLOW_PASSWORD_CHANGE_SESSION_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+    if (user.forcePasswordChange && !allowsPasswordChangeSession) {
+      throw new ForbiddenException({
+        code: 'PASSWORD_CHANGE_REQUIRED',
+        message: 'password change is required before using this resource',
+      });
     }
 
     request.user = user;

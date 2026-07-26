@@ -70,12 +70,18 @@ class AppController extends ChangeNotifier {
       return _services;
     }
 
-    _config = _config.copyWith(apiBaseUrl: normalized);
-    _services = AppServices.create(
-      _config,
+    final nextConfig = _config.copyWith(apiBaseUrl: normalized);
+    final nextServices = AppServices.create(
+      nextConfig,
       localNotificationService: _localNotificationService,
     );
-    _services.sessionController.forceLogout();
+    final oldServices = _services;
+    oldServices.sessionController.forceLogout();
+    oldServices.dispose();
+
+    _config = nextConfig;
+    _services = nextServices;
+    nextServices.sessionController.forceLogout();
     notifyListeners();
     return _services;
   }
@@ -87,7 +93,26 @@ class AppController extends ChangeNotifier {
     }
 
     final uri = Uri.tryParse(input);
-    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+    if (uri != null &&
+        !uri.hasScheme &&
+        !uri.hasAuthority &&
+        uri.path.startsWith('/') &&
+        uri.query.isEmpty &&
+        uri.fragment.isEmpty) {
+      final normalizedPath = uri.path.endsWith('/api') || uri.path == '/api'
+          ? uri.path
+          : '${uri.path.endsWith('/') ? uri.path.substring(0, uri.path.length - 1) : uri.path}/api';
+      final candidate = _config.copyWith(apiBaseUrl: normalizedPath);
+      candidate.validateApiBaseUrl();
+      return normalizedPath;
+    }
+
+    if (uri == null ||
+        !uri.hasScheme ||
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty ||
+        uri.query.isNotEmpty ||
+        uri.fragment.isNotEmpty) {
       throw const FormatException('请输入合法的 http/https 后端地址');
     }
 
@@ -99,13 +124,16 @@ class AppController extends ChangeNotifier {
         ? uri.path
         : '${uri.path.endsWith('/') ? uri.path.substring(0, uri.path.length - 1) : uri.path}/api';
 
-    return uri
+    final normalized = uri
         .replace(
           path: normalizedPath,
           query: null,
           fragment: null,
         )
         .toString();
+    final candidate = _config.copyWith(apiBaseUrl: normalized);
+    candidate.validateApiBaseUrl();
+    return normalized;
   }
 
   String? validateApiBaseUrl(String rawInput) {
@@ -119,6 +147,7 @@ class AppController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _services.dispose();
     _localNotificationService.dispose();
     super.dispose();
   }

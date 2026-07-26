@@ -126,9 +126,9 @@ class _NotificationEndpointEditorDialogState
               if (text.isEmpty ||
                   uri == null ||
                   !uri.hasScheme ||
-                  !(uri.scheme == 'http' || uri.scheme == 'https') ||
+                  uri.scheme != 'https' ||
                   uri.host.isEmpty) {
-                return '请输入合法的地址';
+                return '请输入合法的 HTTPS 地址';
               }
               if (_deliveryKind == 'wecom_robot' &&
                   !text.contains('weixin.qq.com/cgi-bin/webhook/send')) {

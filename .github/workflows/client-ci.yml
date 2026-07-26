@@ -1,7 +1,11 @@
 name: Client CI
 
 on:
+  pull_request:
   push:
+    branches:
+      - main
+      - master
     tags:
       - "*"
 
@@ -15,6 +19,10 @@ defaults:
 jobs:
   linux-checks:
     runs-on: ubuntu-latest
+    env:
+      # Native release binaries require an explicit HTTPS endpoint at build
+      # time. The reserved .invalid host is compile-time smoke-test data only.
+      CLOUDTODO_API_BASE_URL: https://ci.cloudtodo.invalid/api
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -25,8 +33,8 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
-      - run: flutter build web --release
-      - run: flutter build linux --release
+      - run: flutter build web --release --no-web-resources-cdn
+      - run: flutter build linux --release --dart-define=CLOUDTODO_API_BASE_URL=${{ env.CLOUDTODO_API_BASE_URL }}
       - uses: actions/upload-artifact@v4
         with:
           name: cloudtodo-linux-release
@@ -50,10 +58,15 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: cloudtodo-ci-test
           ANDROID_KEY_ALIAS: cloudtodo-ci-test
           ANDROID_KEY_PASSWORD: cloudtodo-ci-test
-        run: flutter build apk --release --target-platform android-arm,android-arm64,android-x64
+        run: >-
+          flutter build apk --release
+          --dart-define=CLOUDTODO_API_BASE_URL=${{ env.CLOUDTODO_API_BASE_URL }}
+          --target-platform android-arm,android-arm64,android-x64
 
   windows-release:
     runs-on: windows-latest
+    env:
+      CLOUDTODO_API_BASE_URL: https://ci.cloudtodo.invalid/api
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -63,7 +76,7 @@ jobs:
           cache: true
       - run: flutter config --enable-windows-desktop
       - run: flutter pub get
-      - run: flutter build windows --release
+      - run: flutter build windows --release --dart-define=CLOUDTODO_API_BASE_URL=${{ env.CLOUDTODO_API_BASE_URL }}
       - uses: actions/upload-artifact@v4
         with:
           name: cloudtodo-windows-release

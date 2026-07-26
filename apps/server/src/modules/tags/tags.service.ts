@@ -134,9 +134,29 @@ export class TagsService {
   async deleteTag(user: AuthenticatedUser, id: string) {
     await this.findTagOrThrow(user.id, id);
     const tag = await this.prisma.$transaction(async (tx) => {
+      const affectedTodos = await tx.todoTag.findMany({
+        where: {
+          tagId: id,
+          todo: { userId: user.id },
+        },
+        select: { todoId: true },
+      });
+
       await tx.todoTag.deleteMany({
         where: { tagId: id },
       });
+
+      if (affectedTodos.length > 0) {
+        await tx.todo.updateMany({
+          where: {
+            id: { in: affectedTodos.map((item) => item.todoId) },
+            userId: user.id,
+          },
+          data: {
+            version: { increment: 1 },
+          },
+        });
+      }
 
       return tx.tag.update({
         where: { id },

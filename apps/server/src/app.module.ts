@@ -17,7 +17,6 @@ import { TagsModule } from './modules/tags/tags.module';
 import { TodoListsModule } from './modules/todo-lists/todo-lists.module';
 import { TodosModule } from './modules/todos/todos.module';
 import { UsersModule } from './modules/users/users.module';
-import { WebhookTestModule } from './modules/webhook-test/webhook-test.module';
 
 @Module({
   imports: [
@@ -43,7 +42,6 @@ import { WebhookTestModule } from './modules/webhook-test/webhook-test.module';
     NotificationEndpointsModule,
     SyncModule,
     SchedulerModule,
-    WebhookTestModule,
   ],
 })
 export class AppModule {}

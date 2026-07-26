@@ -90,8 +90,8 @@ start-server.bat --use-docker-db --seed-admin
 
 常用参数：
 
-- `--use-docker-db`：启动 `apps/server/docker-compose.yml` 中的 PostgreSQL
-- `--seed-admin`：执行 `npm run seed:admin`
+- `--use-docker-db`：使用开发 Compose 覆盖文件启动仅绑定到 `127.0.0.1` 的 PostgreSQL（生产部署不要使用该覆盖文件）
+- `--seed-admin`：仅在本地执行 create-only 的 `npm run seed:admin`（不会重置已有密码）
 - `--skip-install`：跳过 `npm ci`
 - `--skip-prisma-generate`：跳过 Prisma Client 生成
 - `--skip-migrate`：跳过数据库迁移
@@ -100,7 +100,7 @@ start-server.bat --use-docker-db --seed-admin
 
 ### 默认管理员账号
 
-执行 `start-server.bat --seed-admin` 或 `npm run seed:admin` 后，会初始化管理员账号。
+执行 `start-server.bat --seed-admin` 或 `npm run seed:admin` 后，会在本地创建缺失的管理员账号；重复执行不会重置已有密码。
 
 未配置 `ADMIN_SEED_EMAIL` / `ADMIN_SEED_PASSWORD` 时，仅本地开发默认账号为：
 
@@ -108,8 +108,14 @@ start-server.bat --use-docker-db --seed-admin
 - 登录账号：`admin@example.com`
 - 登录密码：`admin123456`
 
-如果当前目录的 `.env` 中配置了 `ADMIN_SEED_EMAIL`、`ADMIN_SEED_PASSWORD`，则以 `.env` 中的值为准。
-生产环境必须显式配置强随机 `ADMIN_SEED_PASSWORD`、`JWT_ACCESS_SECRET`、`ADMIN_SESSION_SECRET`、`CSRF_SECRET`、`WEBHOOK_SECRET_ENCRYPTION_KEY` 和 `PASSWORD_RESET_TOKEN_SECRET`，服务会拒绝使用默认弱值启动。
+如果当前目录的 `.env` 中配置了 `ADMIN_SEED_EMAIL`、`ADMIN_SEED_PASSWORD`，则仅在开发 seed 创建新账号时使用。生产环境禁止运行 seed；请通过一次性 `ADMIN_INITIAL_EMAIL`、`ADMIN_INITIAL_USERNAME`、`ADMIN_INITIAL_PASSWORD` 环境变量执行：
+
+```bash
+ADMIN_INITIAL_EMAIL=admin@todo.example.com \
+ADMIN_INITIAL_USERNAME=admin \
+ADMIN_INITIAL_PASSWORD='replace-with-a-32+-character-random-secret' \
+npm run provision:admin
+```
 
 ### 1. 安装依赖
 
@@ -137,7 +143,7 @@ cp .env.development.example .env
 
 仓库根目录的 `make setup` 会在 `.env` 不存在时自动执行这一步。
 
-完成迁移后，使用仓库根目录的 `make seed-admin` 创建本地管理员账号，默认登录名为 `admin`，密码为 `admin123456`。
+完成迁移后，使用仓库根目录的 `make seed-admin` 创建本地开发管理员账号，默认登录名为 `admin`，密码为 `admin123456`。生产环境使用上面的 `provision:admin` 命令。
 
 ### 3. 生成 Prisma Client
 
@@ -158,17 +164,21 @@ npm run start:dev
 - [Dockerfile](Dockerfile)
 - [docker-compose.yml](docker-compose.yml)
 
+生产部署只使用基础 Compose 文件，并通过外部环境或 Secret Manager 注入所有必填变量；缺少数据库凭据、外部地址、CORS 白名单或任一密钥时，Compose 会在创建容器前失败。`docker-compose.development.yml` 仅供宿主机运行 Prisma/Nest 的本地开发命令使用，会把 PostgreSQL 绑定到回环地址。
+
 在当前目录执行：
 
 ```bat
 docker compose up --build
 ```
 
-默认入口：
+Compose 默认只把明文 HTTP 端口发布到宿主机回环地址，供同机 TLS 终止代理转发：
 
 - 后端接口：`http://localhost:3000`
 - 管理后台：`http://localhost:3000/admin`
 - 健康检查：`http://localhost:3000/health`
+
+不要将该 HTTP 端口直接暴露到公网。生产公网入口应由反向代理提供 HTTPS；只有网络边界另有等效保护时，才显式设置 `SERVER_BIND_ADDRESS` 覆盖默认回环绑定。
 
 ## 常用命令
 
@@ -181,6 +191,7 @@ npm run prisma:migrate:dev -- --name your_change_name
 npm run prisma:migrate:deploy
 npm run prisma:studio
 npm run seed:admin
+npm run provision:admin
 ```
 
 ## 主要访问入口

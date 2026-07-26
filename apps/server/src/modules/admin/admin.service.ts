@@ -9,7 +9,6 @@ import {
   AdminOperationResult,
   PasswordResetMode,
   Prisma,
-  ReminderStatus,
   UserRole,
   UserStatus,
 } from '@prisma/client';
@@ -17,17 +16,32 @@ import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../../common/database/prisma.service';
 import { hashPassword, verifyPassword } from '../../common/security/password.util';
 import { hashResetToken } from '../../common/security/token-hash.util';
+import { SecurityAuditService } from '../../common/security/security-audit.service';
+import { SecurityRequestContextService } from '../../common/security/security-request-context.service';
 import type { AuthenticatedAdmin } from './admin-session.service';
 import { AdminChangePasswordDto } from './dto/admin-change-password.dto';
 import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import { AdminLoginDto } from './dto/admin-login.dto';
+import { AdminOperationLogQueryDto } from './dto/admin-operation-log-query.dto';
 import { AdminResetPasswordDto } from './dto/admin-reset-password.dto';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
 import { AdminUserListQueryDto } from './dto/admin-user-list-query.dto';
+import {
+  getAdminDashboardSummary,
+  getAdminOperationLogs,
+  getAdminUserById,
+  getAdminUserDevices,
+  getAdminUsers,
+  requireAdminUser,
+} from './admin-query.functions';
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly securityAuditService: SecurityAuditService,
+    private readonly requestContext: SecurityRequestContextService,
+  ) {}
 
   async login(dto: AdminLoginDto) {
     const account = dto.account.trim();
@@ -42,12 +56,32 @@ export class AdminService {
         nickname: true,
         role: true,
         status: true,
+        forcePasswordChange: true,
         lastLoginAt: true,
+        passwordChangedAt: true,
+        sessionRevokedAt: true,
         passwordHash: true,
+        receivedPasswordResetTokens: {
+          where: {
+            mode: PasswordResetMode.temporary_password,
+            consumedAt: null,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: {
+            expiresAt: true,
+            temporaryPasswordHash: true,
+          },
+        },
       },
     });
 
     if (!admin || admin.role !== UserRole.admin || admin.status !== UserStatus.active) {
+      void this.securityAuditService.record({
+        action: 'admin_login_failure',
+        result: 'failure',
+        metadata: { reason: 'invalid_credentials' },
+      });
       throw new UnauthorizedException({
         code: 'UNAUTHORIZED',
         message: 'invalid admin credentials',
@@ -55,26 +89,95 @@ export class AdminService {
     }
 
     if (!verifyPassword(dto.password, admin.passwordHash)) {
+      void this.securityAuditService.record({
+        action: 'admin_login_failure',
+        result: 'failure',
+        targetUserId: admin.id,
+        metadata: { reason: 'invalid_credentials' },
+      });
       throw new UnauthorizedException({
         code: 'UNAUTHORIZED',
         message: 'invalid admin credentials',
       });
     }
 
-    const updatedAdmin = await this.prisma.user.update({
-      where: { id: admin.id },
-      data: {
-        lastLoginAt: new Date(),
+    if (admin.forcePasswordChange) {
+      const temporaryPassword = admin.receivedPasswordResetTokens[0];
+      if (
+        !temporaryPassword ||
+        temporaryPassword.expiresAt <= new Date() ||
+        temporaryPassword.temporaryPasswordHash !== admin.passwordHash
+      ) {
+        void this.securityAuditService.record({
+          action: 'admin_login_failure',
+          result: 'failure',
+          targetUserId: admin.id,
+          metadata: { reason: 'temporary_password_expired' },
+        });
+        throw new UnauthorizedException({
+          code: 'TEMPORARY_PASSWORD_EXPIRED',
+          message: 'temporary password is expired; request a new reset',
+        });
+      }
+    }
+
+    const loginAt = this.nextSecurityTimestamp(
+      admin.passwordChangedAt,
+      admin.sessionRevokedAt,
+    );
+    const loginClaim = await this.prisma.user.updateMany({
+      where: {
+        id: admin.id,
+        role: UserRole.admin,
+        status: UserStatus.active,
+        passwordChangedAt: admin.passwordChangedAt,
+        passwordHash: admin.passwordHash,
+        sessionRevokedAt: admin.sessionRevokedAt,
+        ...(admin.forcePasswordChange
+          ? {
+              receivedPasswordResetTokens: {
+                some: {
+                  mode: PasswordResetMode.temporary_password,
+                  consumedAt: null,
+                  expiresAt: { gt: loginAt },
+                  temporaryPasswordHash: admin.passwordHash,
+                },
+              },
+            }
+          : {}),
       },
-      select: {
-        id: true,
-        email: true,
-        username: true,
-        nickname: true,
-        role: true,
-        status: true,
-        lastLoginAt: true,
-      },
+      data: { lastLoginAt: loginAt },
+    });
+    if (loginClaim.count !== 1) {
+      void this.securityAuditService.record({
+        action: 'admin_login_failure',
+        result: 'failure',
+        targetUserId: admin.id,
+        metadata: { reason: 'credentials_changed_during_login' },
+      });
+      throw new UnauthorizedException({
+        code: 'UNAUTHORIZED',
+        message: 'admin credentials changed; please try again',
+      });
+    }
+
+    const updatedAdmin = {
+      id: admin.id,
+      email: admin.email,
+      username: admin.username,
+      nickname: admin.nickname,
+      role: admin.role,
+      status: admin.status,
+      forcePasswordChange: admin.forcePasswordChange,
+      lastLoginAt: loginAt,
+    };
+
+    void this.securityAuditService.record({
+      action: 'admin_login_success',
+      result: 'success',
+      actorUserId: updatedAdmin.id,
+      targetUserId: updatedAdmin.id,
+      metadata: { password_change_required: updatedAdmin.forcePasswordChange },
     });
 
     return {
@@ -83,6 +186,36 @@ export class AdminService {
       data: {
         admin: updatedAdmin,
       },
+    };
+  }
+
+  async logout(admin: AuthenticatedAdmin) {
+    await this.prisma.$transaction(async (tx) => {
+      const lockedUser = await this.lockUser(tx, admin.id);
+      if (!lockedUser) {
+        return;
+      }
+      const revokedAt = this.nextSecurityTimestamp(lockedUser.sessionRevokedAt);
+      await tx.user.update({
+        where: { id: admin.id },
+        data: { sessionRevokedAt: revokedAt },
+      });
+      await tx.authRefreshToken.updateMany({
+        where: { userId: admin.id, revokedAt: null },
+        data: { revokedAt, revokeReason: 'admin_logout' },
+      });
+    });
+    void this.securityAuditService.record({
+      action: 'admin_logout',
+      result: 'success',
+      actorUserId: admin.id,
+      targetUserId: admin.id,
+    });
+
+    return {
+      code: 'OK',
+      message: 'success',
+      data: null,
     };
   }
 
@@ -99,6 +232,9 @@ export class AdminService {
       select: {
         id: true,
         passwordHash: true,
+        status: true,
+        passwordChangedAt: true,
+        sessionRevokedAt: true,
       },
     });
 
@@ -116,16 +252,35 @@ export class AdminService {
       });
     }
 
-    const changedAt = new Date();
-    await this.prisma.$transaction(async (tx) => {
-      await tx.user.update({
-        where: { id: admin.id },
+    const nextPasswordHash = hashPassword(dto.newPassword);
+    const changedAt = await this.prisma.$transaction(async (tx) => {
+      const lockedUser = await this.lockUser(tx, admin.id);
+      const securityChangedAt = this.nextSecurityTimestamp(
+        lockedUser?.passwordChangedAt,
+        lockedUser?.sessionRevokedAt,
+      );
+      const changed = await tx.user.updateMany({
+        where: {
+          id: admin.id,
+          role: UserRole.admin,
+          status: UserStatus.active,
+          passwordHash: currentAdmin.passwordHash,
+          passwordChangedAt: currentAdmin.passwordChangedAt,
+          sessionRevokedAt: currentAdmin.sessionRevokedAt,
+        },
         data: {
-          passwordHash: hashPassword(dto.newPassword),
-          passwordChangedAt: changedAt,
+          passwordHash: nextPasswordHash,
+          passwordChangedAt: securityChangedAt,
+          sessionRevokedAt: securityChangedAt,
           forcePasswordChange: false,
         },
       });
+      if (changed.count !== 1) {
+        throw new UnauthorizedException({
+          code: 'INVALID_PASSWORD',
+          message: 'credentials changed; please try again',
+        });
+      }
 
       await tx.authRefreshToken.updateMany({
         where: {
@@ -133,9 +288,13 @@ export class AdminService {
           revokedAt: null,
         },
         data: {
-          revokedAt: changedAt,
+          revokedAt: securityChangedAt,
           revokeReason: 'admin_password_changed',
         },
+      });
+      await tx.authPasswordResetToken.updateMany({
+        where: { userId: admin.id, consumedAt: null },
+        data: { consumedAt: securityChangedAt },
       });
 
       await this.createAuditLogTx(tx, {
@@ -145,9 +304,18 @@ export class AdminService {
         reason: 'change own password',
         result: AdminOperationResult.success,
         metadata: {
-          changed_at: changedAt.toISOString(),
+          changed_at: securityChangedAt.toISOString(),
         },
       });
+      return securityChangedAt;
+    });
+
+    void this.securityAuditService.record({
+      action: 'admin_password_change',
+      result: 'success',
+      actorUserId: admin.id,
+      targetUserId: admin.id,
+      metadata: { forced: admin.forcePasswordChange },
     });
 
     return {
@@ -163,18 +331,23 @@ export class AdminService {
 
   async logoutAllSessions(admin: AuthenticatedAdmin, reason?: string) {
     const appliedReason = reason?.trim() || 'manual logout all sessions';
-    const revokedAt = new Date();
 
     const revokedResult = await this.prisma.$transaction(async (tx) => {
+      const lockedUser = await this.lockUser(tx, admin.id);
+      if (!lockedUser) {
+        throw new NotFoundException({
+          code: 'USER_NOT_FOUND',
+          message: 'admin not found',
+        });
+      }
+      const revokedAt = this.nextSecurityTimestamp(lockedUser.sessionRevokedAt);
+      await tx.user.update({
+        where: { id: admin.id },
+        data: { sessionRevokedAt: revokedAt },
+      });
       const revoked = await tx.authRefreshToken.updateMany({
-        where: {
-          userId: admin.id,
-          revokedAt: null,
-        },
-        data: {
-          revokedAt,
-          revokeReason: 'admin_logout_all_sessions',
-        },
+        where: { userId: admin.id, revokedAt: null },
+        data: { revokedAt, revokeReason: 'admin_logout_all_sessions' },
       });
 
       await this.createAuditLogTx(tx, {
@@ -189,7 +362,7 @@ export class AdminService {
         },
       });
 
-      return revoked;
+      return { ...revoked, revokedAt };
     });
 
     return {
@@ -205,171 +378,11 @@ export class AdminService {
   }
 
   async getDashboardSummary() {
-    const now = new Date();
-    const todayStartUtc = this.getUtcDayStart(now);
-    const nextDayStartUtc = new Date(todayStartUtc.getTime() + 24 * 60 * 60 * 1000);
-    const recentLoginStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-    const nonDeletedUsersWhere: Prisma.UserWhereInput = {
-      status: {
-        not: UserStatus.deleted,
-      },
-    };
-
-    const [
-      totalUsers,
-      activeUsers,
-      disabledUsers,
-      newUsersToday,
-      recentLoginUsers,
-      passwordResetCountToday,
-      recentAdminOperations,
-    ] = await this.prisma.$transaction([
-      this.prisma.user.count({
-        where: nonDeletedUsersWhere,
-      }),
-      this.prisma.user.count({
-        where: {
-          status: UserStatus.active,
-        },
-      }),
-      this.prisma.user.count({
-        where: {
-          status: UserStatus.disabled,
-        },
-      }),
-      this.prisma.user.count({
-        where: {
-          ...nonDeletedUsersWhere,
-          createdAt: {
-            gte: todayStartUtc,
-            lt: nextDayStartUtc,
-          },
-        },
-      }),
-      this.prisma.user.count({
-        where: {
-          ...nonDeletedUsersWhere,
-          lastLoginAt: {
-            gte: recentLoginStart,
-          },
-        },
-      }),
-      this.prisma.adminOperationLog.count({
-        where: {
-          action: AdminOperationAction.reset_user_password,
-          result: AdminOperationResult.success,
-          createdAt: {
-            gte: todayStartUtc,
-            lt: nextDayStartUtc,
-          },
-        },
-      }),
-      this.prisma.adminOperationLog.findMany({
-        orderBy: {
-          createdAt: 'desc',
-        },
-        take: 10,
-        select: {
-          id: true,
-          action: true,
-          result: true,
-          createdAt: true,
-        },
-      }),
-    ]);
-
-    return {
-      code: 'OK',
-      message: 'success',
-      data: {
-        totalUsers,
-        activeUsers,
-        disabledUsers,
-        newUsersToday,
-        recentLoginUsers,
-        passwordResetCountToday,
-        recentAdminOperations: recentAdminOperations.map((item) => ({
-          id: item.id,
-          action: item.action,
-          result: item.result,
-          created_at: item.createdAt,
-        })),
-      },
-    };
+    return getAdminDashboardSummary(this.prisma);
   }
 
   async getUsers(query: AdminUserListQueryDto) {
-    const page = query.page ?? 1;
-    const pageSize = query.page_size ?? 20;
-    const skip = (page - 1) * pageSize;
-    const keyword = query.keyword?.trim();
-    const where: Prisma.UserWhereInput = {};
-
-    if (keyword) {
-      where.OR = [
-        { username: { contains: keyword, mode: 'insensitive' } },
-        { email: { contains: keyword, mode: 'insensitive' } },
-        { nickname: { contains: keyword, mode: 'insensitive' } },
-      ];
-    }
-
-    if (query.role) {
-      where.role = query.role;
-    }
-
-    if (query.status) {
-      where.status = query.status;
-    }
-
-    if (query.created_start || query.created_end) {
-      where.createdAt = {
-        ...(query.created_start ? { gte: new Date(query.created_start) } : {}),
-        ...(query.created_end ? { lte: new Date(query.created_end) } : {}),
-      };
-    }
-
-    if (query.last_login_start || query.last_login_end) {
-      where.lastLoginAt = {
-        ...(query.last_login_start ? { gte: new Date(query.last_login_start) } : {}),
-        ...(query.last_login_end ? { lte: new Date(query.last_login_end) } : {}),
-      };
-    }
-
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.user.findMany({
-        where,
-        skip,
-        take: pageSize,
-        orderBy: {
-          createdAt: 'desc',
-        },
-        select: {
-          id: true,
-          username: true,
-          email: true,
-          nickname: true,
-          role: true,
-          status: true,
-          timezone: true,
-          lastLoginAt: true,
-          createdAt: true,
-        },
-      }),
-      this.prisma.user.count({ where }),
-    ]);
-
-    return {
-      code: 'OK',
-      message: 'success',
-      data: {
-        items,
-        page,
-        page_size: pageSize,
-        total,
-        has_more: skip + items.length < total,
-      },
-    };
+    return getAdminUsers(this.prisma, query);
   }
 
   async createUser(admin: AuthenticatedAdmin, dto: AdminCreateUserDto) {
@@ -405,27 +418,62 @@ export class AdminService {
       });
     }
 
-    const user = await this.prisma.user.create({
-      data: {
-        username,
-        email,
-        passwordHash: hashPassword(dto.password),
-        nickname,
-        timezone,
-        role,
-        status,
-      },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        nickname: true,
-        role: true,
-        status: true,
-        timezone: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+    const passwordHash = hashPassword(dto.password);
+    const createdAt = new Date();
+    const temporaryToken = this.generateSecret(24);
+    const temporaryTokenHash = hashResetToken(temporaryToken);
+    const temporaryExpiresAt = new Date(createdAt.getTime() + 2 * 60 * 60 * 1000);
+    const user = await this.prisma.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
+        data: {
+          username,
+          email,
+          passwordHash,
+          nickname,
+          timezone,
+          role,
+          status,
+          forcePasswordChange: true,
+          passwordChangedAt: createdAt,
+          sessionRevokedAt: createdAt,
+        },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          nickname: true,
+          role: true,
+          status: true,
+          timezone: true,
+          forcePasswordChange: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+      await tx.authPasswordResetToken.create({
+        data: {
+          userId: createdUser.id,
+          createdByUserId: admin.id,
+          tokenHash: temporaryTokenHash,
+          mode: PasswordResetMode.temporary_password,
+          temporaryPasswordHash: passwordHash,
+          reason: dto.reason,
+          expiresAt: temporaryExpiresAt,
+        },
+      });
+      await this.createAuditLogTx(tx, {
+        adminUserId: admin.id,
+        targetUserId: createdUser.id,
+        action: AdminOperationAction.create_user,
+        reason: dto.reason,
+        result: AdminOperationResult.success,
+        metadata: {
+          role,
+          status,
+          temporary_password_expires_at: temporaryExpiresAt.toISOString(),
+        },
+      });
+      return createdUser;
     });
 
     return {
@@ -434,78 +482,13 @@ export class AdminService {
       data: {
         created: true,
         user,
+        temporary_password_expires_at: temporaryExpiresAt.toISOString(),
       },
     };
   }
 
   async getUserById(id: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        nickname: true,
-        role: true,
-        status: true,
-        timezone: true,
-        lastLoginAt: true,
-        createdAt: true,
-      },
-    });
-
-    if (!user) {
-      throw new NotFoundException({
-        code: 'USER_NOT_FOUND',
-        message: 'user not found',
-      });
-    }
-
-    const [
-      totalTodos,
-      pendingTodos,
-      completedTodos,
-      archivedTodos,
-      pendingReminders,
-      failedReminders,
-    ] = await this.prisma.$transaction([
-      this.prisma.todo.count({
-        where: { userId: id, deletedAt: null },
-      }),
-      this.prisma.todo.count({
-        where: { userId: id, status: 'pending', deletedAt: null },
-      }),
-      this.prisma.todo.count({
-        where: { userId: id, status: 'completed', deletedAt: null },
-      }),
-      this.prisma.todo.count({
-        where: { userId: id, status: 'archived', deletedAt: null },
-      }),
-      this.prisma.reminder.count({
-        where: { userId: id, status: ReminderStatus.pending, deletedAt: null },
-      }),
-      this.prisma.reminder.count({
-        where: { userId: id, status: ReminderStatus.failed, deletedAt: null },
-      }),
-    ]);
-
-    return {
-      code: 'OK',
-      message: 'success',
-      data: {
-        ...user,
-        todo_summary: {
-          total: totalTodos,
-          pending: pendingTodos,
-          completed: completedTodos,
-          archived: archivedTodos,
-        },
-        reminder_summary: {
-          pending: pendingReminders,
-          failed: failedReminders,
-        },
-      },
-    };
+    return getAdminUserById(this.prisma, id);
   }
 
   async updateUser(admin: AuthenticatedAdmin, id: string, dto: AdminUpdateUserDto) {
@@ -656,20 +639,26 @@ export class AdminService {
       });
     }
 
-    const user = await this.requireUser(id);
-    if (user.status === UserStatus.disabled) {
-      throw new BadRequestException({
-        code: 'USER_ALREADY_DISABLED',
-        message: 'user is already disabled',
-      });
-    }
-
-    const revokedAt = new Date();
     const result = await this.prisma.$transaction(async (tx) => {
+      const lockedUser = await this.lockUser(tx, id);
+      if (!lockedUser) {
+        throw new NotFoundException({
+          code: 'USER_NOT_FOUND',
+          message: 'user not found',
+        });
+      }
+      if (lockedUser.status === UserStatus.disabled) {
+        throw new BadRequestException({
+          code: 'USER_ALREADY_DISABLED',
+          message: 'user is already disabled',
+        });
+      }
+      const revokedAt = this.nextSecurityTimestamp(lockedUser.sessionRevokedAt);
       const updatedUser = await tx.user.update({
         where: { id },
         data: {
           status: UserStatus.disabled,
+          sessionRevokedAt: revokedAt,
         },
         select: {
           id: true,
@@ -695,7 +684,7 @@ export class AdminService {
         reason: appliedReason,
         result: AdminOperationResult.success,
         metadata: {
-          before_status: user.status,
+          before_status: lockedUser.status,
           after_status: updatedUser.status,
           revoked_refresh_tokens: revokedTokens.count,
         },
@@ -716,7 +705,7 @@ export class AdminService {
   }
 
   async enableUser(admin: AuthenticatedAdmin, id: string, reason?: string) {
-    const user = await this.requireUser(id);
+    const user = await requireAdminUser(this.prisma, id);
     if (user.status === UserStatus.active) {
       throw new BadRequestException({
         code: 'USER_ALREADY_ACTIVE',
@@ -767,9 +756,6 @@ export class AdminService {
     id: string,
     dto: AdminResetPasswordDto,
   ) {
-    const user = await this.requireUser(id);
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + 2 * 60 * 60 * 1000);
     const trackingToken = this.generateSecret(24);
     const trackingTokenHash = hashResetToken(trackingToken);
 
@@ -777,13 +763,26 @@ export class AdminService {
       const temporaryPassword = this.generateTemporaryPassword();
       const temporaryPasswordHash = hashPassword(temporaryPassword);
 
-      await this.prisma.$transaction(async (tx) => {
+      const resetResult = await this.prisma.$transaction(async (tx) => {
+        const lockedUser = await this.lockUser(tx, id);
+        if (!lockedUser) {
+          throw new NotFoundException({
+            code: 'USER_NOT_FOUND',
+            message: 'user not found',
+          });
+        }
+        const now = this.nextSecurityTimestamp(
+          lockedUser.passwordChangedAt,
+          lockedUser.sessionRevokedAt,
+        );
+        const expiresAt = new Date(now.getTime() + 2 * 60 * 60 * 1000);
         await tx.user.update({
           where: { id },
           data: {
             passwordHash: temporaryPasswordHash,
             forcePasswordChange: true,
             passwordChangedAt: now,
+            sessionRevokedAt: now,
           },
         });
 
@@ -796,6 +795,11 @@ export class AdminService {
             revokedAt: now,
             revokeReason: 'password_reset_by_admin',
           },
+        });
+
+        await tx.authPasswordResetToken.updateMany({
+          where: { userId: id, consumedAt: null },
+          data: { consumedAt: now },
         });
 
         await tx.authPasswordResetToken.create({
@@ -818,10 +822,11 @@ export class AdminService {
           result: AdminOperationResult.success,
           metadata: {
             mode: dto.mode,
-            target_status: user.status,
+            target_status: lockedUser.status,
             expires_at: expiresAt.toISOString(),
           },
         });
+        return { expiresAt };
       });
 
       return {
@@ -830,7 +835,7 @@ export class AdminService {
         data: {
           mode: dto.mode,
           temporary_password: temporaryPassword,
-          expires_at: expiresAt.toISOString(),
+          expires_at: resetResult.expiresAt.toISOString(),
           force_password_change: true,
         },
       };
@@ -839,7 +844,26 @@ export class AdminService {
     const resetToken = this.generateSecret(32);
     const resetTokenHash = hashResetToken(resetToken);
 
-    await this.prisma.$transaction(async (tx) => {
+    const resetResult = await this.prisma.$transaction(async (tx) => {
+      const lockedUser = await this.lockUser(tx, id);
+      if (!lockedUser) {
+        throw new NotFoundException({
+          code: 'USER_NOT_FOUND',
+          message: 'user not found',
+        });
+      }
+      const now = this.nextSecurityTimestamp(
+        lockedUser.passwordChangedAt,
+        lockedUser.sessionRevokedAt,
+      );
+      const expiresAt = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+      await tx.user.update({
+        where: { id },
+        data: {
+          forcePasswordChange: true,
+          sessionRevokedAt: now,
+        },
+      });
       await tx.authRefreshToken.updateMany({
         where: {
           userId: id,
@@ -849,6 +873,11 @@ export class AdminService {
           revokedAt: now,
           revokeReason: 'password_reset_requested_by_admin',
         },
+      });
+
+      await tx.authPasswordResetToken.updateMany({
+        where: { userId: id, consumedAt: null },
+        data: { consumedAt: now },
       });
 
       await tx.authPasswordResetToken.create({
@@ -870,10 +899,11 @@ export class AdminService {
         result: AdminOperationResult.success,
         metadata: {
           mode: dto.mode,
-          target_status: user.status,
+          target_status: lockedUser.status,
           expires_at: expiresAt.toISOString(),
         },
       });
+      return { expiresAt };
     });
 
     return {
@@ -882,104 +912,17 @@ export class AdminService {
       data: {
         mode: dto.mode,
         reset_token: resetToken,
-        expires_at: expiresAt.toISOString(),
+        expires_at: resetResult.expiresAt.toISOString(),
       },
     };
   }
 
   async getUserDevices(id: string) {
-    await this.requireUser(id);
-    const items = await this.prisma.device.findMany({
-      where: {
-        userId: id,
-        deletedAt: null,
-      },
-      orderBy: {
-        lastActiveAt: 'desc',
-      },
-      select: {
-        id: true,
-        platform: true,
-        deviceName: true,
-        appVersion: true,
-        isOnline: true,
-        pushToken: true,
-        lastActiveAt: true,
-      },
-    });
-
-    return {
-      code: 'OK',
-      message: 'success',
-      data: {
-        user_id: id,
-        items: items.map((item) => ({
-          id: item.id,
-          platform: item.platform,
-          device_name: item.deviceName,
-          app_version: item.appVersion,
-          is_online: item.isOnline,
-          push_token_exists: Boolean(item.pushToken),
-          last_active_at: item.lastActiveAt,
-        })),
-      },
-    };
+    return getAdminUserDevices(this.prisma, id);
   }
-
-  async getOperationLogs(query: Record<string, string | number | undefined>) {
-    const page = Number(query.page ?? 1);
-    const pageSize = Number(query.page_size ?? 20);
-    const skip = (page - 1) * pageSize;
-    const where: Prisma.AdminOperationLogWhereInput = {};
-
-    if (typeof query.admin_user_id === 'string') {
-      where.adminUserId = query.admin_user_id;
-    }
-
-    if (typeof query.target_user_id === 'string') {
-      where.targetUserId = query.target_user_id;
-    }
-
-    if (typeof query.action === 'string') {
-      where.action = query.action as AdminOperationAction;
-    }
-
-    if (typeof query.result === 'string') {
-      where.result = query.result as AdminOperationResult;
-    }
-
-    if (typeof query.start === 'string' || typeof query.end === 'string') {
-      where.createdAt = {
-        ...(typeof query.start === 'string' ? { gte: new Date(query.start) } : {}),
-        ...(typeof query.end === 'string' ? { lte: new Date(query.end) } : {}),
-      };
-    }
-
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.adminOperationLog.findMany({
-        where,
-        skip,
-        take: pageSize,
-        orderBy: {
-          createdAt: 'desc',
-        },
-      }),
-      this.prisma.adminOperationLog.count({ where }),
-    ]);
-
-    return {
-      code: 'OK',
-      message: 'success',
-      data: {
-        items,
-        page,
-        page_size: pageSize,
-        total,
-        has_more: skip + items.length < total,
-      },
-    };
+  async getOperationLogs(query: AdminOperationLogQueryDto) {
+    return getAdminOperationLogs(this.prisma, query);
   }
-
   placeholder(action: string) {
     return {
       code: 'NOT_IMPLEMENTED',
@@ -987,26 +930,6 @@ export class AdminService {
       data: null,
     };
   }
-
-  private async requireUser(id: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        status: true,
-      },
-    });
-
-    if (!user) {
-      throw new NotFoundException({
-        code: 'USER_NOT_FOUND',
-        message: 'user not found',
-      });
-    }
-
-    return user;
-  }
-
   private async createAuditLogTx(
     tx: Prisma.TransactionClient,
     input: {
@@ -1018,6 +941,7 @@ export class AdminService {
       metadata?: Prisma.InputJsonValue;
     },
   ) {
+    const context = this.requestContext.current();
     await tx.adminOperationLog.create({
       data: {
         adminUserId: input.adminUserId,
@@ -1025,22 +949,51 @@ export class AdminService {
         action: input.action,
         reason: input.reason,
         result: input.result,
-        metadata: input.metadata,
+        ipAddress: context?.ipAddress?.slice(0, 64) ?? null,
+        metadata: Object.assign(
+          (input.metadata !== null &&
+          typeof input.metadata === 'object' &&
+          !Array.isArray(input.metadata)
+            ? input.metadata
+            : {}) as Prisma.InputJsonObject,
+          context?.sessionId ? { session_id: context.sessionId } : {},
+          context?.requestId ? { request_id: context.requestId } : {},
+        ),
       },
     });
   }
-
   private generateTemporaryPassword(): string {
     return `Temp#${randomBytes(6).toString('hex')}`;
   }
-
   private generateSecret(byteLength: number): string {
     return randomBytes(byteLength).toString('base64url');
   }
+  private async lockUser(tx: Prisma.TransactionClient, userId: string) {
+    const rows = await tx.$queryRaw<
+      Array<{
+        id: string;
+        status: UserStatus;
+        passwordChangedAt: Date | null;
+        sessionRevokedAt: Date | null;
+      }>
+    >(Prisma.sql`
+      SELECT
+        "id",
+        "status",
+        "password_changed_at" AS "passwordChangedAt",
+        "session_revoked_at" AS "sessionRevokedAt"
+      FROM "users"
+      WHERE "id" = ${userId}::uuid
+      FOR UPDATE
+    `);
+    return rows[0] ?? null;
+  }
 
-  private getUtcDayStart(date: Date): Date {
-    return new Date(
-      Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  private nextSecurityTimestamp(...previous: Array<Date | null | undefined>) {
+    const minimum = previous.reduce(
+      (latest, value) => Math.max(latest, value?.getTime() ?? 0),
+      0,
     );
+    return new Date(Math.max(Date.now(), minimum + 1));
   }
 }

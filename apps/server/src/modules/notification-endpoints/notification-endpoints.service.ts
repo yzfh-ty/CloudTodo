@@ -1,9 +1,19 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NotificationEndpointType, Prisma } from '@prisma/client';
 import { createHmac } from 'node:crypto';
 import { PrismaService } from '../../common/database/prisma.service';
 import { OutboundHttpService } from '../../common/security/outbound-http.service';
+import { RateLimitService } from '../../common/security/rate-limit.service';
 import { decryptSecret, encryptSecret } from '../../common/security/secret.util';
+import { SecurityAuditService } from '../../common/security/security-audit.service';
 import type { AuthenticatedUser } from '../auth/user-session.service';
 import { CreateNotificationEndpointDto } from './dto/create-notification-endpoint.dto';
 import {
@@ -38,6 +48,9 @@ export class NotificationEndpointsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly outboundHttpService: OutboundHttpService,
+    @Optional() private readonly rateLimitService?: RateLimitService,
+    @Optional() private readonly configService?: ConfigService,
+    @Optional() private readonly securityAuditService?: SecurityAuditService,
   ) {}
 
   async getEndpoints(user: AuthenticatedUser) {
@@ -62,18 +75,62 @@ export class NotificationEndpointsService {
   }
 
   async createEndpoint(user: AuthenticatedUser, dto: CreateNotificationEndpointDto) {
-    await this.outboundHttpService.validateUrl(dto.target_url);
-    const endpoint = await this.prisma.notificationEndpoint.create({
-      data: {
-        userId: user.id,
-        type: dto.type ?? NotificationEndpointType.webhook,
-        name: dto.name.trim(),
-        targetUrl: dto.target_url,
-        secret: this.serializeSecret(dto.secret),
-        payloadTemplate: dto.payload_template?.trim() || null,
-        isEnabled: dto.is_enabled ?? true,
-      },
-      select: this.endpointSelect(),
+    this.assertCreateQuota(user.id);
+    const validatedUrl = await this.outboundHttpService.validateUrl(dto.target_url);
+    const hostname = normalizeHostname(validatedUrl.hostname);
+    this.assertCreateQuota(user.id, hostname);
+    const maxEndpoints = this.getPositiveNumber('WEBHOOK_MAX_ENDPOINTS_PER_USER', 10);
+    const maxEndpointsPerHost = this.getPositiveNumber(
+      'WEBHOOK_MAX_ENDPOINTS_PER_HOST_PER_USER',
+      3,
+    );
+    const endpoint = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`
+        SELECT "id"
+        FROM "users"
+        WHERE "id" = ${user.id}::uuid
+        FOR UPDATE
+      `);
+      const endpoints = await tx.notificationEndpoint.findMany({
+        where: { userId: user.id, deletedAt: null },
+        select: { targetUrl: true },
+      });
+      if (endpoints.length >= maxEndpoints) {
+        throw this.endpointQuotaExceeded('webhook endpoint quota has been reached');
+      }
+      const hostnameCount = endpoints.reduce((count, item) => {
+        try {
+          return normalizeHostname(new URL(item.targetUrl).hostname) === hostname
+            ? count + 1
+            : count;
+        } catch {
+          return count;
+        }
+      }, 0);
+      if (hostnameCount >= maxEndpointsPerHost) {
+        throw this.endpointQuotaExceeded('webhook hostname quota has been reached');
+      }
+
+      return tx.notificationEndpoint.create({
+        data: {
+          userId: user.id,
+          type: dto.type ?? NotificationEndpointType.webhook,
+          name: dto.name.trim(),
+          targetUrl: validatedUrl.url.toString(),
+          secret: this.serializeSecret(dto.secret),
+          payloadTemplate: dto.payload_template?.trim() || null,
+          isEnabled: dto.is_enabled ?? true,
+        },
+        select: this.endpointSelect(),
+      });
+    });
+
+    await this.recordAudit({
+      action: 'webhook_created',
+      result: 'success',
+      actorUserId: user.id,
+      targetUserId: user.id,
+      metadata: { endpoint_id: endpoint.id, target: redactTargetUrl(endpoint.targetUrl) },
     });
 
     return {
@@ -97,13 +154,21 @@ export class NotificationEndpointsService {
     id: string,
     dto: UpdateNotificationEndpointDto,
   ) {
-    await this.findEndpointOrThrow(user.id, id);
+    const existingEndpoint = await this.findEndpointOrThrow(user.id, id);
 
     const data: Record<string, unknown> = {};
+    let targetHostname: string | undefined;
     if (dto.name !== undefined) data.name = dto.name.trim();
     if (dto.target_url !== undefined) {
-      await this.outboundHttpService.validateUrl(dto.target_url);
-      data.targetUrl = dto.target_url;
+      // List/detail responses deliberately hide path and query secrets. The
+      // client sends that masked value back when editing unrelated fields;
+      // preserve the stored target in that case instead of overwriting it or
+      // forcing the user to reveal the secret URL again.
+      if (!isRedactedTargetFor(existingEndpoint.targetUrl, dto.target_url)) {
+        const validatedUrl = await this.outboundHttpService.validateUrl(dto.target_url);
+        data.targetUrl = validatedUrl.url.toString();
+        targetHostname = normalizeHostname(validatedUrl.hostname);
+      }
     }
     if (dto.secret !== undefined) data.secret = this.serializeSecret(dto.secret);
     if (dto.payload_template !== undefined) data.payloadTemplate = dto.payload_template?.trim() || null;
@@ -116,10 +181,66 @@ export class NotificationEndpointsService {
       });
     }
 
-    const endpoint = await this.prisma.notificationEndpoint.update({
-      where: { id },
-      data,
-      select: this.endpointSelect(),
+    const updateEndpoint = (tx: Prisma.TransactionClient) =>
+      tx.notificationEndpoint.update({
+        where: { id },
+        data,
+        select: this.endpointSelect(),
+      });
+    const endpoint = targetHostname
+      ? await this.prisma.$transaction(async (tx) => {
+          await tx.$queryRaw(Prisma.sql`
+            SELECT "id"
+            FROM "users"
+            WHERE "id" = ${user.id}::uuid
+            FOR UPDATE
+          `);
+          const otherEndpoints = await tx.notificationEndpoint.findMany({
+            where: {
+              userId: user.id,
+              deletedAt: null,
+              id: { not: id },
+            },
+            select: { targetUrl: true },
+          });
+          const maxEndpoints = this.getPositiveNumber('WEBHOOK_MAX_ENDPOINTS_PER_USER', 10);
+          const maxEndpointsPerHost = this.getPositiveNumber(
+            'WEBHOOK_MAX_ENDPOINTS_PER_HOST_PER_USER',
+            3,
+          );
+          if (otherEndpoints.length >= maxEndpoints) {
+            throw this.endpointQuotaExceeded('webhook endpoint quota has been reached');
+          }
+          const hostnameCount = otherEndpoints.reduce((count, item) => {
+            try {
+              return normalizeHostname(new URL(item.targetUrl).hostname) === targetHostname
+                ? count + 1
+                : count;
+            } catch {
+              return count;
+            }
+          }, 0);
+          if (hostnameCount >= maxEndpointsPerHost) {
+            throw this.endpointQuotaExceeded('webhook hostname quota has been reached');
+          }
+
+          return updateEndpoint(tx);
+        })
+      : await this.prisma.notificationEndpoint.update({
+          where: { id },
+          data,
+          select: this.endpointSelect(),
+        });
+
+    if (dto.is_enabled === false) {
+      await this.cancelPendingDeliveries(endpoint.id, 'endpoint_disabled');
+    }
+    await this.recordAudit({
+      action: 'webhook_updated',
+      result: 'success',
+      actorUserId: user.id,
+      targetUserId: user.id,
+      metadata: { endpoint_id: endpoint.id, fields: Object.keys(data) },
     });
 
     return {
@@ -141,6 +262,15 @@ export class NotificationEndpointsService {
       select: this.endpointSelect(),
     });
 
+    await this.cancelPendingDeliveries(endpoint.id, 'endpoint_deleted');
+    await this.recordAudit({
+      action: 'webhook_deleted',
+      result: 'success',
+      actorUserId: user.id,
+      targetUserId: user.id,
+      metadata: { endpoint_id: endpoint.id },
+    });
+
     return {
       code: 'OK',
       message: 'success',
@@ -150,6 +280,7 @@ export class NotificationEndpointsService {
 
   async testEndpoint(user: AuthenticatedUser, id: string) {
     const endpoint = await this.findEndpointForDeliveryOrThrow(user.id, id);
+    this.assertTestQuota(user.id, id, new URL(endpoint.targetUrl).hostname);
     const testedAt = new Date();
     const deliveryKind = inferNotificationDeliveryKind(endpoint.targetUrl);
     const isWeComRobot = deliveryKind === 'wecom_robot';
@@ -186,10 +317,16 @@ export class NotificationEndpointsService {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'User-Agent': 'CloudTodo-Webhook-Test/1.0',
+      'X-CloudTodo-Timestamp': String(Math.floor(testedAt.getTime() / 1000)),
+      'X-CloudTodo-Event-Id': 'test_event',
     };
 
     if (secret && !isWeComRobot) {
-      headers['X-CloudTodo-Signature'] = createHmac('sha256', secret).update(body).digest('hex');
+      headers['X-CloudTodo-Signature'] = createHmac('sha256', secret)
+        .update(
+          `${headers['X-CloudTodo-Timestamp']}.${headers['X-CloudTodo-Event-Id']}.${body}`,
+        )
+        .digest('hex');
     }
 
     try {
@@ -210,20 +347,19 @@ export class NotificationEndpointsService {
           data: {
             lastFailureAt: testedAt,
             lastResponseCode: response.status,
-            lastResponseSummary: responseBody.slice(0, 255),
+            lastResponseSummary: !response.ok
+              ? `HTTP ${response.status}`
+              : 'provider rejected the request',
           },
         });
 
         throw new BadRequestException({
           code: 'NOTIFICATION_ENDPOINT_TEST_FAILED',
-          message: !response.ok
-            ? `endpoint test failed with HTTP ${response.status}`
-            : `endpoint test failed: ${this.extractBusinessError(parsedBody)}`,
+          message: 'endpoint test failed',
           details: {
             endpoint_id: endpoint.id,
-            target_url: endpoint.targetUrl,
+            target_url: redactTargetUrl(endpoint.targetUrl),
             status: response.status,
-            response_body: responseBody,
           },
         });
       }
@@ -233,8 +369,16 @@ export class NotificationEndpointsService {
         data: {
           lastSuccessAt: testedAt,
           lastResponseCode: response.status,
-          lastResponseSummary: responseBody.slice(0, 255),
+          lastResponseSummary: `HTTP ${response.status}`,
         },
+      });
+
+      await this.recordAudit({
+        action: 'webhook_tested',
+        result: 'success',
+        actorUserId: user.id,
+        targetUserId: user.id,
+        metadata: { endpoint_id: endpoint.id, status: response.status },
       });
 
       return {
@@ -243,17 +387,22 @@ export class NotificationEndpointsService {
         data: {
           endpoint_id: endpoint.id,
           type: endpoint.type,
-          target_url: endpoint.targetUrl,
+          target_url: redactTargetUrl(endpoint.targetUrl),
           tested_at: testedAt.toISOString(),
           status: 'success',
           provider: isWeComRobot ? 'wecom_robot' : 'standard_webhook',
           response_code: response.status,
-          response_body: responseBody,
-          rendered_body: body,
         },
       };
     } catch (error) {
       if (error instanceof BadRequestException) {
+        await this.recordAudit({
+          action: 'webhook_tested',
+          result: 'failure',
+          actorUserId: user.id,
+          targetUserId: user.id,
+          metadata: { endpoint_id: endpoint.id },
+        });
         throw error;
       }
 
@@ -262,16 +411,24 @@ export class NotificationEndpointsService {
         data: {
           lastFailureAt: testedAt,
           lastResponseCode: null,
-          lastResponseSummary: error instanceof Error ? error.message.slice(0, 255) : 'request failed',
+          lastResponseSummary: 'request failed',
         },
+      });
+
+      await this.recordAudit({
+        action: 'webhook_tested',
+        result: 'failure',
+        actorUserId: user.id,
+        targetUserId: user.id,
+        metadata: { endpoint_id: endpoint.id },
       });
 
       throw new BadRequestException({
         code: 'NOTIFICATION_ENDPOINT_TEST_FAILED',
-        message: error instanceof Error ? error.message : 'endpoint test request failed',
+        message: 'endpoint test request failed',
         details: {
           endpoint_id: endpoint.id,
-          target_url: endpoint.targetUrl,
+          target_url: redactTargetUrl(endpoint.targetUrl),
         },
       });
     }
@@ -342,6 +499,7 @@ export class NotificationEndpointsService {
         id,
         userId,
         deletedAt: null,
+        isEnabled: true,
       },
       select: this.endpointSelect(),
     });
@@ -380,8 +538,107 @@ export class NotificationEndpointsService {
     const { secret, ...publicEndpoint } = endpoint;
     return {
       ...publicEndpoint,
+      provider: inferNotificationDeliveryKind(endpoint.targetUrl),
+      targetUrl: redactTargetUrl(endpoint.targetUrl),
+      lastResponseSummary: endpoint.lastResponseSummary
+        ? redactResponseSummary(endpoint.lastResponseSummary)
+        : null,
       secretExists: Boolean(secret),
     };
+  }
+
+  private assertTestQuota(userId: string, endpointId: string, hostname?: string) {
+    if (!this.rateLimitService) {
+      return;
+    }
+
+    const limit = this.getPositiveNumber('WEBHOOK_TESTS_PER_WINDOW', 5);
+    const windowMs = this.getPositiveNumber('WEBHOOK_TEST_WINDOW_MS', 15 * 60 * 1000);
+    this.rateLimitService.assertAllowed(`webhook:test:user:${userId}`, limit, windowMs);
+    this.rateLimitService.assertAllowed(`webhook:test:endpoint:${endpointId}`, limit, windowMs);
+    if (hostname) {
+      const normalizedHostname = normalizeHostname(hostname);
+      this.rateLimitService.assertAllowed(
+        `webhook:test:user-host:${userId}:${normalizedHostname}`,
+        limit,
+        windowMs,
+      );
+      const globalHostLimit = Math.max(
+        limit * 20,
+        this.getPositiveNumber('WEBHOOK_GLOBAL_HOST_TESTS_PER_WINDOW', limit * 20),
+      );
+      this.rateLimitService.assertAllowed(
+        `webhook:test:host:${normalizedHostname}`,
+        globalHostLimit,
+        windowMs,
+      );
+    }
+  }
+
+  private assertCreateQuota(userId: string, hostname?: string) {
+    if (!this.rateLimitService) {
+      return;
+    }
+    const limit = this.getPositiveNumber('WEBHOOK_CREATES_PER_WINDOW', 5);
+    const windowMs = this.getPositiveNumber('WEBHOOK_CREATE_WINDOW_MS', 60 * 60 * 1000);
+    if (!hostname) {
+      this.rateLimitService.assertAllowed(
+        `webhook:create:user:${userId}`,
+        limit,
+        windowMs,
+      );
+      return;
+    }
+
+    const normalizedHostname = normalizeHostname(hostname);
+    this.rateLimitService.assertAllowed(
+      `webhook:create:user-host:${userId}:${normalizedHostname}`,
+      limit,
+      windowMs,
+    );
+    const globalHostLimit = Math.max(
+      limit * 20,
+      this.getPositiveNumber('WEBHOOK_GLOBAL_HOST_CREATES_PER_WINDOW', limit * 20),
+    );
+    this.rateLimitService.assertAllowed(
+      `webhook:create:host:${normalizedHostname}`,
+      globalHostLimit,
+      windowMs,
+    );
+  }
+
+  private endpointQuotaExceeded(message: string) {
+    return new HttpException(
+      { code: 'WEBHOOK_QUOTA_EXCEEDED', message },
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
+  }
+
+  private async cancelPendingDeliveries(endpointId: string, reason: string) {
+    await this.prisma.notificationDelivery.updateMany({
+      where: {
+        endpointId,
+        status: {
+          in: ['pending', 'failed', 'processing'],
+        },
+      },
+      data: {
+        status: 'dead_letter',
+        nextRetryAt: null,
+        lastError: reason,
+      },
+    });
+  }
+
+  private getPositiveNumber(key: string, fallback: number) {
+    const configured = Number(this.configService?.get<string>(key));
+    return Number.isFinite(configured) && configured > 0 ? configured : fallback;
+  }
+
+  private async recordAudit(input: Parameters<SecurityAuditService['record']>[0]) {
+    if (this.securityAuditService) {
+      await this.securityAuditService.record(input);
+    }
   }
 
   private serializeSecret(secret: string | null | undefined) {
@@ -392,4 +649,36 @@ export class NotificationEndpointsService {
   private deserializeSecret(secret: string | null) {
     return secret ? decryptSecret(secret) : null;
   }
+}
+
+function redactTargetUrl(rawUrl: string) {
+  try {
+    const url = new URL(rawUrl);
+    return `${url.origin}/[redacted]`;
+  } catch {
+    return '[redacted-url]';
+  }
+}
+
+function isRedactedTargetFor(storedUrl: string, submittedUrl: string) {
+  try {
+    const stored = new URL(storedUrl);
+    const submitted = new URL(submittedUrl);
+    return (
+      submitted.origin === stored.origin &&
+      submitted.pathname === '/[redacted]' &&
+      !submitted.search &&
+      !submitted.hash
+    );
+  } catch {
+    return false;
+  }
+}
+
+function redactResponseSummary(summary: string) {
+  return summary.replace(/https?:\/\/[^\s]+/gi, '[redacted-url]').slice(0, 120);
+}
+
+function normalizeHostname(hostname: string) {
+  return hostname.toLowerCase().replace(/\.+$/, '');
 }

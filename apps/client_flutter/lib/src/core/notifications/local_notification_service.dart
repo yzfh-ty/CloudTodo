@@ -17,6 +17,7 @@ class LocalNotificationService {
 
   static const _scheduledIdsKey = 'local_notification_scheduled_ids';
   static const _localNotificationsEnabledKey = 'local_notifications_enabled';
+  static const _showTaskTitleKey = 'local_notifications_show_task_title';
   static const _notificationChannelId = 'cloudtodo_reminders';
 
   final LocalAutostart _autostart;
@@ -26,6 +27,11 @@ class LocalNotificationService {
   bool _initialized = false;
   bool _autostartEnabled = false;
   bool _localNotificationsEnabled = true;
+  bool _showTaskTitle = false;
+  // Account transitions and reminder polling share OS schedules and a
+  // persisted id set. Serialize mutations so a stale cleanup cannot erase
+  // state written by the next account.
+  Future<void> _mutationTail = Future<void>.value();
 
   bool get supportsAutostart => _autostart.isSupported;
   bool get supportsPermissionRequest =>
@@ -37,6 +43,7 @@ class LocalNotificationService {
           defaultTargetPlatform == TargetPlatform.windows);
   bool get autostartEnabled => _autostartEnabled;
   bool get localNotificationsEnabled => _localNotificationsEnabled;
+  bool get showTaskTitle => _showTaskTitle;
 
   Future<void> initialize() async {
     if (_initialized || !supportsLocalNotifications) {
@@ -59,6 +66,7 @@ class LocalNotificationService {
     final preferences = await SharedPreferences.getInstance();
     _localNotificationsEnabled =
         preferences.getBool(_localNotificationsEnabledKey) ?? true;
+    _showTaskTitle = preferences.getBool(_showTaskTitleKey) ?? false;
     _knownScheduledIds =
         (preferences.getStringList(_scheduledIdsKey) ?? const [])
             .map(int.tryParse)
@@ -86,6 +94,38 @@ class LocalNotificationService {
     _scheduledReminderKeys.clear();
   }
 
+  /// Removes scheduled and in-memory reminder state owned by the previous
+  /// account. Refresh/logout transitions call this before a new account can
+  /// start scheduling notifications.
+  Future<void> clearAccountState() {
+    return _serializeMutation(_clearAccountState);
+  }
+
+  Future<void> _clearAccountState() async {
+    final scheduledIds = _knownScheduledIds.toList(growable: false);
+    final allScheduledIds = <int>{
+      ...scheduledIds,
+      ..._scheduledReminderKeys.keys,
+    };
+    _knownScheduledIds = <int>{};
+    _scheduledReminderKeys.clear();
+    if (_initialized) {
+      for (final id in allScheduledIds) {
+        try {
+          await _plugin.cancel(id: id);
+        } catch (_) {
+          // A platform notification provider may already be unavailable.
+        }
+      }
+    }
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setStringList(_scheduledIdsKey, const []);
+    } catch (_) {
+      // In-memory state is still cleared when preferences are unavailable.
+    }
+  }
+
   Future<bool> requestPermission() async {
     await initialize();
     if (defaultTargetPlatform != TargetPlatform.android) {
@@ -102,7 +142,11 @@ class LocalNotificationService {
     _autostartEnabled = enabled && supportsAutostart;
   }
 
-  Future<void> setLocalNotificationsEnabled(bool enabled) async {
+  Future<void> setLocalNotificationsEnabled(bool enabled) {
+    return _serializeMutation(() => _setLocalNotificationsEnabled(enabled));
+  }
+
+  Future<void> _setLocalNotificationsEnabled(bool enabled) async {
     await initialize();
     _localNotificationsEnabled = enabled;
     final preferences = await SharedPreferences.getInstance();
@@ -119,8 +163,53 @@ class LocalNotificationService {
     await preferences.setStringList(_scheduledIdsKey, const []);
   }
 
-  Future<void> syncReminders(List<ReminderItem> reminders) async {
+  Future<void> setShowTaskTitle(bool enabled) {
+    return _serializeMutation(() => _setShowTaskTitle(enabled));
+  }
+
+  Future<void> _setShowTaskTitle(bool enabled) async {
+    if (_showTaskTitle == enabled) {
+      return;
+    }
+    _showTaskTitle = enabled;
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setBool(_showTaskTitleKey, enabled);
+    // Existing OS schedules contain the old body text. Cancel them so a
+    // privacy change cannot leave stale task titles on the lock screen; the
+    // next reminder poll will schedule them with the new setting.
+    final scheduledIds = _knownScheduledIds.toList(growable: false);
+    for (final id in scheduledIds) {
+      try {
+        await _plugin.cancel(id: id);
+      } catch (_) {
+        // Best effort: the preference still takes effect for future events.
+      }
+    }
+    _knownScheduledIds = <int>{};
+    _scheduledReminderKeys.clear();
+    await preferences.setStringList(_scheduledIdsKey, const []);
+  }
+
+  Future<void> syncReminders(
+    List<ReminderItem> reminders, {
+    bool Function()? isSessionCurrent,
+  }) {
+    return _serializeMutation(
+      () => _syncReminders(reminders, isSessionCurrent: isSessionCurrent),
+    );
+  }
+
+  Future<void> _syncReminders(
+    List<ReminderItem> reminders, {
+    bool Function()? isSessionCurrent,
+  }) async {
+    if (isSessionCurrent != null && !isSessionCurrent()) {
+      return;
+    }
     await initialize();
+    if (isSessionCurrent != null && !isSessionCurrent()) {
+      return;
+    }
     if (!_initialized) {
       return;
     }
@@ -132,12 +221,18 @@ class LocalNotificationService {
     final activeIds =
         localReminders.map((item) => _notificationId(item.id)).toSet();
     for (final staleId in _knownScheduledIds.difference(activeIds)) {
+      if (isSessionCurrent != null && !isSessionCurrent()) {
+        return;
+      }
       await _plugin.cancel(id: staleId);
     }
 
     if (defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.windows) {
       for (final reminder in localReminders) {
+        if (isSessionCurrent != null && !isSessionCurrent()) {
+          return;
+        }
         try {
           await _scheduleNative(reminder);
         } catch (_) {
@@ -151,6 +246,9 @@ class LocalNotificationService {
             defaultTargetPlatform == TargetPlatform.windows)
         ? activeIds
         : <int>{};
+    if (isSessionCurrent != null && !isSessionCurrent()) {
+      return;
+    }
     final preferences = await SharedPreferences.getInstance();
     await preferences.setStringList(
       _scheduledIdsKey,
@@ -158,7 +256,11 @@ class LocalNotificationService {
     );
   }
 
-  Future<void> cancelReminder(String reminderId) async {
+  Future<void> cancelReminder(String reminderId) {
+    return _serializeMutation(() => _cancelReminder(reminderId));
+  }
+
+  Future<void> _cancelReminder(String reminderId) async {
     await initialize();
     if (!_initialized) {
       return;
@@ -176,13 +278,21 @@ class LocalNotificationService {
     );
   }
 
-  Future<bool> shouldShowEvent(ReminderEventItem event) async {
+  Future<bool> shouldShowEvent(ReminderEventItem event) {
+    return _serializeMutation(() => _shouldShowEvent(event));
+  }
+
+  Future<bool> _shouldShowEvent(ReminderEventItem event) async {
     await initialize();
     return _localNotificationsEnabled &&
         !_knownScheduledIds.contains(_notificationId(event.reminderId));
   }
 
-  Future<void> showEvent(ReminderEventItem event) async {
+  Future<void> showEvent(ReminderEventItem event) {
+    return _serializeMutation(() => _showEvent(event));
+  }
+
+  Future<void> _showEvent(ReminderEventItem event) async {
     await initialize();
     if (!_initialized || !_localNotificationsEnabled) {
       return;
@@ -191,10 +301,34 @@ class LocalNotificationService {
     await _plugin.show(
       id: _notificationId(event.reminderId),
       title: 'CloudTodo 提醒',
-      body: event.todoTitle,
+      body: notificationBodyForTask(event.todoTitle),
       notificationDetails: _notificationDetails,
       payload: event.todoId,
     );
+    _knownScheduledIds.add(_notificationId(event.reminderId));
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setStringList(
+        _scheduledIdsKey,
+        _knownScheduledIds
+            .map((value) => value.toString())
+            .toList(growable: false),
+      );
+    } catch (_) {
+      // The OS notification is still shown when preferences are unavailable.
+    }
+  }
+
+  Future<T> _serializeMutation<T>(Future<T> Function() action) {
+    final completer = Completer<T>();
+    _mutationTail = _mutationTail.then<void>((_) async {
+      try {
+        completer.complete(await action());
+      } catch (error, stackTrace) {
+        completer.completeError(error, stackTrace);
+      }
+    });
+    return completer.future;
   }
 
   bool _isLocalReminder(ReminderItem reminder) {
@@ -236,7 +370,7 @@ class LocalNotificationService {
     await _plugin.zonedSchedule(
       id: id,
       title: 'CloudTodo 提醒',
-      body: reminder.todoTitle,
+      body: notificationBodyForTask(reminder.todoTitle),
       scheduledDate: scheduledDate,
       notificationDetails: _notificationDetails,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
@@ -259,6 +393,11 @@ class LocalNotificationService {
         ),
         windows: WindowsNotificationDetails(),
       );
+
+  @visibleForTesting
+  String notificationBodyForTask(String todoTitle) {
+    return _showTaskTitle ? todoTitle : '你有一条待办提醒';
+  }
 
   int _notificationId(String value) {
     var hash = 0x811c9dc5;

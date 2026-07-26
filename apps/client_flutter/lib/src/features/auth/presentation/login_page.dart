@@ -160,7 +160,8 @@ class _LoginPageState extends State<LoginPage> {
                         controller: _backendUrlController,
                         decoration: const InputDecoration(
                           labelText: '后端地址',
-                          helperText: '例如 http://localhost:3000/api',
+                          helperText:
+                              '生产环境使用 HTTPS，例如 https://api.example.com/api',
                         ),
                         validator: (value) =>
                             appController.validateApiBaseUrl(value ?? ''),

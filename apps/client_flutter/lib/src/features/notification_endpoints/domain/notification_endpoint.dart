@@ -2,6 +2,7 @@ class NotificationEndpoint {
   const NotificationEndpoint({
     required this.id,
     required this.type,
+    required this.provider,
     required this.name,
     required this.targetUrl,
     required this.payloadTemplate,
@@ -16,6 +17,7 @@ class NotificationEndpoint {
 
   final String id;
   final String type;
+  final String provider;
   final String name;
   final String targetUrl;
   final String? payloadTemplate;
@@ -31,6 +33,7 @@ class NotificationEndpoint {
     return NotificationEndpoint(
       id: json['id'] as String,
       type: json['type'] as String? ?? 'webhook',
+      provider: json['provider'] as String? ?? 'standard_webhook',
       name: json['name'] as String? ?? '',
       targetUrl: json['targetUrl'] as String? ?? '',
       payloadTemplate: json['payloadTemplate'] as String?,

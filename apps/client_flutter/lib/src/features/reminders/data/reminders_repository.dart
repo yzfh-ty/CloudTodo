@@ -7,12 +7,16 @@ class RemindersRepository {
   RemindersRepository(
     this._apiClient, {
     required LocalNotificationService localNotificationService,
-  }) : _localNotificationService = localNotificationService;
+    int Function()? sessionGeneration,
+  })  : _localNotificationService = localNotificationService,
+        _sessionGeneration = sessionGeneration;
 
   final ApiClient _apiClient;
   final LocalNotificationService _localNotificationService;
+  final int Function()? _sessionGeneration;
 
   Future<List<ReminderItem>> getUpcomingReminders() async {
+    final generation = _sessionGeneration?.call();
     final reminders = await _apiClient.get(
       '/reminders/upcoming',
       parser: (data) {
@@ -24,7 +28,11 @@ class RemindersRepository {
             .toList(growable: false);
       },
     );
-    await _localNotificationService.syncReminders(reminders);
+    _ensureSession(generation);
+    await _localNotificationService.syncReminders(
+      reminders,
+      isSessionCurrent: () => _isSessionCurrent(generation),
+    );
     return reminders;
   }
 
@@ -35,6 +43,7 @@ class RemindersRepository {
     required String repeatType,
     Map<String, dynamic>? repeatRule,
   }) async {
+    final generation = _sessionGeneration?.call();
     final reminder = await _apiClient.post(
       '/todos/$todoId/reminders',
       body: {
@@ -45,7 +54,11 @@ class RemindersRepository {
       },
       parser: (data) => ReminderItem.fromJson(data as Map<String, dynamic>),
     );
-    await _localNotificationService.syncReminders([reminder]);
+    _ensureSession(generation);
+    await _localNotificationService.syncReminders(
+      [reminder],
+      isSessionCurrent: () => _isSessionCurrent(generation),
+    );
     return reminder;
   }
 
@@ -56,6 +69,7 @@ class RemindersRepository {
     required String repeatType,
     Map<String, dynamic>? repeatRule,
   }) async {
+    final generation = _sessionGeneration?.call();
     final reminder = await _apiClient.patch(
       '/reminders/$reminderId',
       body: {
@@ -66,15 +80,21 @@ class RemindersRepository {
       },
       parser: (data) => ReminderItem.fromJson(data as Map<String, dynamic>),
     );
-    await _localNotificationService.syncReminders([reminder]);
+    _ensureSession(generation);
+    await _localNotificationService.syncReminders(
+      [reminder],
+      isSessionCurrent: () => _isSessionCurrent(generation),
+    );
     return reminder;
   }
 
   Future<ReminderItem> deleteReminder(String reminderId) async {
+    final generation = _sessionGeneration?.call();
     final reminder = await _apiClient.delete(
       '/reminders/$reminderId',
       parser: (data) => ReminderItem.fromJson(data as Map<String, dynamic>),
     );
+    _ensureSession(generation);
     await _localNotificationService.cancelReminder(reminderId);
     return reminder;
   }
@@ -106,5 +126,14 @@ class RemindersRepository {
       parser: (data) =>
           ReminderEventItem.fromJson(data as Map<String, dynamic>),
     );
+  }
+
+  bool _isSessionCurrent(int? generation) =>
+      generation == null || _sessionGeneration?.call() == generation;
+
+  void _ensureSession(int? generation) {
+    if (!_isSessionCurrent(generation)) {
+      throw const SessionChangedException();
+    }
   }
 }

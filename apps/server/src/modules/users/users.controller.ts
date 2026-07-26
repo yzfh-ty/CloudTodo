@@ -4,6 +4,7 @@ import type { AuthenticatedUser } from '../auth/user-session.service';
 import { UserApiSessionGuard } from '../auth/guards/user-api-session.guard';
 import { UpdateMeDto } from './dto/update-me.dto';
 import { UsersService } from './users.service';
+import { AllowPasswordChangeSession } from '../auth/decorators/allow-password-change-session.decorator';
 
 @Controller('users')
 @UseGuards(UserApiSessionGuard)
@@ -11,6 +12,7 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get('me')
+  @AllowPasswordChangeSession()
   getMe(@CurrentUser() user: AuthenticatedUser) {
     return this.usersService.getMe(user);
   }

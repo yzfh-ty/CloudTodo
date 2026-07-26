@@ -38,10 +38,7 @@ extension _SettingsPageEndpointActions on _SettingsPageState {
       builder: (context) {
         return NotificationEndpointEditorDialog(
           initialValue: NotificationEndpointFormData(
-            deliveryKind:
-                item.targetUrl.contains('weixin.qq.com/cgi-bin/webhook/send')
-                    ? 'wecom_robot'
-                    : 'standard_webhook',
+            deliveryKind: item.provider,
             name: item.name,
             targetUrl: item.targetUrl,
             payloadTemplate: item.payloadTemplate ?? '',

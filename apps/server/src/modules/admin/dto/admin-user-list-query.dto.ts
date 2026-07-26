@@ -1,10 +1,11 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsDateString, IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { UserRole, UserStatus } from '@prisma/client';
 
 export class AdminUserListQueryDto {
   @IsOptional()
   @IsString()
+  @MaxLength(128)
   keyword?: string;
 
   @IsOptional()
@@ -35,6 +36,7 @@ export class AdminUserListQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(500)
   page?: number;
 
   @IsOptional()

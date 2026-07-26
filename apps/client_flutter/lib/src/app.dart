@@ -131,19 +131,38 @@ class _AppState extends State<App> {
 
   Future<void> _pollReminderEvents() async {
     final services = widget.controller.services;
-    if (!services.sessionController.isAuthenticated || !mounted) {
+    final sessionController = services.sessionController;
+    final generation = sessionController.sessionGeneration;
+    final userId = sessionController.currentUser?.id;
+    if (!sessionController.isAuthenticated || userId == null || !mounted) {
       return;
     }
 
+    bool isSessionCurrent() =>
+        mounted &&
+        identical(widget.controller.services, services) &&
+        sessionController.isAuthenticated &&
+        sessionController.sessionGeneration == generation &&
+        sessionController.currentUser?.id == userId;
+
     try {
       await services.remindersRepository.getUpcomingReminders();
+      if (!isSessionCurrent()) {
+        return;
+      }
       final events = await services.remindersRepository.getPendingLocalEvents();
       for (final event in events) {
-        if (!mounted) {
+        if (!isSessionCurrent()) {
           return;
         }
         if (await services.localNotificationService.shouldShowEvent(event)) {
+          if (!isSessionCurrent()) {
+            return;
+          }
           await services.localNotificationService.showEvent(event);
+        }
+        if (!isSessionCurrent()) {
+          return;
         }
         await services.remindersRepository.ackReminderEvent(event.id);
       }

@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   NotificationDeliveryStatus,
@@ -7,10 +7,13 @@ import {
   ReminderEventStatus,
   ReminderRepeatType,
   ReminderStatus,
+  TodoStatus,
+  UserStatus,
 } from '@prisma/client';
 import { createHmac } from 'node:crypto';
 import { PrismaService } from '../../common/database/prisma.service';
 import { OutboundHttpService } from '../../common/security/outbound-http.service';
+import { SecurityAuditService } from '../../common/security/security-audit.service';
 import { decryptSecret } from '../../common/security/secret.util';
 import {
   defaultPayloadTemplate,
@@ -31,6 +34,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
     private readonly outboundHttpService: OutboundHttpService,
+    @Optional() private readonly securityAuditService?: SecurityAuditService,
   ) {}
 
   onModuleInit() {
@@ -176,6 +180,12 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
             reminder.channel === ReminderChannel.webhook ||
             reminder.channel === ReminderChannel.both
           ) {
+            await tx.$queryRaw(Prisma.sql`
+              SELECT "id"
+              FROM "users"
+              WHERE "id" = ${reminder.userId}::uuid
+              FOR UPDATE
+            `);
             const endpoints = await tx.notificationEndpoint.findMany({
               where: {
                 userId: reminder.userId,
@@ -187,8 +197,38 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
                 id: true,
               },
             });
+            const pendingLimit = this.getPositiveNumber(
+              'WEBHOOK_MAX_PENDING_DELIVERIES_PER_USER',
+              500,
+            );
+            const dailyLimit = this.getPositiveNumber(
+              'WEBHOOK_MAX_DAILY_DELIVERIES_PER_USER',
+              1000,
+            );
+            const pendingCount = await tx.notificationDelivery.count({
+              where: {
+                reminderEvent: { userId: reminder.userId },
+                status: {
+                  in: [
+                    NotificationDeliveryStatus.pending,
+                    NotificationDeliveryStatus.failed,
+                    NotificationDeliveryStatus.processing,
+                  ],
+                },
+              },
+            });
+            const dailyCount = await tx.notificationDelivery.count({
+              where: {
+                reminderEvent: { userId: reminder.userId },
+                createdAt: { gt: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+              },
+            });
+            const availableSlots = Math.max(
+              0,
+              Math.min(pendingLimit - pendingCount, dailyLimit - dailyCount),
+            );
 
-            for (const endpoint of endpoints) {
+            for (const endpoint of endpoints.slice(0, availableSlots)) {
               await tx.notificationDelivery.create({
                 data: {
                   reminderEventId: event.id,
@@ -215,13 +255,11 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     this.deliveryTickRunning = true;
 
     try {
+      const scanStartedAt = new Date();
+      const processingLeaseMs = this.getDeliveryProcessingLeaseMs();
+      const leaseCutoff = new Date(scanStartedAt.getTime() - processingLeaseMs);
       const deliveries = await this.prisma.notificationDelivery.findMany({
-        where: {
-          status: {
-            in: [NotificationDeliveryStatus.pending, NotificationDeliveryStatus.failed],
-          },
-          OR: [{ nextRetryAt: null }, { nextRetryAt: { lte: new Date() } }],
-        },
+        where: this.claimableDeliveryWhere(scanStartedAt, leaseCutoff),
         take: 20,
         orderBy: {
           createdAt: 'asc',
@@ -233,23 +271,30 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       });
 
       for (const delivery of deliveries) {
-        const claimed = await this.prisma.notificationDelivery.updateMany({
+        const claimedAt = new Date();
+        const claimLeaseCutoff = new Date(claimedAt.getTime() - processingLeaseMs);
+        const [claim] = await this.prisma.notificationDelivery.updateManyAndReturn({
           where: {
             id: delivery.id,
-            status: {
-              in: [NotificationDeliveryStatus.pending, NotificationDeliveryStatus.failed],
-            },
+            ...this.claimableDeliveryWhere(claimedAt, claimLeaseCutoff),
           },
           data: {
             status: NotificationDeliveryStatus.processing,
+            updatedAt: claimedAt,
+          },
+          select: {
+            id: true,
+            updatedAt: true,
           },
         });
 
-        if (claimed.count === 0) {
+        if (!claim) {
           continue;
         }
 
-        await this.deliverWebhook(delivery.id);
+        // The sync watermark trigger replaces Prisma's timestamp with the
+        // database clock. Its RETURNING value is the lease ownership token.
+        await this.deliverWebhook(claim.id, claim.updatedAt);
       }
     } catch (error) {
       this.logger.error('Failed to process pending deliveries', error as Error);
@@ -258,16 +303,79 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async deliverWebhook(deliveryId: string) {
+  private async deliverWebhook(deliveryId: string, claimUpdatedAt: Date) {
     const delivery = await this.prisma.notificationDelivery.findUnique({
       where: { id: deliveryId },
       include: {
         endpoint: true,
-        reminderEvent: true,
+        reminderEvent: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                status: true,
+                timezone: true,
+              },
+            },
+            todo: {
+              select: {
+                id: true,
+                userId: true,
+                title: true,
+                description: true,
+                status: true,
+                priority: true,
+                dueAt: true,
+                deletedAt: true,
+              },
+            },
+            reminder: {
+              select: {
+                id: true,
+                userId: true,
+                todoId: true,
+                status: true,
+                deletedAt: true,
+              },
+            },
+          },
+        },
       },
     });
 
-    if (!delivery) {
+    if (
+      !delivery ||
+      delivery.status !== NotificationDeliveryStatus.processing ||
+      delivery.updatedAt.getTime() !== claimUpdatedAt.getTime()
+    ) {
+      return;
+    }
+
+    const eventUser = delivery.reminderEvent.user;
+    const todo = delivery.reminderEvent.todo;
+    const reminder = delivery.reminderEvent.reminder;
+    if (
+      delivery.endpoint.deletedAt ||
+      !delivery.endpoint.isEnabled ||
+      delivery.endpoint.userId !== delivery.reminderEvent.userId ||
+      !eventUser ||
+      eventUser.status !== UserStatus.active ||
+      !todo ||
+      todo.userId !== delivery.reminderEvent.userId ||
+      todo.deletedAt ||
+      todo.status === TodoStatus.deleted ||
+      !reminder ||
+      reminder.userId !== delivery.reminderEvent.userId ||
+      reminder.todoId !== todo.id ||
+      reminder.deletedAt ||
+      reminder.status === ReminderStatus.cancelled
+    ) {
+      await this.cancelDelivery(
+        delivery.id,
+        claimUpdatedAt,
+        'delivery target is no longer active',
+        delivery.reminderEvent.userId,
+      );
       return;
     }
 
@@ -291,21 +399,37 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
         scheduled_for: delivery.reminderEvent.scheduledFor.toISOString(),
         triggered_at: delivery.reminderEvent.triggeredAt.toISOString(),
         user_id: delivery.reminderEvent.userId,
-        user_timezone: '',
-        todo_id: payloadObject.todo_id ?? '',
-        todo_title: payloadObject.todo_title ?? '',
-        todo_description: payloadObject.todo_description ?? '',
-        todo_status: payloadObject.todo_status ?? '',
-        todo_priority: payloadObject.todo_priority ?? '',
-        todo_due_at: payloadObject.todo_due_at ?? '',
-        payload_json: delivery.reminderEvent.payload,
-        payload_text: JSON.stringify(delivery.reminderEvent.payload),
+        user_timezone: eventUser.timezone,
+        todo_id: todo.id,
+        todo_title: todo.title,
+        todo_description: todo.description ?? '',
+        todo_status: todo.status,
+        todo_priority: todo.priority,
+        todo_due_at: todo.dueAt?.toISOString() ?? '',
+        payload_json: {
+          ...payloadObject,
+          todo_id: todo.id,
+          todo_title: todo.title,
+          todo_description: todo.description,
+          todo_status: todo.status,
+          todo_priority: todo.priority,
+          todo_due_at: todo.dueAt?.toISOString() ?? null,
+        },
+        payload_text: JSON.stringify({
+          ...payloadObject,
+          todo_id: todo.id,
+          todo_title: todo.title,
+          todo_status: todo.status,
+        }),
       },
     );
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'User-Agent': 'CloudTodo-Webhook-Worker/1.0',
+      'X-CloudTodo-Timestamp': String(Math.floor(Date.now() / 1000)),
+      'X-CloudTodo-Event-Id': delivery.reminderEventId,
+      'X-CloudTodo-Delivery-Id': delivery.id,
     };
 
     let requestUrl = delivery.endpoint.targetUrl;
@@ -322,7 +446,9 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       requestUrl = url.toString();
     } else if (endpointSecret) {
       headers['X-CloudTodo-Signature'] = createHmac('sha256', endpointSecret)
-        .update(body)
+        .update(
+          `${headers['X-CloudTodo-Timestamp']}.${headers['X-CloudTodo-Event-Id']}.${body}`,
+        )
         .digest('hex');
     }
 
@@ -338,79 +464,112 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
         parsedBody.errcode !== 0;
 
       if (response.ok && !weComBusinessFailed) {
-        await this.prisma.$transaction([
-          this.prisma.notificationDelivery.update({
-            where: { id: delivery.id },
+        const completedAt = new Date();
+        const transitioned = await this.prisma.$transaction(async (tx) => {
+          const updated = await tx.notificationDelivery.updateMany({
+            where: {
+              id: delivery.id,
+              status: NotificationDeliveryStatus.processing,
+              updatedAt: claimUpdatedAt,
+            },
             data: {
               status: NotificationDeliveryStatus.success,
               attemptCount: { increment: 1 },
               responseCode: response.status,
-              responseBody,
-              deliveredAt: new Date(),
+              responseBody: null,
+              deliveredAt: completedAt,
               nextRetryAt: null,
               lastError: null,
             },
-          }),
-          this.prisma.notificationEndpoint.update({
+          });
+
+          if (updated.count === 0) {
+            return false;
+          }
+
+          await tx.notificationEndpoint.update({
             where: { id: delivery.endpointId },
             data: {
-              lastSuccessAt: new Date(),
+              lastSuccessAt: completedAt,
               lastResponseCode: response.status,
-              lastResponseSummary: responseBody.slice(0, 255),
+              lastResponseSummary: `HTTP ${response.status}`,
             },
-          }),
-          ...(delivery.reminderEvent.channel === ReminderChannel.both
-            ? []
-            : [
-                this.prisma.reminderEvent.update({
-                  where: { id: delivery.reminderEventId },
-                  data: {
-                    status: ReminderEventStatus.processed,
-                  },
-                }),
-              ]),
-        ]);
+          });
+
+          if (delivery.reminderEvent.channel !== ReminderChannel.both) {
+            await tx.reminderEvent.update({
+              where: { id: delivery.reminderEventId },
+              data: {
+                status: ReminderEventStatus.processed,
+              },
+            });
+          }
+
+          return true;
+        });
+
+        if (!transitioned) {
+          return;
+        }
+
+        await this.recordDeliveryAudit(
+          'webhook_delivery_succeeded',
+          'success',
+          delivery.reminderEvent.userId,
+          delivery.id,
+          { endpoint_id: delivery.endpointId, status: response.status },
+        );
 
         return;
       }
 
       await this.markDeliveryFailure(
         delivery.id,
+        claimUpdatedAt,
         delivery.endpointId,
         delivery.attemptCount + 1,
         !response.ok
-          ? `HTTP ${response.status}`
-          : this.extractBusinessError(parsedBody),
+          ? 'WEBHOOK_HTTP_ERROR'
+          : 'WEBHOOK_PROVIDER_REJECTED',
         response.status,
-        responseBody,
+        delivery.reminderEvent.userId,
       );
-    } catch (error) {
+    } catch {
       await this.markDeliveryFailure(
         delivery.id,
+        claimUpdatedAt,
         delivery.endpointId,
         delivery.attemptCount + 1,
-        error instanceof Error ? error.message : 'unknown delivery error',
+        'WEBHOOK_REQUEST_FAILED',
+        undefined,
+        delivery.reminderEvent.userId,
       );
     }
   }
 
   private async markDeliveryFailure(
     deliveryId: string,
+    claimUpdatedAt: Date,
     endpointId: string,
     nextAttemptCount: number,
     lastError: string,
     responseCode?: number,
-    responseBody?: string,
+    userId?: string,
   ) {
     const maxAttempts = Number(this.configService.get<string>('DELIVERY_MAX_ATTEMPTS') ?? 3);
     const shouldDeadLetter = nextAttemptCount >= maxAttempts;
     const nextRetryAt = shouldDeadLetter
       ? null
       : new Date(Date.now() + nextAttemptCount * 30 * 1000);
+    const failedAt = new Date();
 
-    await this.prisma.$transaction([
-      this.prisma.notificationDelivery.update({
-        where: { id: deliveryId },
+    const transitioned = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.notificationDelivery.updateMany({
+        where: {
+          id: deliveryId,
+          status: NotificationDeliveryStatus.processing,
+          updatedAt: claimUpdatedAt,
+        },
         data: {
           status: shouldDeadLetter
             ? NotificationDeliveryStatus.dead_letter
@@ -419,18 +578,92 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
           nextRetryAt,
           lastError,
           responseCode,
-          responseBody,
+          responseBody: null,
         },
-      }),
-      this.prisma.notificationEndpoint.update({
+      });
+
+      if (updated.count === 0) {
+        return false;
+      }
+
+      await tx.notificationEndpoint.update({
         where: { id: endpointId },
         data: {
-          lastFailureAt: new Date(),
+          lastFailureAt: failedAt,
           lastResponseCode: responseCode ?? null,
-          lastResponseSummary: (responseBody ?? lastError).slice(0, 255),
+          lastResponseSummary: responseCode ? `HTTP ${responseCode}` : 'request failed',
         },
-      }),
-    ]);
+      });
+
+      return true;
+    });
+
+    if (!transitioned) {
+      return;
+    }
+
+    if (userId) {
+      await this.recordDeliveryAudit(
+        'webhook_delivery_failed',
+        shouldDeadLetter ? 'blocked' : 'failure',
+        userId,
+        deliveryId,
+        { endpoint_id: endpointId, response_code: responseCode ?? null },
+      );
+    }
+  }
+
+  private async cancelDelivery(
+    deliveryId: string,
+    claimUpdatedAt: Date,
+    reason: string,
+    userId: string,
+  ) {
+    const updated = await this.prisma.notificationDelivery.updateMany({
+      where: {
+        id: deliveryId,
+        status: NotificationDeliveryStatus.processing,
+        updatedAt: claimUpdatedAt,
+      },
+      data: {
+        status: NotificationDeliveryStatus.dead_letter,
+        nextRetryAt: null,
+        responseBody: null,
+        lastError: reason,
+      },
+    });
+
+    if (updated.count === 0) {
+      return;
+    }
+
+    await this.recordDeliveryAudit(
+      'webhook_delivery_blocked',
+      'blocked',
+      userId,
+      deliveryId,
+      { reason },
+    );
+  }
+
+  private async recordDeliveryAudit(
+    action: Parameters<SecurityAuditService['record']>[0]['action'],
+    result: Parameters<SecurityAuditService['record']>[0]['result'],
+    userId: string,
+    deliveryId: string,
+    metadata: Record<string, unknown>,
+  ) {
+    if (!this.securityAuditService) {
+      return;
+    }
+
+    await this.securityAuditService.record({
+      action,
+      result,
+      actorUserId: userId,
+      targetUserId: userId,
+      metadata: { delivery_id: deliveryId, ...metadata },
+    });
   }
 
   private tryParseJson(responseBody: string) {
@@ -441,17 +674,37 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private extractBusinessError(payload: Record<string, unknown> | null) {
-    if (!payload) {
-      return 'unknown business error';
-    }
+  private claimableDeliveryWhere(
+    retryCutoff: Date,
+    leaseCutoff: Date,
+  ): Prisma.NotificationDeliveryWhereInput {
+    return {
+      OR: [
+        {
+          status: {
+            in: [NotificationDeliveryStatus.pending, NotificationDeliveryStatus.failed],
+          },
+          OR: [{ nextRetryAt: null }, { nextRetryAt: { lte: retryCutoff } }],
+        },
+        {
+          status: NotificationDeliveryStatus.processing,
+          updatedAt: { lte: leaseCutoff },
+        },
+      ],
+    };
+  }
 
-    const errCode = payload.errcode;
-    const errMsg = payload.errmsg;
-    if (typeof errCode === 'number' || typeof errMsg === 'string') {
-      return `${errCode ?? 'unknown'} ${errMsg ?? ''}`.trim();
-    }
+  private getDeliveryProcessingLeaseMs() {
+    const requestTimeoutMs = this.getPositiveNumber('WEBHOOK_REQUEST_TIMEOUT_MS', 5000);
+    const configuredLeaseMs = this.getPositiveNumber(
+      'DELIVERY_PROCESSING_LEASE_MS',
+      60_000,
+    );
+    return Math.max(configuredLeaseMs, requestTimeoutMs * 3);
+  }
 
-    return 'unknown business error';
+  private getPositiveNumber(key: string, fallback: number) {
+    const configured = Number(this.configService.get<string>(key));
+    return Number.isFinite(configured) && configured > 0 ? configured : fallback;
   }
 }
