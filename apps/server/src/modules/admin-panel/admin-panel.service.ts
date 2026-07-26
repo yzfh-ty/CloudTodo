@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { AuthenticatedAdmin } from '../admin/admin-session.service';
 import { ADMIN_PANEL_STYLES } from './admin-panel.styles';
+import { ADMIN_AUDIT_MENU_BUTTON, ADMIN_AUDIT_SCRIPT, ADMIN_AUDIT_SECTION_HTML } from './admin-panel.audit';
 import {
   ADMIN_MFA_MENU_BUTTON,
   ADMIN_MFA_SCRIPT,
@@ -48,7 +49,7 @@ export class AdminPanelService {
               <strong>操作日志</strong>
               <span>查看管理员操作记录与筛选分页</span>
             </button>
-${ADMIN_MFA_MENU_BUTTON}
+${ADMIN_MFA_MENU_BUTTON}${ADMIN_AUDIT_MENU_BUTTON}
           </div>
         </aside>
 
@@ -263,7 +264,7 @@ ${ADMIN_MFA_MENU_BUTTON}
               </div>
             </section>
           </section>
-${ADMIN_MFA_SECTION_HTML}
+${ADMIN_MFA_SECTION_HTML}${ADMIN_AUDIT_SECTION_HTML}
 
         </div>
       </div>
@@ -418,8 +419,7 @@ ${ADMIN_MFA_SECTION_HTML}
           const mfaCode = json?.code === 'MFA_CONFIRMATION_REQUIRED' && !options.mfaPrompted
             ? window.prompt('该操作需要动态口令确认，请输入 6 位口令或恢复码：') : null;
           if (mfaCode && mfaCode.trim()) {
-            return fetchJson(url, { ...options, mfaPrompted: true,
-              headers: { ...headers, 'X-CloudTodo-MFA-Code': mfaCode.trim() } });
+            return fetchJson(url, { ...options, mfaPrompted: true, headers: { ...headers, 'X-CloudTodo-MFA-Code': mfaCode.trim() } });
           }
           throw new Error(json?.message || '请求失败');
         }
@@ -885,7 +885,7 @@ ${ADMIN_MFA_SECTION_HTML}
       });
 
       loadPage();
-${ADMIN_MFA_SCRIPT}
+${ADMIN_MFA_SCRIPT}${ADMIN_AUDIT_SCRIPT}
     </script>
   </body>
 </html>`;

@@ -37,8 +37,17 @@ describe('security request context', () => {
   it('automatically enriches and sanitizes an audit event', async () => {
     const requestContext = new SecurityRequestContextService();
     const create = jest.fn().mockResolvedValue({});
+    const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(0),
+      securityAuditLog: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create,
+      },
+    };
     const audit = new SecurityAuditService(
-      { securityAuditLog: { create } } as never,
+      {
+        $transaction: (callback: (client: typeof tx) => Promise<unknown>) => callback(tx),
+      } as never,
       requestContext,
     );
 
@@ -64,6 +73,8 @@ describe('security request context', () => {
         requestId: 'audit-42',
         sessionId: createHash('sha256').update('session-secret').digest('hex'),
         metadata: { refreshToken: '[REDACTED]' },
+        prevHash: '0'.repeat(64),
+        entryHash: expect.stringMatching(/^[0-9a-f]{64}$/),
       }),
     });
   });

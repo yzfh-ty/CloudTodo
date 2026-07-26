@@ -453,9 +453,13 @@ model SecurityAuditLog {
   requestId    String?             @map("request_id") @db.VarChar(128)
   metadata     Json?
   createdAt    DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  chainSeq     BigInt              @default(autoincrement()) @map("chain_seq")
+  prevHash     String?             @map("prev_hash") @db.VarChar(64)
+  entryHash    String?             @map("entry_hash") @db.VarChar(64)
   actorUser    User?               @relation("SecurityAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
   targetUser   User?               @relation("SecurityAuditTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
 
+  @@unique([chainSeq])
   @@index([actorUserId, createdAt(sort: Desc)])
   @@index([targetUserId, createdAt(sort: Desc)])
   @@index([action, createdAt(sort: Desc)])

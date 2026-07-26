@@ -436,6 +436,8 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     };
 
     let requestUrl = delivery.endpoint.targetUrl;
+    // WeCom's fixed scheme signs only "{timestamp}\n{secret}" — body integrity
+    // cannot be provided for these targets; see docs/README-security.md §3.
     if (isWeComRobot && endpointSecret) {
       const timestamp = Date.now().toString();
       const sign = encodeURIComponent(

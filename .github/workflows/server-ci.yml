@@ -1,11 +1,7 @@
 name: Server CI
 
 on:
-  pull_request:
   push:
-    branches:
-      - main
-      - master
     tags:
       - "*"
   workflow_dispatch:
