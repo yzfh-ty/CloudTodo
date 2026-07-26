@@ -15,6 +15,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    mem_limit: ${POSTGRES_MEM_LIMIT:-1g}
+    cpus: ${POSTGRES_CPU_LIMIT:-1.0}
+    pids_limit: 256
 
   server:
     build:
@@ -67,6 +70,9 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    mem_limit: ${SERVER_MEM_LIMIT:-512m}
+    cpus: ${SERVER_CPU_LIMIT:-1.0}
+    pids_limit: 256
 
 volumes:
   cloudtodo-postgres-data:

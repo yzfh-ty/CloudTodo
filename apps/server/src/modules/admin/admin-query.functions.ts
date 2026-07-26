@@ -103,10 +103,22 @@ export async function getAdminDashboardSummary(prisma: PrismaService) {
   };
 }
 
+
+const MAX_PAGE = 500;
+const MAX_PAGE_SIZE = 100;
+
+/**
+ * DTO validation already bounds page inputs; this clamp keeps the invariant
+ * even for direct service callers or a bootstrap without the global pipe.
+ */
+function clampPagination(page: number | undefined, pageSize: number | undefined) {
+  const safePage = Math.min(Math.max(Math.trunc(page ?? 1) || 1, 1), MAX_PAGE);
+  const safePageSize = Math.min(Math.max(Math.trunc(pageSize ?? 20) || 20, 1), MAX_PAGE_SIZE);
+  return { page: safePage, pageSize: safePageSize, skip: (safePage - 1) * safePageSize };
+}
+
 export async function getAdminUsers(prisma: PrismaService, query: AdminUserListQueryDto) {
-  const page = query.page ?? 1;
-  const pageSize = query.page_size ?? 20;
-  const skip = (page - 1) * pageSize;
+  const { page, pageSize, skip } = clampPagination(query.page, query.page_size);
   const keyword = query.keyword?.trim();
   const where: Prisma.UserWhereInput = {};
 
@@ -285,9 +297,7 @@ export async function getAdminUserDevices(prisma: PrismaService, id: string) {
 }
 
 export async function getAdminOperationLogs(prisma: PrismaService, query: AdminOperationLogQueryDto) {
-  const page = query.page ?? 1;
-  const pageSize = query.page_size ?? 20;
-  const skip = (page - 1) * pageSize;
+  const { page, pageSize, skip } = clampPagination(query.page, query.page_size);
   const where: Prisma.AdminOperationLogWhereInput = {};
 
   if (query.start && query.end && new Date(query.start) > new Date(query.end)) {

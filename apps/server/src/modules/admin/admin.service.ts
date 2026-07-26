@@ -12,13 +12,20 @@ import {
   UserRole,
   UserStatus,
 } from '@prisma/client';
-import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../../common/database/prisma.service';
 import { hashPassword, verifyPassword } from '../../common/security/password.util';
 import { hashResetToken } from '../../common/security/token-hash.util';
 import { SecurityAuditService } from '../../common/security/security-audit.service';
 import { SecurityRequestContextService } from '../../common/security/security-request-context.service';
 import type { AuthenticatedAdmin } from './admin-session.service';
+import { AdminMfaService } from './admin-mfa.service';
+import {
+  createAuditLogTx,
+  generateSecret,
+  generateTemporaryPassword,
+  lockUser,
+  nextSecurityTimestamp,
+} from './admin-security.util';
 import { AdminChangePasswordDto } from './dto/admin-change-password.dto';
 import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import { AdminLoginDto } from './dto/admin-login.dto';
@@ -41,6 +48,7 @@ export class AdminService {
     private readonly prisma: PrismaService,
     private readonly securityAuditService: SecurityAuditService,
     private readonly requestContext: SecurityRequestContextService,
+    private readonly adminMfaService: AdminMfaService,
   ) {}
 
   async login(dto: AdminLoginDto) {
@@ -61,6 +69,8 @@ export class AdminService {
         passwordChangedAt: true,
         sessionRevokedAt: true,
         passwordHash: true,
+        totpEnabledAt: true,
+        totpSecretEncrypted: true,
         receivedPasswordResetTokens: {
           where: {
             mode: PasswordResetMode.temporary_password,
@@ -121,7 +131,9 @@ export class AdminService {
       }
     }
 
-    const loginAt = this.nextSecurityTimestamp(
+    await this.adminMfaService.assertLoginMfa(admin, dto.totp_code);
+
+    const loginAt = nextSecurityTimestamp(
       admin.passwordChangedAt,
       admin.sessionRevokedAt,
     );
@@ -191,11 +203,11 @@ export class AdminService {
 
   async logout(admin: AuthenticatedAdmin) {
     await this.prisma.$transaction(async (tx) => {
-      const lockedUser = await this.lockUser(tx, admin.id);
+      const lockedUser = await lockUser(tx, admin.id);
       if (!lockedUser) {
         return;
       }
-      const revokedAt = this.nextSecurityTimestamp(lockedUser.sessionRevokedAt);
+      const revokedAt = nextSecurityTimestamp(lockedUser.sessionRevokedAt);
       await tx.user.update({
         where: { id: admin.id },
         data: { sessionRevokedAt: revokedAt },
@@ -254,8 +266,8 @@ export class AdminService {
 
     const nextPasswordHash = hashPassword(dto.newPassword);
     const changedAt = await this.prisma.$transaction(async (tx) => {
-      const lockedUser = await this.lockUser(tx, admin.id);
-      const securityChangedAt = this.nextSecurityTimestamp(
+      const lockedUser = await lockUser(tx, admin.id);
+      const securityChangedAt = nextSecurityTimestamp(
         lockedUser?.passwordChangedAt,
         lockedUser?.sessionRevokedAt,
       );
@@ -297,7 +309,7 @@ export class AdminService {
         data: { consumedAt: securityChangedAt },
       });
 
-      await this.createAuditLogTx(tx, {
+      await createAuditLogTx(tx, this.requestContext, {
         adminUserId: admin.id,
         targetUserId: admin.id,
         action: AdminOperationAction.change_admin_password,
@@ -333,14 +345,14 @@ export class AdminService {
     const appliedReason = reason?.trim() || 'manual logout all sessions';
 
     const revokedResult = await this.prisma.$transaction(async (tx) => {
-      const lockedUser = await this.lockUser(tx, admin.id);
+      const lockedUser = await lockUser(tx, admin.id);
       if (!lockedUser) {
         throw new NotFoundException({
           code: 'USER_NOT_FOUND',
           message: 'admin not found',
         });
       }
-      const revokedAt = this.nextSecurityTimestamp(lockedUser.sessionRevokedAt);
+      const revokedAt = nextSecurityTimestamp(lockedUser.sessionRevokedAt);
       await tx.user.update({
         where: { id: admin.id },
         data: { sessionRevokedAt: revokedAt },
@@ -350,7 +362,7 @@ export class AdminService {
         data: { revokedAt, revokeReason: 'admin_logout_all_sessions' },
       });
 
-      await this.createAuditLogTx(tx, {
+      await createAuditLogTx(tx, this.requestContext, {
         adminUserId: admin.id,
         targetUserId: admin.id,
         action: AdminOperationAction.logout_all_sessions,
@@ -363,6 +375,14 @@ export class AdminService {
       });
 
       return { ...revoked, revokedAt };
+    });
+
+    void this.securityAuditService.record({
+      action: 'admin_logout_all_sessions',
+      result: 'success',
+      actorUserId: admin.id,
+      targetUserId: admin.id,
+      metadata: { revoked_refresh_tokens: revokedResult.count },
     });
 
     return {
@@ -420,7 +440,7 @@ export class AdminService {
 
     const passwordHash = hashPassword(dto.password);
     const createdAt = new Date();
-    const temporaryToken = this.generateSecret(24);
+    const temporaryToken = generateSecret(24);
     const temporaryTokenHash = hashResetToken(temporaryToken);
     const temporaryExpiresAt = new Date(createdAt.getTime() + 2 * 60 * 60 * 1000);
     const user = await this.prisma.$transaction(async (tx) => {
@@ -461,7 +481,7 @@ export class AdminService {
           expiresAt: temporaryExpiresAt,
         },
       });
-      await this.createAuditLogTx(tx, {
+      await createAuditLogTx(tx, this.requestContext, {
         adminUserId: admin.id,
         targetUserId: createdUser.id,
         action: AdminOperationAction.create_user,
@@ -474,6 +494,14 @@ export class AdminService {
         },
       });
       return createdUser;
+    });
+
+    void this.securityAuditService.record({
+      action: 'admin_user_created',
+      result: 'success',
+      actorUserId: admin.id,
+      targetUserId: user.id,
+      metadata: { role: user.role, status: user.status },
     });
 
     return {
@@ -588,7 +616,7 @@ export class AdminService {
         },
       });
 
-      await this.createAuditLogTx(tx, {
+      await createAuditLogTx(tx, this.requestContext, {
         adminUserId: admin.id,
         targetUserId: id,
         action: AdminOperationAction.update_user_profile,
@@ -640,7 +668,7 @@ export class AdminService {
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
-      const lockedUser = await this.lockUser(tx, id);
+      const lockedUser = await lockUser(tx, id);
       if (!lockedUser) {
         throw new NotFoundException({
           code: 'USER_NOT_FOUND',
@@ -653,7 +681,7 @@ export class AdminService {
           message: 'user is already disabled',
         });
       }
-      const revokedAt = this.nextSecurityTimestamp(lockedUser.sessionRevokedAt);
+      const revokedAt = nextSecurityTimestamp(lockedUser.sessionRevokedAt);
       const updatedUser = await tx.user.update({
         where: { id },
         data: {
@@ -677,7 +705,7 @@ export class AdminService {
         },
       });
 
-      await this.createAuditLogTx(tx, {
+      await createAuditLogTx(tx, this.requestContext, {
         adminUserId: admin.id,
         targetUserId: id,
         action: AdminOperationAction.disable_user,
@@ -691,6 +719,14 @@ export class AdminService {
       });
 
       return { updatedUser, revokedTokens };
+    });
+
+    void this.securityAuditService.record({
+      action: 'admin_user_disabled',
+      result: 'success',
+      actorUserId: admin.id,
+      targetUserId: id,
+      metadata: { revoked_refresh_tokens: result.revokedTokens.count },
     });
 
     return {
@@ -726,7 +762,7 @@ export class AdminService {
         },
       });
 
-      await this.createAuditLogTx(tx, {
+      await createAuditLogTx(tx, this.requestContext, {
         adminUserId: admin.id,
         targetUserId: id,
         action: AdminOperationAction.enable_user,
@@ -739,6 +775,13 @@ export class AdminService {
       });
 
       return result;
+    });
+
+    void this.securityAuditService.record({
+      action: 'admin_user_enabled',
+      result: 'success',
+      actorUserId: admin.id,
+      targetUserId: id,
     });
 
     return {
@@ -756,22 +799,22 @@ export class AdminService {
     id: string,
     dto: AdminResetPasswordDto,
   ) {
-    const trackingToken = this.generateSecret(24);
+    const trackingToken = generateSecret(24);
     const trackingTokenHash = hashResetToken(trackingToken);
 
     if (dto.mode === PasswordResetMode.temporary_password) {
-      const temporaryPassword = this.generateTemporaryPassword();
+      const temporaryPassword = generateTemporaryPassword();
       const temporaryPasswordHash = hashPassword(temporaryPassword);
 
       const resetResult = await this.prisma.$transaction(async (tx) => {
-        const lockedUser = await this.lockUser(tx, id);
+        const lockedUser = await lockUser(tx, id);
         if (!lockedUser) {
           throw new NotFoundException({
             code: 'USER_NOT_FOUND',
             message: 'user not found',
           });
         }
-        const now = this.nextSecurityTimestamp(
+        const now = nextSecurityTimestamp(
           lockedUser.passwordChangedAt,
           lockedUser.sessionRevokedAt,
         );
@@ -814,7 +857,7 @@ export class AdminService {
           },
         });
 
-        await this.createAuditLogTx(tx, {
+        await createAuditLogTx(tx, this.requestContext, {
           adminUserId: admin.id,
           targetUserId: id,
           action: AdminOperationAction.reset_user_password,
@@ -829,6 +872,14 @@ export class AdminService {
         return { expiresAt };
       });
 
+      void this.securityAuditService.record({
+        action: 'admin_password_reset_issued',
+        result: 'success',
+        actorUserId: admin.id,
+        targetUserId: id,
+        metadata: { mode: dto.mode },
+      });
+
       return {
         code: 'OK',
         message: 'success',
@@ -841,18 +892,18 @@ export class AdminService {
       };
     }
 
-    const resetToken = this.generateSecret(32);
+    const resetToken = generateSecret(32);
     const resetTokenHash = hashResetToken(resetToken);
 
     const resetResult = await this.prisma.$transaction(async (tx) => {
-      const lockedUser = await this.lockUser(tx, id);
+      const lockedUser = await lockUser(tx, id);
       if (!lockedUser) {
         throw new NotFoundException({
           code: 'USER_NOT_FOUND',
           message: 'user not found',
         });
       }
-      const now = this.nextSecurityTimestamp(
+      const now = nextSecurityTimestamp(
         lockedUser.passwordChangedAt,
         lockedUser.sessionRevokedAt,
       );
@@ -891,7 +942,7 @@ export class AdminService {
         },
       });
 
-      await this.createAuditLogTx(tx, {
+      await createAuditLogTx(tx, this.requestContext, {
         adminUserId: admin.id,
         targetUserId: id,
         action: AdminOperationAction.reset_user_password,
@@ -904,6 +955,14 @@ export class AdminService {
         },
       });
       return { expiresAt };
+    });
+
+    void this.securityAuditService.record({
+      action: 'admin_password_reset_issued',
+      result: 'success',
+      actorUserId: admin.id,
+      targetUserId: id,
+      metadata: { mode: dto.mode },
     });
 
     return {
@@ -929,71 +988,5 @@ export class AdminService {
       message: `${action} is scaffolded but not implemented yet`,
       data: null,
     };
-  }
-  private async createAuditLogTx(
-    tx: Prisma.TransactionClient,
-    input: {
-      adminUserId: string;
-      targetUserId?: string;
-      action: AdminOperationAction;
-      reason: string;
-      result: AdminOperationResult;
-      metadata?: Prisma.InputJsonValue;
-    },
-  ) {
-    const context = this.requestContext.current();
-    await tx.adminOperationLog.create({
-      data: {
-        adminUserId: input.adminUserId,
-        targetUserId: input.targetUserId,
-        action: input.action,
-        reason: input.reason,
-        result: input.result,
-        ipAddress: context?.ipAddress?.slice(0, 64) ?? null,
-        metadata: Object.assign(
-          (input.metadata !== null &&
-          typeof input.metadata === 'object' &&
-          !Array.isArray(input.metadata)
-            ? input.metadata
-            : {}) as Prisma.InputJsonObject,
-          context?.sessionId ? { session_id: context.sessionId } : {},
-          context?.requestId ? { request_id: context.requestId } : {},
-        ),
-      },
-    });
-  }
-  private generateTemporaryPassword(): string {
-    return `Temp#${randomBytes(6).toString('hex')}`;
-  }
-  private generateSecret(byteLength: number): string {
-    return randomBytes(byteLength).toString('base64url');
-  }
-  private async lockUser(tx: Prisma.TransactionClient, userId: string) {
-    const rows = await tx.$queryRaw<
-      Array<{
-        id: string;
-        status: UserStatus;
-        passwordChangedAt: Date | null;
-        sessionRevokedAt: Date | null;
-      }>
-    >(Prisma.sql`
-      SELECT
-        "id",
-        "status",
-        "password_changed_at" AS "passwordChangedAt",
-        "session_revoked_at" AS "sessionRevokedAt"
-      FROM "users"
-      WHERE "id" = ${userId}::uuid
-      FOR UPDATE
-    `);
-    return rows[0] ?? null;
-  }
-
-  private nextSecurityTimestamp(...previous: Array<Date | null | undefined>) {
-    const minimum = previous.reduce(
-      (latest, value) => Math.max(latest, value?.getTime() ?? 0),
-      0,
-    );
-    return new Date(Math.max(Date.now(), minimum + 1));
   }
 }

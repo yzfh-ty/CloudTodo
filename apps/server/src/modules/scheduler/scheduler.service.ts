@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from '@ne
 import { ConfigService } from '@nestjs/config';
 import {
   NotificationDeliveryStatus,
+  NotificationEndpointType,
   Prisma,
   ReminderChannel,
   ReminderEventStatus,
@@ -357,6 +358,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     if (
       delivery.endpoint.deletedAt ||
       !delivery.endpoint.isEnabled ||
+      delivery.endpoint.type !== NotificationEndpointType.webhook ||
       delivery.endpoint.userId !== delivery.reminderEvent.userId ||
       !eventUser ||
       eventUser.status !== UserStatus.active ||

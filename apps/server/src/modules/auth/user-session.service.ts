@@ -88,6 +88,15 @@ export class UserSessionService {
         forcePasswordChange: true,
         passwordChangedAt: true,
         sessionRevokedAt: true,
+        receivedPasswordResetTokens: {
+          where: {
+            mode: 'temporary_password',
+            consumedAt: null,
+            expiresAt: { gt: new Date() },
+          },
+          take: 1,
+          select: { id: true },
+        },
       },
     });
 
@@ -117,6 +126,16 @@ export class UserSessionService {
       throw new UnauthorizedException({
         code: 'UNAUTHORIZED',
         message: 'user session has been revoked',
+      });
+    }
+
+    // Login only issues a password-change session while an unconsumed,
+    // unexpired temporary password exists; keep enforcing that here so the
+    // short session dies as soon as the temporary password expires.
+    if (user.forcePasswordChange && user.receivedPasswordResetTokens.length === 0) {
+      throw new UnauthorizedException({
+        code: 'TEMPORARY_PASSWORD_EXPIRED',
+        message: 'temporary password is expired; request a new reset',
       });
     }
 

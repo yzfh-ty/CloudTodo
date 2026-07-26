@@ -20,6 +20,9 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    mem_limit: ${WEB_MEM_LIMIT:-128m}
+    cpus: ${WEB_CPU_LIMIT:-0.5}
+    pids_limit: 128
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/config.json"]
       interval: 15s

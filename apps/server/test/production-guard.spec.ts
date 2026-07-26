@@ -59,6 +59,29 @@ describe('production configuration guard', () => {
     expect(() => assertProductionSecrets()).toThrow('APP_BASE_URL');
   });
 
+  it.each([
+    ['empty', ''],
+    ['plain-http origin', 'http://todo.example.net'],
+    ['wildcard', '*'],
+    ['mixed valid and wildcard', 'https://todo.example.net,*'],
+  ])('rejects a %s CORS_ORIGINS value', (_label, value) => {
+    process.env.CORS_ORIGINS = value;
+    expect(() => assertProductionSecrets()).toThrow('CORS_ORIGINS');
+  });
+
+  it('rejects WEBHOOK_ALLOW_PRIVATE_NETWORKS=true in production', () => {
+    process.env.WEBHOOK_ALLOW_PRIVATE_NETWORKS = 'true';
+    expect(() => assertProductionSecrets()).toThrow('WEBHOOK_ALLOW_PRIVATE_NETWORKS');
+  });
+
+  it.each([
+    ['ADMIN_SEED_PASSWORD', 'admin123456'],
+    ['DEMO_USER_PASSWORD', 'demo123456'],
+  ])('rejects a weak %s when present', (key, value) => {
+    process.env[key] = value;
+    expect(() => assertProductionSecrets()).toThrow(key);
+  });
+
   it('rejects weak database credentials', () => {
     process.env.DATABASE_URL =
       'postgresql://cloudtodo:cloudtodo@db.internal.example.net:5432/cloudtodo';

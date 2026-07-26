@@ -176,11 +176,12 @@ class _RegisterPageState extends State<RegisterPage> {
                   },
                 ),
                 const SizedBox(height: 12),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerLow,
+                Material(
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
+                  clipBehavior: Clip.antiAlias,
+                  shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
+                    side: BorderSide(
                       color: Theme.of(context).colorScheme.outlineVariant,
                     ),
                   ),

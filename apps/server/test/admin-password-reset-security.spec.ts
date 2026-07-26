@@ -189,6 +189,7 @@ describe('admin reset-token password invalidation', () => {
       prisma as never,
       audit as never,
       requestContext as never,
+      { assertLoginMfa: jest.fn().mockResolvedValue(undefined) } as never,
     );
     const authService = new AuthService(prisma as never, audit as never);
     const admin: AuthenticatedAdmin = {

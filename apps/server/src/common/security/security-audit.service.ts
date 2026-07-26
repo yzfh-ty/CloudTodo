@@ -63,9 +63,10 @@ export class SecurityAuditService {
   }
 }
 
-const SECRET_KEY_PATTERN = /(pass(word)?|token|secret|cookie|authorization|signature|private.?key)/i;
+const SECRET_KEY_PATTERN =
+  /(pass(word)?|token|secret|cookie|authorization|signature|private.?key|otp|totp|recovery|credential)/i;
 
-function sanitizeMetadata(value: unknown): Prisma.JsonValue {
+export function sanitizeMetadata(value: unknown): Prisma.JsonValue {
   if (value === null || typeof value === 'boolean' || typeof value === 'number') {
     return value;
   }

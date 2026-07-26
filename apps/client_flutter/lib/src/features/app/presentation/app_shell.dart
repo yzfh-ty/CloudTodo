@@ -151,10 +151,11 @@ class _SideRail extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerLow,
-          border: Border.all(
+      child: Material(
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(
             color: Theme.of(context).colorScheme.outlineVariant,
           ),
         ),

@@ -85,7 +85,9 @@ export class OutboundHttpService {
       });
     }
 
-    if (url.protocol !== 'https:') {
+    // WEBHOOK_ALLOW_PRIVATE_NETWORKS is a development-only escape hatch;
+    // production-guard refuses to boot with it enabled.
+    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && this.allowPrivateNetworks())) {
       throw new BadRequestException({
         code: 'WEBHOOK_URL_INVALID',
         message: 'webhook url must use https',
@@ -202,12 +204,22 @@ export class OutboundHttpService {
     return allowedPorts.includes(port);
   }
 
+  private allowPrivateNetworks() {
+    return (
+      this.configService.get<string>('WEBHOOK_ALLOW_PRIVATE_NETWORKS') === 'true'
+    );
+  }
+
   private isBlockedIp(address: string) {
     let parsed: ipaddr.IPv4 | ipaddr.IPv6;
     try {
       parsed = ipaddr.parse(address);
     } catch {
       return true;
+    }
+
+    if (this.allowPrivateNetworks()) {
+      return false;
     }
 
     if (this.isIpv6Address(parsed) && parsed.isIPv4MappedAddress()) {

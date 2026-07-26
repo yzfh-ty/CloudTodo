@@ -19,6 +19,7 @@ import { AllowAdminPasswordChangeSession } from './decorators/allow-admin-passwo
 import { RequireRecentAdminAuth } from './decorators/require-recent-admin-auth.decorator';
 import { Public } from './decorators/public.decorator';
 import { AdminChangePasswordDto } from './dto/admin-change-password.dto';
+import { AdminMfaCodeDto } from './dto/admin-mfa-code.dto';
 import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import { AdminOperationLogQueryDto } from './dto/admin-operation-log-query.dto';
@@ -31,6 +32,7 @@ import {
   type AuthenticatedAdmin,
 } from './admin-session.service';
 import { AdminApiSessionGuard } from './guards/admin-api-session.guard';
+import { AdminMfaService } from './admin-mfa.service';
 import { AdminService } from './admin.service';
 
 type ResponseLike = {
@@ -51,6 +53,7 @@ export class AdminController {
   constructor(
     private readonly adminService: AdminService,
     private readonly adminSessionService: AdminSessionService,
+    private readonly adminMfaService: AdminMfaService,
     private readonly csrfService: CsrfService,
     private readonly configService: ConfigService,
     private readonly rateLimitService: RateLimitService,
@@ -106,6 +109,35 @@ export class AdminController {
     @Body() dto: AdminChangePasswordDto,
   ) {
     return this.adminService.changePassword(admin, dto);
+  }
+
+  @Get('mfa/status')
+  mfaStatus(@CurrentAdmin() admin: AuthenticatedAdmin) {
+    return this.adminMfaService.getStatus(admin);
+  }
+
+  @Post('mfa/totp/start')
+  @RequireRecentAdminAuth()
+  startTotpEnrollment(@CurrentAdmin() admin: AuthenticatedAdmin) {
+    return this.adminMfaService.startEnrollment(admin);
+  }
+
+  @Post('mfa/totp/confirm')
+  @RequireRecentAdminAuth()
+  confirmTotpEnrollment(
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+    @Body() dto: AdminMfaCodeDto,
+  ) {
+    return this.adminMfaService.confirmEnrollment(admin, dto.code);
+  }
+
+  @Post('mfa/totp/disable')
+  @RequireRecentAdminAuth()
+  disableTotp(
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+    @Body() dto: AdminMfaCodeDto,
+  ) {
+    return this.adminMfaService.disable(admin, dto.code);
   }
 
   @Post('auth/logout-all-sessions')

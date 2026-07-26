@@ -163,6 +163,7 @@ describe('webhook delivery processing lease', () => {
       endpoint: {
         id: 'endpoint-1',
         userId: user.id,
+        type: NotificationEndpointType.webhook,
         name: 'Webhook',
         targetUrl: 'https://hooks.example.com/events',
         secret: null,

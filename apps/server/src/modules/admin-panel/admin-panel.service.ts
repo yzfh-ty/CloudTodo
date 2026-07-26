@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import type { AuthenticatedAdmin } from '../admin/admin-session.service';
 import { ADMIN_PANEL_STYLES } from './admin-panel.styles';
+import {
+  ADMIN_MFA_MENU_BUTTON,
+  ADMIN_MFA_SCRIPT,
+  ADMIN_MFA_SECTION_HTML,
+} from './admin-panel.mfa';
 
 @Injectable()
 export class AdminPanelService {
@@ -43,6 +48,7 @@ export class AdminPanelService {
               <strong>操作日志</strong>
               <span>查看管理员操作记录与筛选分页</span>
             </button>
+${ADMIN_MFA_MENU_BUTTON}
           </div>
         </aside>
 
@@ -257,6 +263,7 @@ export class AdminPanelService {
               </div>
             </section>
           </section>
+${ADMIN_MFA_SECTION_HTML}
 
         </div>
       </div>
@@ -872,6 +879,7 @@ export class AdminPanelService {
       });
 
       loadPage();
+${ADMIN_MFA_SCRIPT}
     </script>
   </body>
 </html>`;
@@ -920,6 +928,10 @@ export class AdminPanelService {
           密码
           <input id="passwordInput" name="password" type="password" autocomplete="current-password" placeholder="输入管理员密码" required />
         </label>
+        <label id="totpLabel" style="display: none;">
+          动态口令
+          <input id="totpInput" name="totp_code" autocomplete="one-time-code" inputmode="numeric" maxlength="32" placeholder="6 位动态口令或恢复码" />
+        </label>
         <button type="submit">登录后台</button>
       </form>
       <div class="error" id="errorBox"></div>
@@ -935,19 +947,29 @@ export class AdminPanelService {
 
         const account = document.getElementById('accountInput').value.trim();
         const password = document.getElementById('passwordInput').value;
+        const totpCode = document.getElementById('totpInput').value.trim();
 
         try {
+          const payload = { account, password };
+          if (totpCode) {
+            payload.totp_code = totpCode;
+          }
           const res = await fetch('/api/admin/auth/login', {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
               'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ account, password })
+            body: JSON.stringify(payload)
           });
 
           const json = await res.json();
           if (!res.ok) {
+            if (json?.code === 'MFA_REQUIRED') {
+              document.getElementById('totpLabel').style.display = '';
+              document.getElementById('totpInput').focus();
+              throw new Error('该账号已启用动态口令，请输入 6 位口令或恢复码。');
+            }
             throw new Error(json?.message || '登录失败');
           }
 

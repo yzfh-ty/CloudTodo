@@ -83,6 +83,15 @@ export class AdminSessionService {
         passwordChangedAt: true,
         sessionRevokedAt: true,
         forcePasswordChange: true,
+        receivedPasswordResetTokens: {
+          where: {
+            mode: 'temporary_password',
+            consumedAt: null,
+            expiresAt: { gt: new Date() },
+          },
+          take: 1,
+          select: { id: true },
+        },
       },
     });
 
@@ -142,6 +151,16 @@ export class AdminSessionService {
           message: 'admin session has been revoked',
         });
       }
+    }
+
+    // A force-password-change session is only issued while an unconsumed,
+    // unexpired temporary password exists; once it expires the short session
+    // must stop working too.
+    if (admin.forcePasswordChange && admin.receivedPasswordResetTokens.length === 0) {
+      throw new UnauthorizedException({
+        code: 'TEMPORARY_PASSWORD_EXPIRED',
+        message: 'temporary password is expired; request a new reset',
+      });
     }
 
     return {

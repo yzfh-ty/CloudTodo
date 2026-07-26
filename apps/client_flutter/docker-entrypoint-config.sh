@@ -12,7 +12,7 @@ api_base_url=${API_BASE_URL:-}
 app_name=${APP_NAME:-CloudTodo Web}
 app_env=${APP_ENV:-local}
 escape_json() {
-  printf '%s' "$1" | sed 's/[\\\"]/[\\&]/g'
+  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
 }
 
 cat > /tmp/cloudtodo-config.json <<EOF

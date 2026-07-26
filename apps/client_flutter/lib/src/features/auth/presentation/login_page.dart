@@ -134,11 +134,12 @@ class _LoginPageState extends State<LoginPage> {
                     child: const Text('使用重置令牌设置新密码'),
                   ),
                 ),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerLow,
+                Material(
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
+                  clipBehavior: Clip.antiAlias,
+                  shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
+                    side: BorderSide(
                       color: Theme.of(context).colorScheme.outlineVariant,
                     ),
                   ),

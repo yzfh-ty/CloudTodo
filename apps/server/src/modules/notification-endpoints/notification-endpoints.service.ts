@@ -165,9 +165,14 @@ export class NotificationEndpointsService {
       // preserve the stored target in that case instead of overwriting it or
       // forcing the user to reveal the secret URL again.
       if (!isRedactedTargetFor(existingEndpoint.targetUrl, dto.target_url)) {
+        // A URL change triggers the same outbound validation (and therefore
+        // DNS resolution) as creating an endpoint, so it consumes the same
+        // create quota to prevent unbounded resolution probing via updates.
+        this.assertCreateQuota(user.id);
         const validatedUrl = await this.outboundHttpService.validateUrl(dto.target_url);
         data.targetUrl = validatedUrl.url.toString();
         targetHostname = normalizeHostname(validatedUrl.hostname);
+        this.assertCreateQuota(user.id, targetHostname);
       }
     }
     if (dto.secret !== undefined) data.secret = this.serializeSecret(dto.secret);

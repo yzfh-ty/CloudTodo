@@ -16,6 +16,13 @@ COPY src ./src
 RUN npm run prisma:generate
 RUN npm run build
 
+FROM node:22-alpine AS prod-deps
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
 FROM node:22-alpine AS runner
 
 WORKDIR /app
@@ -23,7 +30,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 
-COPY --from=deps /app/node_modules ./node_modules
+COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
 COPY --from=builder /app/dist ./dist

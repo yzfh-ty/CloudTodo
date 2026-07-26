@@ -76,4 +76,25 @@ describe('admin query bounds', () => {
       }),
     );
   });
+
+  it.each([
+    ['users', 'user' as const, getAdminUsers],
+    ['operation logs', 'adminOperationLog' as const, getAdminOperationLogs],
+  ])(
+    'clamps %s pagination even when the DTO layer is bypassed',
+    async (_label, model, query) => {
+      const prisma = createPrisma();
+      await query(prisma as unknown as PrismaService, {
+        page: 999_999,
+        page_size: 100_000,
+      });
+
+      expect(prisma[model].findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          take: 100,
+          skip: (500 - 1) * 100,
+        }),
+      );
+    },
+  );
 });
