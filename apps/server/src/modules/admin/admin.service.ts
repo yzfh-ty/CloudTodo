@@ -57,7 +57,9 @@ export class AdminService {
     const account = dto.account.trim();
     const admin = await this.prisma.user.findFirst({
       where: {
-        OR: [{ email: account }, { username: account }],
+        // Addresses are stored lowercased by every writer, so the email
+        // candidate has to be normalized the same way the user path does.
+        OR: [{ email: account.toLowerCase() }, { username: account }],
       },
       select: {
         id: true,
@@ -541,7 +543,10 @@ export class AdminService {
     }
 
     const nextUsername = dto.username?.trim();
-    const nextEmail = dto.email?.trim();
+    // Without normalization the duplicate check is case-sensitive, so
+    // "A@b.com" and "a@b.com" can coexist and neither owner can log in by
+    // email afterwards.
+    const nextEmail = dto.email?.trim().toLowerCase();
     const nextNickname = dto.nickname?.trim();
     const nextTimezone = dto.timezone?.trim();
 
@@ -986,6 +991,32 @@ export class AdminService {
   }
   async getSecurityAuditLogs(query: AdminSecurityAuditLogQueryDto) {
     return getAdminSecurityAuditLogs(this.prisma, query);
+  }
+
+  /**
+   * Surfaces the audit hash chain verification so the control is observable
+   * rather than a write-only claim. BigInt columns are rendered as strings
+   * because JSON.stringify cannot serialize them.
+   */
+  async verifySecurityAuditChain() {
+    const report = await this.securityAuditService.verifyChain();
+    return {
+      code: 'OK',
+      message: 'success',
+      data: {
+        valid: report.valid,
+        checked_entries: report.checked,
+        reason: report.reason ?? null,
+        broken_at_chain_seq:
+          report.brokenAtChainSeq === undefined ? null : String(report.brokenAtChainSeq),
+        head: report.head
+          ? {
+              chain_index: String(report.head.chainIndex),
+              entry_hash: report.head.entryHash,
+            }
+          : null,
+      },
+    };
   }
   placeholder(action: string) {
     return {

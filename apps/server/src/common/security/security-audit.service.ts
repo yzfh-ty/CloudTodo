@@ -50,17 +50,30 @@ export class SecurityAuditService {
       // automatically on commit or rollback.
       await this.prisma.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(${AUDIT_CHAIN_LOCK_KEY})`;
+        // Ordered by chainIndex, not chainSeq: the sequence-backed chainSeq
+        // skips values on rollback and is not covered by the hash, so only
+        // chainIndex is authoritative for "the latest chained row".
         const previous = await tx.securityAuditLog.findFirst({
-          orderBy: { chainSeq: 'desc' },
-          select: { entryHash: true },
+          where: { chainIndex: { not: null } },
+          orderBy: { chainIndex: 'desc' },
+          select: { entryHash: true, chainIndex: true },
         });
         const prevHash = previous?.entryHash ?? AUDIT_CHAIN_GENESIS;
+        // chainSeq comes from a Postgres sequence, which skips values on any
+        // rolled-back transaction, so continuity is tracked by a counter this
+        // code owns and hashes instead.
+        const chainIndex = (previous?.chainIndex ?? 0n) + 1n;
+        const chained = { ...entry, chainIndex };
+        const entryHash = computeAuditEntryHash(prevHash, chained);
         await tx.securityAuditLog.create({
-          data: {
-            ...entry,
-            prevHash,
-            entryHash: computeAuditEntryHash(prevHash, entry),
-          },
+          data: { ...chained, prevHash, entryHash },
+        });
+        // The head lets a verifier notice rows deleted off the end, which the
+        // chain alone cannot show.
+        await tx.securityAuditChainHead.upsert({
+          where: { id: AUDIT_CHAIN_HEAD_ID },
+          create: { id: AUDIT_CHAIN_HEAD_ID, chainIndex, entryHash },
+          update: { chainIndex, entryHash },
         });
       });
     } catch (error) {
@@ -74,6 +87,48 @@ export class SecurityAuditService {
     }
   }
 
+  /**
+   * Recomputes every hash in the stored chain and compares its end against the
+   * persisted head. Exposed so an operator (and the periodic job) can check the
+   * control instead of trusting that it was written correctly.
+   */
+  async verifyChain(): Promise<AuditChainReport> {
+    const [entries, head] = await Promise.all([
+      this.prisma.securityAuditLog.findMany({
+        where: { chainIndex: { not: null } },
+        orderBy: { chainIndex: 'asc' },
+        select: {
+          id: true,
+          action: true,
+          result: true,
+          actorUserId: true,
+          targetUserId: true,
+          ipAddress: true,
+          sessionId: true,
+          requestId: true,
+          metadata: true,
+          createdAt: true,
+          chainSeq: true,
+          chainIndex: true,
+          prevHash: true,
+          entryHash: true,
+        },
+      }),
+      this.prisma.securityAuditChainHead.findUnique({
+        where: { id: AUDIT_CHAIN_HEAD_ID },
+      }),
+    ]);
+
+    const result = verifyAuditChain(
+      entries,
+      head ? { chainIndex: head.chainIndex, entryHash: head.entryHash } : undefined,
+    );
+    return {
+      ...result,
+      head: head ? { chainIndex: head.chainIndex, entryHash: head.entryHash } : null,
+    };
+  }
+
   private boundString(value: string | null | undefined, maxLength: number) {
     const trimmed = value?.trim();
     return trimmed ? trimmed.slice(0, maxLength) : null;
@@ -83,6 +138,8 @@ export class SecurityAuditService {
 export const AUDIT_CHAIN_GENESIS = '0'.repeat(64);
 // Arbitrary but fixed application-wide advisory lock key for chain writes.
 export const AUDIT_CHAIN_LOCK_KEY = 913_571;
+// The head table holds exactly one row.
+export const AUDIT_CHAIN_HEAD_ID = 1;
 
 export interface AuditChainEntry {
   id: string;
@@ -95,11 +152,58 @@ export interface AuditChainEntry {
   requestId: string | null;
   metadata?: unknown;
   createdAt: Date;
+  chainIndex: bigint | number | null;
+}
+
+export interface AuditChainHead {
+  chainIndex: bigint | number;
+  entryHash: string;
+}
+
+export type AuditChainFailureReason =
+  | 'genesis_mismatch'
+  | 'chain_index_gap'
+  | 'prev_hash_mismatch'
+  | 'entry_hash_mismatch'
+  | 'head_mismatch';
+
+export interface AuditChainResult {
+  valid: boolean;
+  checked: number;
+  brokenAtChainSeq?: bigint | number;
+  reason?: AuditChainFailureReason;
+}
+
+export interface AuditChainReport extends AuditChainResult {
+  head: AuditChainHead | null;
+}
+
+/**
+ * Order-independent JSON encoding. `metadata` is stored as Postgres jsonb,
+ * which canonicalises key order on write, so hashing `JSON.stringify` of the
+ * in-memory object makes the write-side hash disagree with every later read.
+ */
+function canonicalize(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => canonicalize(item));
+  }
+  if (value && typeof value === 'object' && !(value instanceof Date)) {
+    const source = value as Record<string, unknown>;
+    const sorted: Record<string, unknown> = {};
+    for (const key of Object.keys(source).sort()) {
+      sorted[key] = canonicalize(source[key]);
+    }
+    return sorted;
+  }
+  return value;
 }
 
 export function computeAuditEntryHash(prevHash: string, entry: AuditChainEntry): string {
   const canonical = JSON.stringify([
     prevHash,
+    entry.chainIndex === null || entry.chainIndex === undefined
+      ? null
+      : String(entry.chainIndex),
     entry.id,
     entry.action,
     entry.result,
@@ -108,35 +212,92 @@ export function computeAuditEntryHash(prevHash: string, entry: AuditChainEntry):
     entry.ipAddress,
     entry.sessionId,
     entry.requestId,
-    entry.metadata ?? null,
+    canonicalize(entry.metadata ?? null),
     entry.createdAt.toISOString(),
   ]);
   return createHash('sha256').update(canonical).digest('hex');
 }
 
 /**
- * Walks the chain in sequence order and recomputes every hash. Entries from
- * before the chain existed (no entryHash) are skipped; the first hashed entry
- * may link to genesis or to a pre-chain state and is only checked internally.
+ * Walks the chain in sequence order and recomputes every hash. Rows written
+ * before the chain existed carry a null chainIndex and are skipped; every
+ * chained row is anchored to genesis, required to be contiguous, and — when a
+ * head is supplied — required to still be the last row on record.
  */
 export function verifyAuditChain(
-  entries: Array<AuditChainEntry & { chainSeq: bigint | number; prevHash: string | null; entryHash: string | null }>,
-): { valid: boolean; brokenAtChainSeq?: bigint | number } {
-  let expectedPrev: string | null = null;
+  entries: Array<
+    AuditChainEntry & {
+      chainSeq: bigint | number;
+      prevHash: string | null;
+      entryHash: string | null;
+    }
+  >,
+  head?: AuditChainHead,
+): AuditChainResult {
+  let expectedPrev = AUDIT_CHAIN_GENESIS;
+  let expectedIndex = 1n;
+  let checked = 0;
+  let lastEntryHash: string | null = null;
+  let lastIndex: bigint | null = null;
+
   for (const entry of entries) {
-    if (!entry.entryHash) {
+    if (entry.chainIndex === null || entry.chainIndex === undefined) {
       continue;
     }
+
     const prevHash = entry.prevHash ?? AUDIT_CHAIN_GENESIS;
-    if (expectedPrev !== null && prevHash !== expectedPrev) {
-      return { valid: false, brokenAtChainSeq: entry.chainSeq };
+    // Anchoring the first surviving row to genesis is what makes "delete the
+    // oldest N rows" detectable; the suffix verifies perfectly on its own.
+    if (checked === 0 && prevHash !== AUDIT_CHAIN_GENESIS) {
+      return {
+        valid: false,
+        checked,
+        brokenAtChainSeq: entry.chainSeq,
+        reason: 'genesis_mismatch',
+      };
     }
-    if (computeAuditEntryHash(prevHash, entry) !== entry.entryHash) {
-      return { valid: false, brokenAtChainSeq: entry.chainSeq };
+    if (BigInt(entry.chainIndex) !== expectedIndex) {
+      return {
+        valid: false,
+        checked,
+        brokenAtChainSeq: entry.chainSeq,
+        reason: 'chain_index_gap',
+      };
     }
+    if (prevHash !== expectedPrev) {
+      return {
+        valid: false,
+        checked,
+        brokenAtChainSeq: entry.chainSeq,
+        reason: 'prev_hash_mismatch',
+      };
+    }
+    if (!entry.entryHash || computeAuditEntryHash(prevHash, entry) !== entry.entryHash) {
+      return {
+        valid: false,
+        checked,
+        brokenAtChainSeq: entry.chainSeq,
+        reason: 'entry_hash_mismatch',
+      };
+    }
+
     expectedPrev = entry.entryHash;
+    lastEntryHash = entry.entryHash;
+    lastIndex = BigInt(entry.chainIndex);
+    expectedIndex += 1n;
+    checked += 1;
   }
-  return { valid: true };
+
+  if (
+    head &&
+    (lastEntryHash !== head.entryHash ||
+      lastIndex === null ||
+      lastIndex !== BigInt(head.chainIndex))
+  ) {
+    return { valid: false, checked, reason: 'head_mismatch' };
+  }
+
+  return { valid: true, checked };
 }
 
 const SECRET_KEY_PATTERN =

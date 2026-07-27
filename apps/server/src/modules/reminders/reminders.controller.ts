@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/user-session.service';
 import { UserApiSessionGuard } from '../auth/guards/user-api-session.guard';
@@ -14,7 +24,7 @@ export class RemindersController {
   @Post('todos/:id/reminders')
   createReminder(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CreateReminderDto,
   ) {
     return this.remindersService.createReminder(user, id, dto);
@@ -23,14 +33,14 @@ export class RemindersController {
   @Patch('reminders/:id')
   updateReminder(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateReminderDto,
   ) {
     return this.remindersService.updateReminder(user, id, dto);
   }
 
   @Delete('reminders/:id')
-  deleteReminder(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  deleteReminder(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.remindersService.deleteReminder(user, id);
   }
 

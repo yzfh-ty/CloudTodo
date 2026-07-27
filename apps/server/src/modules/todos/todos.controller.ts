@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/user-session.service';
 import { UserApiSessionGuard } from '../auth/guards/user-api-session.guard';
@@ -29,43 +40,43 @@ export class TodosController {
   }
 
   @Get(':id')
-  getTodo(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  getTodo(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.todosService.getTodo(user, id);
   }
 
   @Patch(':id')
   updateTodo(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateTodoDto,
   ) {
     return this.todosService.updateTodo(user, id, dto);
   }
 
   @Delete(':id')
-  deleteTodo(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  deleteTodo(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.todosService.deleteTodo(user, id);
   }
 
   @Post(':id/complete')
-  completeTodo(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  completeTodo(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.todosService.completeTodo(user, id);
   }
 
   @Post(':id/reopen')
-  reopenTodo(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  reopenTodo(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.todosService.reopenTodo(user, id);
   }
 
   @Post(':id/archive')
-  archiveTodo(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  archiveTodo(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.todosService.archiveTodo(user, id);
   }
 
   @Patch(':id/tags')
   setTodoTags(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateTodoTagsDto,
   ) {
     return this.todosService.setTodoTags(user, id, dto);

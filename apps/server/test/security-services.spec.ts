@@ -37,12 +37,14 @@ describe('security request context', () => {
   it('automatically enriches and sanitizes an audit event', async () => {
     const requestContext = new SecurityRequestContextService();
     const create = jest.fn().mockResolvedValue({});
+    const upsert = jest.fn().mockResolvedValue({});
     const tx = {
       $executeRaw: jest.fn().mockResolvedValue(0),
       securityAuditLog: {
         findFirst: jest.fn().mockResolvedValue(null),
         create,
       },
+      securityAuditChainHead: { upsert },
     };
     const audit = new SecurityAuditService(
       {
@@ -74,9 +76,17 @@ describe('security request context', () => {
         sessionId: createHash('sha256').update('session-secret').digest('hex'),
         metadata: { refreshToken: '[REDACTED]' },
         prevHash: '0'.repeat(64),
+        chainIndex: 1n,
         entryHash: expect.stringMatching(/^[0-9a-f]{64}$/),
       }),
     });
+    // record() swallows write failures on purpose, so the head write has to be
+    // asserted explicitly: otherwise a broken chain write still looks green.
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({ chainIndex: 1n }),
+      }),
+    );
   });
 });
 

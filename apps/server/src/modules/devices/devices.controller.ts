@@ -1,4 +1,13 @@
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserApiSessionGuard } from '../auth/guards/user-api-session.guard';
 import type { AuthenticatedUser } from '../auth/user-session.service';
@@ -27,7 +36,7 @@ export class DevicesController {
   }
 
   @Delete(':id')
-  deleteDevice(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  deleteDevice(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.devicesService.deleteDevice(user, id);
   }
 }

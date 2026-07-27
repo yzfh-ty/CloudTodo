@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserApiSessionGuard } from '../auth/guards/user-api-session.guard';
 import type { AuthenticatedUser } from '../auth/user-session.service';
@@ -22,21 +32,21 @@ export class TagsController {
   }
 
   @Get(':id')
-  getTag(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  getTag(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.tagsService.getTag(user, id);
   }
 
   @Patch(':id')
   updateTag(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateTagDto,
   ) {
     return this.tagsService.updateTag(user, id, dto);
   }
 
   @Delete(':id')
-  deleteTag(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  deleteTag(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.tagsService.deleteTag(user, id);
   }
 }

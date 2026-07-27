@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserApiSessionGuard } from '../auth/guards/user-api-session.guard';
 import type { AuthenticatedUser } from '../auth/user-session.service';
@@ -22,21 +32,21 @@ export class TodoListsController {
   }
 
   @Get(':id')
-  getTodoList(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  getTodoList(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.todoListsService.getTodoList(user, id);
   }
 
   @Patch(':id')
   updateTodoList(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateTodoListDto,
   ) {
     return this.todoListsService.updateTodoList(user, id, dto);
   }
 
   @Delete(':id')
-  deleteTodoList(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  deleteTodoList(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.todoListsService.deleteTodoList(user, id);
   }
 }

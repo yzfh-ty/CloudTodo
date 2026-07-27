@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_FILTER } from '@nestjs/core';
 import { appConfig } from './common/config/app.config';
+import { ApiExceptionFilter } from './common/http/api-exception.filter';
 import { PrismaModule } from './common/database/prisma.module';
 import { SecurityModule } from './common/security/security.module';
 import { AdminModule } from './modules/admin/admin.module';
@@ -42,6 +44,11 @@ import { UsersModule } from './modules/users/users.module';
     NotificationEndpointsModule,
     SyncModule,
     SchedulerModule,
+  ],
+  providers: [
+    // Registered here rather than in main.ts so every bootstrap path — the
+    // server, the e2e suite — gets the same {code, message} error contract.
+    { provide: APP_FILTER, useClass: ApiExceptionFilter },
   ],
 })
 export class AppModule {}

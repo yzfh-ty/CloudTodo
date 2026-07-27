@@ -167,11 +167,10 @@ model User {
   reminders                   Reminder[]
   reminderEvents              ReminderEvent[]
   notificationEndpoints       NotificationEndpoint[]
-  adminOperationLogsAsAdmin   AdminOperationLog[]      @relation("AdminOperationActor")
-  adminOperationLogsAsTarget  AdminOperationLog[]      @relation("AdminOperationTarget")
-  securityAuditEventsAsActor  SecurityAuditLog[]       @relation("SecurityAuditActor")
-  securityAuditEventsAsTarget SecurityAuditLog[]       @relation("SecurityAuditTarget")
   mfaRecoveryCodes            MfaRecoveryCode[]
+  // Audit tables deliberately hold no foreign key back to users: a referential
+  // action would either rewrite (SET NULL) or delete (CASCADE) rows that have
+  // already been hashed into the tamper-evident chain.
 
   @@index([role, status, createdAt(sort: Desc)])
   @@index([status, lastLoginAt(sort: Desc)])
@@ -433,8 +432,6 @@ model AdminOperationLog {
   result       AdminOperationResult
   ipAddress    String?              @map("ip_address") @db.VarChar(64)
   createdAt    DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  adminUser    User                 @relation("AdminOperationActor", fields: [adminUserId], references: [id], onDelete: Cascade)
-  targetUser   User?                @relation("AdminOperationTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
 
   @@index([adminUserId, createdAt(sort: Desc)])
   @@index([targetUserId, createdAt(sort: Desc)])
@@ -454,14 +451,27 @@ model SecurityAuditLog {
   metadata     Json?
   createdAt    DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   chainSeq     BigInt              @default(autoincrement()) @map("chain_seq")
+  /// Gapless, application-assigned position in the hash chain. Null on rows
+  /// written before the chain existed; those are skipped by verification.
+  chainIndex   BigInt?             @map("chain_index")
   prevHash     String?             @map("prev_hash") @db.VarChar(64)
   entryHash    String?             @map("entry_hash") @db.VarChar(64)
-  actorUser    User?               @relation("SecurityAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
-  targetUser   User?               @relation("SecurityAuditTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
 
   @@unique([chainSeq])
+  @@unique([chainIndex])
   @@index([actorUserId, createdAt(sort: Desc)])
   @@index([targetUserId, createdAt(sort: Desc)])
   @@index([action, createdAt(sort: Desc)])
   @@map("security_audit_logs")
+}
+
+/// Single-row anchor for the newest chain entry. Without it, deleting rows off
+/// the end of the chain leaves a shorter chain that still verifies.
+model SecurityAuditChainHead {
+  id         Int      @id
+  chainIndex BigInt   @map("chain_index")
+  entryHash  String   @map("entry_hash") @db.VarChar(64)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("security_audit_chain_heads")
 }

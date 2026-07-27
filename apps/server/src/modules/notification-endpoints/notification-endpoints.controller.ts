@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/user-session.service';
 import { UserApiSessionGuard } from '../auth/guards/user-api-session.guard';
@@ -27,26 +37,26 @@ export class NotificationEndpointsController {
   }
 
   @Get(':id')
-  getEndpoint(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  getEndpoint(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.notificationEndpointsService.getEndpoint(user, id);
   }
 
   @Patch(':id')
   updateEndpoint(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateNotificationEndpointDto,
   ) {
     return this.notificationEndpointsService.updateEndpoint(user, id, dto);
   }
 
   @Delete(':id')
-  deleteEndpoint(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  deleteEndpoint(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.notificationEndpointsService.deleteEndpoint(user, id);
   }
 
   @Post(':id/test')
-  testEndpoint(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  testEndpoint(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.notificationEndpointsService.testEndpoint(user, id);
   }
 }

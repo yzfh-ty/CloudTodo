@@ -1,4 +1,12 @@
-import { Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserApiSessionGuard } from '../auth/guards/user-api-session.guard';
 import type { AuthenticatedUser } from '../auth/user-session.service';
@@ -19,12 +27,12 @@ export class ReminderEventsController {
   }
 
   @Get(':id')
-  getReminderEvent(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  getReminderEvent(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.reminderEventsService.getReminderEvent(user, id);
   }
 
   @Post(':id/ack')
-  ackReminderEvent(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  ackReminderEvent(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.reminderEventsService.ackReminderEvent(user, id);
   }
 }

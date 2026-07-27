@@ -40,6 +40,13 @@ export const ADMIN_AUDIT_SECTION_HTML = `
                 <button class="secondary" id="auditClearBtn" type="button">清空筛选</button>
               </div>
               <div class="error hidden" id="auditError"></div>
+              <div class="log-item">
+                <div class="log-title">审计链完整性</div>
+                <div class="log-meta" id="auditChainStatus">未校验</div>
+                <div class="action-row">
+                  <button class="secondary" id="auditChainVerifyBtn" type="button">校验审计链</button>
+                </div>
+              </div>
               <div id="auditContainer" class="muted">切换到本页后自动加载...</div>
               <div class="pagination">
                 <button class="secondary" id="auditPrevBtn">上一页</button>
@@ -102,6 +109,22 @@ export const ADMIN_AUDIT_SCRIPT = `
         auditError.textContent = error?.message || '加载失败';
         auditError.classList.remove('hidden');
       }
+
+      document.getElementById('auditChainVerifyBtn').addEventListener('click', async () => {
+        const status = document.getElementById('auditChainStatus');
+        status.textContent = '校验中...';
+        try {
+          const json = await fetchJson('/api/admin/security-audit-logs/chain-verification');
+          const data = json.data || {};
+          const head = data.head ? ('链头 #' + data.head.chain_index) : '链尚未开始';
+          status.textContent = data.valid
+            ? ('完整 · 已校验 ' + data.checked_entries + ' 条 · ' + head)
+            : ('校验失败（' + (data.reason || 'unknown') + '）· 断点 chain_seq ' +
+               (data.broken_at_chain_seq || '-') + ' · ' + head);
+        } catch (error) {
+          status.textContent = '校验请求失败：' + (error?.message || '未知错误');
+        }
+      });
 
       document.getElementById('auditSearchBtn').addEventListener('click', () => {
         loadAuditLogs(1).catch(auditShowError);

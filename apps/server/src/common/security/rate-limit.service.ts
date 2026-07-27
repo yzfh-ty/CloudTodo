@@ -77,6 +77,59 @@ export class RateLimitService {
     bucket.count += 1;
   }
 
+  /**
+   * Read-only counterpart of {@link assertAllowed} for failure-counted limits:
+   * it rejects once the bucket is exhausted but never charges the caller. Pair
+   * it with {@link registerFailure} so successful verifications stay free and
+   * an attacker cannot lock a victim out with valid-looking traffic.
+   */
+  assertNotLocked(key: string, limit: number, windowMs: number) {
+    this.assertUsableLimit(key, limit, windowMs);
+    const bucket = this.buckets.get(key);
+    if (bucket && bucket.resetAt > Date.now() && bucket.count >= limit) {
+      throw new HttpException(
+        {
+          code: 'RATE_LIMITED',
+          message: 'too many failed attempts, please try again later',
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+  }
+
+  registerFailure(key: string, windowMs: number) {
+    this.assertUsableLimit(key, 1, windowMs);
+    const now = Date.now();
+    this.prune(now);
+    const bucket = this.buckets.get(key);
+    if (bucket && bucket.resetAt > now) {
+      bucket.count += 1;
+      return;
+    }
+    if (!bucket && this.buckets.size >= this.maxBuckets) {
+      // The attempt already failed; dropping the counter is preferable to
+      // turning a full bucket map into a 500 on the error path.
+      return;
+    }
+    this.buckets.set(key, { count: 1, resetAt: now + windowMs });
+  }
+
+  private assertUsableLimit(key: string, limit: number, windowMs: number) {
+    if (
+      !key ||
+      key.length > 512 ||
+      !Number.isInteger(limit) ||
+      limit < 1 ||
+      !Number.isFinite(windowMs) ||
+      windowMs <= 0
+    ) {
+      throw new HttpException(
+        { code: 'RATE_LIMITED', message: 'rate limit configuration is invalid' },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+  }
+
   clientKey(request: RateLimitRequestLike) {
     const socketAddress = request.socket?.remoteAddress ?? request.ip ?? 'unknown';
     if (this.isTrustedProxy(socketAddress)) {

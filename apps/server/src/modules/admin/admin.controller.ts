@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -118,10 +119,16 @@ export class AdminController {
     return this.adminMfaService.getStatus(admin);
   }
 
+  // Enrollment is not decorated with @RequireMfaConfirmation(): the guard
+  // consumes the code's TOTP step, and the service needs to consume it itself
+  // so that re-binding is gated even for non-HTTP callers.
   @Post('mfa/totp/start')
   @RequireRecentAdminAuth()
-  startTotpEnrollment(@CurrentAdmin() admin: AuthenticatedAdmin) {
-    return this.adminMfaService.startEnrollment(admin);
+  startTotpEnrollment(
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+    @Req() req: RequestLike,
+  ) {
+    return this.adminMfaService.startEnrollment(admin, this.mfaConfirmationCode(req));
   }
 
   @Post('mfa/totp/confirm')
@@ -129,8 +136,13 @@ export class AdminController {
   confirmTotpEnrollment(
     @CurrentAdmin() admin: AuthenticatedAdmin,
     @Body() dto: AdminMfaCodeDto,
+    @Req() req: RequestLike,
   ) {
-    return this.adminMfaService.confirmEnrollment(admin, dto.code);
+    return this.adminMfaService.confirmEnrollment(
+      admin,
+      dto.code,
+      this.mfaConfirmationCode(req),
+    );
   }
 
   @Post('mfa/totp/disable')
@@ -171,7 +183,7 @@ export class AdminController {
   }
 
   @Get('users/:id')
-  getUserById(@Param('id') id: string) {
+  getUserById(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminService.getUserById(id);
   }
 
@@ -179,7 +191,7 @@ export class AdminController {
   @RequireRecentAdminAuth()
   updateUser(
     @CurrentAdmin() admin: AuthenticatedAdmin,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AdminUpdateUserDto,
   ) {
     return this.adminService.updateUser(admin, id, dto);
@@ -190,7 +202,7 @@ export class AdminController {
   @RequireMfaConfirmation()
   disableUser(
     @CurrentAdmin() admin: AuthenticatedAdmin,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AdminUserActionDto,
   ) {
     return this.adminService.disableUser(admin, id, dto.reason ?? '');
@@ -200,7 +212,7 @@ export class AdminController {
   @RequireRecentAdminAuth()
   enableUser(
     @CurrentAdmin() admin: AuthenticatedAdmin,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AdminUserActionDto,
   ) {
     return this.adminService.enableUser(admin, id, dto.reason);
@@ -211,14 +223,14 @@ export class AdminController {
   @RequireMfaConfirmation()
   resetPassword(
     @CurrentAdmin() admin: AuthenticatedAdmin,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AdminResetPasswordDto,
   ) {
     return this.adminService.resetPassword(admin, id, dto);
   }
 
   @Get('users/:id/devices')
-  getUserDevices(@Param('id') id: string) {
+  getUserDevices(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminService.getUserDevices(id);
   }
 
@@ -230,6 +242,11 @@ export class AdminController {
   @Get('security-audit-logs')
   getSecurityAuditLogs(@Query() query: AdminSecurityAuditLogQueryDto) {
     return this.adminService.getSecurityAuditLogs(query);
+  }
+
+  @Get('security-audit-logs/chain-verification')
+  verifySecurityAuditChain() {
+    return this.adminService.verifySecurityAuditChain();
   }
 
   private createAdminCookies(token: string, passwordChangeOnly = false) {
@@ -283,6 +300,12 @@ export class AdminController {
     }
 
     return this.configService.get<string>('NODE_ENV') === 'production';
+  }
+
+  private mfaConfirmationCode(request: RequestLike) {
+    const raw = request.headers['x-cloudtodo-mfa-code'];
+    const value = Array.isArray(raw) ? raw[0] : raw;
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
   }
 
   private assertRateLimit(

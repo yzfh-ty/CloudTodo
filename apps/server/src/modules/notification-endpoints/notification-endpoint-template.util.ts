@@ -1,7 +1,25 @@
 export type NotificationDeliveryKind = 'wecom_robot' | 'standard_webhook';
 
+const WECOM_ROBOT_HOST = 'qyapi.weixin.qq.com';
+const WECOM_ROBOT_PATH = '/cgi-bin/webhook/send';
+
+/**
+ * The WeCom branch signs only "{timestamp}\n{secret}" as a query parameter and
+ * therefore drops the request-body HMAC, so misclassifying a target is a
+ * signature-stripping primitive. Classification is done on the parsed host and
+ * path: a substring test also matched the query string, letting any URL opt out
+ * of body signing by carrying the marker in a parameter.
+ */
 export function inferNotificationDeliveryKind(targetUrl: string): NotificationDeliveryKind {
-  return targetUrl.includes('weixin.qq.com/cgi-bin/webhook/send')
+  let url: URL;
+  try {
+    url = new URL(targetUrl);
+  } catch {
+    return 'standard_webhook';
+  }
+
+  return url.hostname.toLowerCase() === WECOM_ROBOT_HOST &&
+    url.pathname.toLowerCase() === WECOM_ROBOT_PATH
     ? 'wecom_robot'
     : 'standard_webhook';
 }
@@ -56,12 +74,12 @@ export function renderPayloadTemplate(
   return template.replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (_, key: string) => {
     const value = variables[key];
 
+    // Only `_json` variables are substituted raw, and only because they are
+    // produced by JSON.stringify. Everything else lands inside a JSON string
+    // literal in the template and must be escaped, including `_text`, whose
+    // values are user-controlled task titles and descriptions.
     if (key.endsWith('_json')) {
       return JSON.stringify(value ?? null);
-    }
-
-    if (key.endsWith('_text')) {
-      return stringifyTextValue(value);
     }
 
     return escapeJsonString(stringifyTextValue(value));
@@ -81,10 +99,9 @@ function stringifyTextValue(value: unknown): string {
 }
 
 function escapeJsonString(value: string): string {
-  return value
-    .replace(/\\/g, '\\\\')
-    .replace(/"/g, '\\"')
-    .replace(/\n/g, '\\n')
-    .replace(/\r/g, '\\r')
-    .replace(/\t/g, '\\t');
+  // JSON.stringify handles every escape RFC 8259 requires — the full
+  // U+0000-U+001F range, not just \n \r \t — so borrow it and drop the quotes
+  // it wraps the result in.
+  const quoted = JSON.stringify(value);
+  return quoted.slice(1, -1);
 }

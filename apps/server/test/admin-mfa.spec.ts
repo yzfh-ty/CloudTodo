@@ -1,5 +1,6 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { AdminMfaService } from '../src/modules/admin/admin-mfa.service';
+import { RateLimitService } from '../src/common/security/rate-limit.service';
 import { encryptSecret } from '../src/common/security/secret.util';
 import { totpCodeAt } from '../src/common/security/totp.util';
 
@@ -33,6 +34,8 @@ describe('AdminMfaService login verification', () => {
       } as never,
       { get: () => undefined } as never,
       { record: auditRecord } as never,
+      new RateLimitService({ get: () => undefined } as never),
+      { current: () => undefined } as never,
     );
   });
 
@@ -156,6 +159,8 @@ describe('AdminMfaService per-action confirmation', () => {
       } as never,
       { get: () => undefined } as never,
       { record: auditRecord } as never,
+      new RateLimitService({ get: () => undefined } as never),
+      { current: () => undefined } as never,
     );
     return { service, userUpdateMany, auditRecord };
   }

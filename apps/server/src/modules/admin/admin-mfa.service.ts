@@ -7,8 +7,10 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../../common/database/prisma.service';
+import { RateLimitService } from '../../common/security/rate-limit.service';
 import { decryptSecret, encryptSecret } from '../../common/security/secret.util';
 import { SecurityAuditService } from '../../common/security/security-audit.service';
+import { SecurityRequestContextService } from '../../common/security/security-request-context.service';
 import {
   buildOtpauthUri,
   generateTotpSecret,
@@ -20,10 +22,16 @@ const RECOVERY_CODE_COUNT = 8;
 
 @Injectable()
 export class AdminMfaService {
+  /** Failed verifications tolerated per admin (and per client address). */
+  static readonly MFA_FAILURE_LIMIT = 5;
+  static readonly MFA_FAILURE_WINDOW_MS = 15 * 60 * 1000;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly securityAuditService: SecurityAuditService,
+    private readonly rateLimitService: RateLimitService,
+    private readonly requestContext: SecurityRequestContextService,
   ) {}
 
   async getStatus(admin: AuthenticatedAdmin) {
@@ -51,7 +59,18 @@ export class AdminMfaService {
     };
   }
 
-  async startEnrollment(admin: AuthenticatedAdmin) {
+  /**
+   * Re-binding TOTP to a new authenticator is exactly the move a session
+   * thief needs, so an admin who already has a factor must prove it before a
+   * new pending secret is issued. `assertActionConfirmation` is a no-op while
+   * no factor exists, which keeps first-time enrollment a single step.
+   *
+   * The check lives here rather than behind `@RequireMfaConfirmation()`
+   * because the guard consumes the code's time step; running both would make
+   * the service reject the very code the guard just accepted.
+   */
+  async startEnrollment(admin: AuthenticatedAdmin, confirmationCode: string | undefined) {
+    await this.assertActionConfirmation(admin.id, confirmationCode);
     const secret = generateTotpSecret();
     await this.prisma.user.update({
       where: { id: admin.id },
@@ -69,7 +88,15 @@ export class AdminMfaService {
     };
   }
 
-  async confirmEnrollment(admin: AuthenticatedAdmin, code: string) {
+  async confirmEnrollment(
+    admin: AuthenticatedAdmin,
+    code: string,
+    confirmationCode: string | undefined,
+  ) {
+    // A pending secret may have been created before the current factor was
+    // enrolled, so confirmation is re-checked here and not only in start().
+    await this.assertActionConfirmation(admin.id, confirmationCode);
+    this.assertMfaAttemptAllowed(admin.id);
     const user = await this.prisma.user.findUnique({
       where: { id: admin.id },
       select: { totpPendingSecretEncrypted: true },
@@ -84,6 +111,7 @@ export class AdminMfaService {
     const secret = decryptSecret(user.totpPendingSecretEncrypted);
     const matchedStep = matchTotpStep(secret, code);
     if (matchedStep === null) {
+      this.registerMfaFailure(admin.id);
       await this.securityAuditService.record({
         action: 'admin_mfa_failure',
         result: 'failure',
@@ -136,6 +164,7 @@ export class AdminMfaService {
   }
 
   async disable(admin: AuthenticatedAdmin, code: string) {
+    this.assertMfaAttemptAllowed(admin.id);
     const user = await this.prisma.user.findUnique({
       where: { id: admin.id },
       select: { totpSecretEncrypted: true, totpEnabledAt: true },
@@ -153,6 +182,7 @@ export class AdminMfaService {
       code,
     );
     if (!verified) {
+      this.registerMfaFailure(admin.id);
       await this.securityAuditService.record({
         action: 'admin_mfa_failure',
         result: 'failure',
@@ -248,12 +278,14 @@ export class AdminMfaService {
       });
     }
 
+    this.assertMfaAttemptAllowed(user.id);
     const verified = await this.verifyCodeOrRecovery(
       user.id,
       user.totpSecretEncrypted,
       totpCode,
     );
     if (!verified) {
+      this.registerMfaFailure(user.id);
       await this.securityAuditService.record({
         action: 'admin_mfa_failure',
         result: 'failure',
@@ -288,12 +320,14 @@ export class AdminMfaService {
       });
     }
 
+    this.assertMfaAttemptAllowed(adminId);
     const verified = await this.verifyCodeOrRecovery(
       adminId,
       user.totpSecretEncrypted,
       code,
     );
     if (!verified) {
+      this.registerMfaFailure(adminId);
       await this.securityAuditService.record({
         action: 'admin_mfa_failure',
         result: 'failure',
@@ -306,6 +340,40 @@ export class AdminMfaService {
         message: 'the provided TOTP or recovery code is invalid',
       });
     }
+  }
+
+  /**
+   * A 6-digit code has ~3/10^6 valid values at any instant with the ±1 step
+   * drift window, which is only out of reach while guesses are bounded. Both
+   * the admin and the client address are counted so neither a single hijacked
+   * session nor a single host can grind through the space.
+   */
+  private assertMfaAttemptAllowed(userId: string) {
+    for (const key of this.mfaFailureKeys(userId)) {
+      this.rateLimitService.assertNotLocked(
+        key,
+        AdminMfaService.MFA_FAILURE_LIMIT,
+        AdminMfaService.MFA_FAILURE_WINDOW_MS,
+      );
+    }
+  }
+
+  private registerMfaFailure(userId: string) {
+    for (const key of this.mfaFailureKeys(userId)) {
+      this.rateLimitService.registerFailure(
+        key,
+        AdminMfaService.MFA_FAILURE_WINDOW_MS,
+      );
+    }
+  }
+
+  private mfaFailureKeys(userId: string): string[] {
+    const keys = [`admin:mfa:user:${userId}`];
+    const ipAddress = this.requestContext.current()?.ipAddress;
+    if (ipAddress) {
+      keys.push(`admin:mfa:ip:${ipAddress.toLowerCase()}`);
+    }
+    return keys;
   }
 
   private generateRecoveryCode(): string {
