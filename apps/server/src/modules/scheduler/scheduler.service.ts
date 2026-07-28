@@ -93,37 +93,59 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
         orderBy: {
           remindAt: 'asc',
         },
-        include: {
-          todo: {
-            select: {
-              id: true,
-              title: true,
-              description: true,
-              dueAt: true,
-              priority: true,
-              status: true,
-            },
-          },
-        },
+        select: { id: true },
       });
 
-      for (const reminder of dueReminders) {
-        const now = new Date();
-        const dedupeKey = `${reminder.id}:${reminder.remindAt.toISOString()}:${reminder.channel}`;
-        const payload: Prisma.InputJsonValue = {
-          todo_id: reminder.todo.id,
-          todo_title: reminder.todo.title,
-          todo_description: reminder.todo.description,
-          todo_status: reminder.todo.status,
-          todo_priority: reminder.todo.priority,
-          todo_due_at: reminder.todo.dueAt?.toISOString() ?? null,
-          reminder_id: reminder.id,
-          channel: reminder.channel,
-          remind_at: reminder.remindAt.toISOString(),
-        };
-        const nextRemindAt = calculateNextRemindAt(reminder, now);
-
+      for (const candidate of dueReminders) {
         await this.prisma.$transaction(async (tx) => {
+          const locked = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+            SELECT "id"
+            FROM "reminders"
+            WHERE "id" = ${candidate.id}::uuid
+            FOR UPDATE SKIP LOCKED
+          `);
+          if (!locked[0]) {
+            return;
+          }
+
+          const now = new Date();
+          const reminder = await tx.reminder.findFirst({
+            where: {
+              id: candidate.id,
+              deletedAt: null,
+              status: ReminderStatus.pending,
+              remindAt: { lte: now },
+            },
+            include: {
+              todo: {
+                select: {
+                  id: true,
+                  title: true,
+                  description: true,
+                  dueAt: true,
+                  priority: true,
+                  status: true,
+                },
+              },
+            },
+          });
+          if (!reminder) {
+            return;
+          }
+
+          const dedupeKey = `${reminder.id}:${reminder.remindAt.toISOString()}:${reminder.channel}`;
+          const payload: Prisma.InputJsonValue = {
+            todo_id: reminder.todo.id,
+            todo_title: reminder.todo.title,
+            todo_description: reminder.todo.description,
+            todo_status: reminder.todo.status,
+            todo_priority: reminder.todo.priority,
+            todo_due_at: reminder.todo.dueAt?.toISOString() ?? null,
+            reminder_id: reminder.id,
+            channel: reminder.channel,
+            remind_at: reminder.remindAt.toISOString(),
+          };
+          const nextRemindAt = calculateNextRemindAt(reminder, now);
           const existingEvent = await tx.reminderEvent.findUnique({
             where: {
               dedupeKey,
@@ -131,33 +153,24 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
             select: { id: true },
           });
 
-          if (existingEvent) {
-            await tx.reminder.update({
-              where: { id: reminder.id },
+          const event =
+            existingEvent ??
+            (await tx.reminderEvent.create({
               data: {
-                status: ReminderStatus.triggered,
-                lastTriggeredAt: new Date(),
+                reminderId: reminder.id,
+                todoId: reminder.todoId,
+                userId: reminder.userId,
+                channel: reminder.channel,
+                scheduledFor: reminder.remindAt,
+                triggeredAt: now,
+                dedupeKey,
+                status: ReminderEventStatus.pending,
+                payload,
               },
-            });
-            return;
-          }
-
-          const event = await tx.reminderEvent.create({
-            data: {
-              reminderId: reminder.id,
-              todoId: reminder.todoId,
-              userId: reminder.userId,
-              channel: reminder.channel,
-              scheduledFor: reminder.remindAt,
-              triggeredAt: new Date(),
-              dedupeKey,
-              status: ReminderEventStatus.pending,
-              payload,
-            },
-            select: {
-              id: true,
-            },
-          });
+              select: {
+                id: true,
+              },
+            }));
 
           await tx.reminder.update({
             where: { id: reminder.id },
@@ -178,8 +191,9 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
           });
 
           if (
-            reminder.channel === ReminderChannel.webhook ||
-            reminder.channel === ReminderChannel.both
+            !existingEvent &&
+            (reminder.channel === ReminderChannel.webhook ||
+              reminder.channel === ReminderChannel.both)
           ) {
             await tx.$queryRaw(Prisma.sql`
               SELECT "id"

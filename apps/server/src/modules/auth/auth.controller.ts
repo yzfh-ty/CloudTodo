@@ -55,7 +55,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: ResponseLike,
   ) {
     this.csrfService.assertTrustedOriginForPublicRequest(req);
-    this.assertRateLimit(req, 'register', dto.email, 10, 15 * 60 * 1000);
+    await this.assertRateLimit(req, 'register', dto.email, 10, 15 * 60 * 1000);
     const result = await this.authService.register(dto);
     const token = this.userSessionService.createSessionToken(
       result.data.user.id,
@@ -83,7 +83,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: ResponseLike,
   ) {
     this.csrfService.assertTrustedOriginForPublicRequest(req);
-    this.assertRateLimit(req, 'login', dto.account, 10, 15 * 60 * 1000);
+    await this.assertRateLimit(req, 'login', dto.account, 10, 15 * 60 * 1000);
     const result = await this.authService.login(dto);
     const token = this.userSessionService.createSessionToken(
       result.data.user.id,
@@ -115,7 +115,7 @@ export class AuthController {
     @Headers('cookie') cookieHeader: string | undefined,
     @Res({ passthrough: true }) res: ResponseLike,
   ) {
-    this.assertRateLimit(req, 'refresh', undefined, 60, 15 * 60 * 1000);
+    await this.assertRateLimit(req, 'refresh', undefined, 60, 15 * 60 * 1000);
     const cookies = parseCookies(cookieHeader);
     this.csrfService.assertValidRequest(
       req,
@@ -166,7 +166,7 @@ export class AuthController {
       CsrfService.USER_COOKIE_NAME,
       'user',
     );
-    this.assertRateLimit(req, 'logout', undefined, 60, 15 * 60 * 1000);
+    await this.assertRateLimit(req, 'logout', undefined, 60, 15 * 60 * 1000);
 
     let authenticatedUserId: string | undefined;
     const sessionToken = cookies[UserSessionService.COOKIE_NAME];
@@ -207,8 +207,8 @@ export class AuthController {
 
   @Post('password-reset/confirm')
   @Public()
-  confirmPasswordReset(@Req() req: RequestLike, @Body() dto: ConfirmPasswordResetDto) {
-    this.assertRateLimit(req, 'password-reset-confirm', dto.token, 8, 15 * 60 * 1000);
+  async confirmPasswordReset(@Req() req: RequestLike, @Body() dto: ConfirmPasswordResetDto) {
+    await this.assertRateLimit(req, 'password-reset-confirm', dto.token, 8, 15 * 60 * 1000);
     return this.authService.confirmPasswordReset(dto);
   }
 
@@ -283,7 +283,7 @@ export class AuthController {
     return this.configService.get<string>('NODE_ENV') === 'production';
   }
 
-  private assertRateLimit(
+  private async assertRateLimit(
     request: RequestLike,
     action: string,
     identifier: string | undefined,
@@ -291,14 +291,14 @@ export class AuthController {
     windowMs: number,
   ) {
     const clientKey = this.rateLimitService.clientKey(request);
-    this.rateLimitService.assertAllowed(
+    await this.rateLimitService.assertAllowedShared(
       `auth:${action}:ip:${clientKey}`,
       limit,
       windowMs,
     );
 
     if (identifier?.trim()) {
-      this.rateLimitService.assertAllowed(
+      await this.rateLimitService.assertAllowedShared(
         `auth:${action}:id:${identifier.trim().toLowerCase()}`,
         limit,
         windowMs,

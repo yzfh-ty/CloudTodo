@@ -66,7 +66,7 @@ describe('App integration', () => {
         role: UserRole.admin,
         status: UserStatus.active,
         timezone: 'UTC',
-        passwordHash: hashPassword('admin123456'),
+        passwordHash: await hashPassword('admin123456'),
       },
     });
 

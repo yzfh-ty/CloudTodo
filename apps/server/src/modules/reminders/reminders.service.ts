@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/database/prisma.service';
 import type { AuthenticatedUser } from '../auth/user-session.service';
 import { CreateReminderDto } from './dto/create-reminder.dto';
 import { UpdateReminderDto } from './dto/update-reminder.dto';
+import { repeatLocalTimeFor } from '../scheduler/utils/repeat-rule.util';
 
 @Injectable()
 export class RemindersService {
@@ -11,6 +12,7 @@ export class RemindersService {
 
   async createReminder(user: AuthenticatedUser, todoId: string, dto: CreateReminderDto) {
     await this.ensureTodoBelongsToUser(todoId, user.id);
+    const remindAt = new Date(dto.remind_at);
 
     const reminder = await this.prisma.reminder.create({
       data: {
@@ -19,7 +21,8 @@ export class RemindersService {
         channel: dto.channel,
         repeatType: dto.repeat_type ?? 'none',
         repeatRule: dto.repeat_rule as Prisma.InputJsonValue | undefined,
-        remindAt: new Date(dto.remind_at),
+        remindAt,
+        repeatLocalTime: repeatLocalTimeFor(remindAt, user.timezone),
         timezone: user.timezone,
         status: ReminderStatus.pending,
       },
@@ -38,7 +41,11 @@ export class RemindersService {
     const data: Record<string, unknown> = {};
 
     if (dto.channel !== undefined) data.channel = dto.channel;
-    if (dto.remind_at !== undefined) data.remindAt = new Date(dto.remind_at);
+    if (dto.remind_at !== undefined) {
+      const remindAt = new Date(dto.remind_at);
+      data.remindAt = remindAt;
+      data.repeatLocalTime = repeatLocalTimeFor(remindAt, user.timezone);
+    }
     if (dto.repeat_type !== undefined) data.repeatType = dto.repeat_type;
     if (dto.repeat_rule !== undefined) data.repeatRule = dto.repeat_rule;
     if (dto.status !== undefined) data.status = dto.status;

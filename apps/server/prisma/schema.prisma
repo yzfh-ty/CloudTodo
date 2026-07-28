@@ -264,6 +264,7 @@ model TodoList {
   todos     Todo[]
 
   @@index([userId, isDefault])
+  // A migration-defined partial unique index permits one live default per user.
   @@index([userId, sortOrder])
   @@index([userId, updatedAt(sort: Asc), id(sort: Asc)])
   @@map("todo_lists")
@@ -334,6 +335,7 @@ model Reminder {
   channel         ReminderChannel
   repeatType      ReminderRepeatType @default(none) @map("repeat_type")
   repeatRule      Json?              @map("repeat_rule")
+  repeatLocalTime String             @map("repeat_local_time") @db.VarChar(12)
   remindAt        DateTime           @map("remind_at") @db.Timestamptz(6)
   timezone        String?            @db.VarChar(64)
   status          ReminderStatus     @default(pending)
@@ -474,4 +476,14 @@ model SecurityAuditChainHead {
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("security_audit_chain_heads")
+}
+
+model RateLimitBucket {
+  keyHash   String   @id @map("key_hash") @db.Char(64)
+  count     Int
+  resetAt   DateTime @map("reset_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([resetAt])
+  @@map("rate_limit_buckets")
 }

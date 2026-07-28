@@ -180,7 +180,7 @@ describe('admin reset-token password invalidation', () => {
       lastLoginAt: null,
       passwordChangedAt: new Date('2026-01-01T00:00:00.000Z'),
       sessionRevokedAt: null,
-      passwordHash: hashPassword(oldPassword),
+      passwordHash: await hashPassword(oldPassword),
     };
     const { prisma, resetTokens } = createStatefulPrisma(user);
     const audit = { record: jest.fn().mockResolvedValue(undefined) };

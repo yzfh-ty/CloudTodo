@@ -1,6 +1,8 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
+import { PrismaService } from '../database/prisma.service';
 
 interface RateLimitBucket {
   count: number;
@@ -21,7 +23,10 @@ export class RateLimitService {
   private readonly maxBuckets: number;
   private readonly trustedProxyIps: Set<string>;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly prisma?: PrismaService,
+  ) {
     const configuredMax = Number(configService.get<string>('RATE_LIMIT_MAX_BUCKETS'));
     this.maxBuckets = Number.isInteger(configuredMax) && configuredMax >= 100
       ? Math.min(configuredMax, 100_000)
@@ -32,6 +37,115 @@ export class RateLimitService {
         .map((value) => value.trim())
         .filter(Boolean),
     );
+  }
+
+  async assertAllowedShared(key: string, limit: number, windowMs: number) {
+    this.assertUsableLimit(key, limit, windowMs);
+    if (!this.prisma) {
+      this.assertAllowed(key, limit, windowMs);
+      return;
+    }
+    await this.pruneShared();
+    const keyHash = this.hashKey(key);
+    const charged = await this.prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+      INSERT INTO "rate_limit_buckets" AS bucket
+        ("key_hash", "count", "reset_at", "updated_at")
+      VALUES (
+        ${keyHash},
+        1,
+        CURRENT_TIMESTAMP + (${windowMs} * INTERVAL '1 millisecond'),
+        CURRENT_TIMESTAMP
+      )
+      ON CONFLICT ("key_hash") DO UPDATE SET
+        "count" = CASE
+          WHEN bucket."reset_at" <= CURRENT_TIMESTAMP THEN 1
+          ELSE bucket."count" + 1
+        END,
+        "reset_at" = CASE
+          WHEN bucket."reset_at" <= CURRENT_TIMESTAMP
+            THEN CURRENT_TIMESTAMP + (${windowMs} * INTERVAL '1 millisecond')
+          ELSE bucket."reset_at"
+        END,
+        "updated_at" = CURRENT_TIMESTAMP
+      WHERE bucket."reset_at" <= CURRENT_TIMESTAMP OR bucket."count" < ${limit}
+      RETURNING "count"
+    `);
+    if (charged.length === 0) this.throwRateLimited('too many requests, please try again later');
+  }
+
+  async assertNotLockedShared(key: string, limit: number, windowMs: number) {
+    this.assertUsableLimit(key, limit, windowMs);
+    if (!this.prisma) {
+      this.assertNotLocked(key, limit, windowMs);
+      return;
+    }
+    const locked = await this.prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+      SELECT "count"
+      FROM "rate_limit_buckets"
+      WHERE "key_hash" = ${this.hashKey(key)}
+        AND "reset_at" > CURRENT_TIMESTAMP
+        AND "count" >= ${limit}
+      LIMIT 1
+    `);
+    if (locked.length > 0) {
+      this.throwRateLimited('too many failed attempts, please try again later');
+    }
+  }
+
+  async registerFailureShared(key: string, windowMs: number) {
+    this.assertUsableLimit(key, 1, windowMs);
+    if (!this.prisma) {
+      this.registerFailure(key, windowMs);
+      return;
+    }
+    await this.pruneShared();
+    const keyHash = this.hashKey(key);
+    await this.prisma.$executeRaw(Prisma.sql`
+      INSERT INTO "rate_limit_buckets" AS bucket
+        ("key_hash", "count", "reset_at", "updated_at")
+      VALUES (
+        ${keyHash},
+        1,
+        CURRENT_TIMESTAMP + (${windowMs} * INTERVAL '1 millisecond'),
+        CURRENT_TIMESTAMP
+      )
+      ON CONFLICT ("key_hash") DO UPDATE SET
+        "count" = CASE
+          WHEN bucket."reset_at" <= CURRENT_TIMESTAMP THEN 1
+          ELSE bucket."count" + 1
+        END,
+        "reset_at" = CASE
+          WHEN bucket."reset_at" <= CURRENT_TIMESTAMP
+            THEN CURRENT_TIMESTAMP + (${windowMs} * INTERVAL '1 millisecond')
+          ELSE bucket."reset_at"
+        END,
+        "updated_at" = CURRENT_TIMESTAMP
+    `);
+  }
+
+  async releaseShared(key: string) {
+    if (!key || key.length > 512) {
+      return;
+    }
+    if (!this.prisma) {
+      const bucket = this.buckets.get(key);
+      if (!bucket || bucket.resetAt <= Date.now()) {
+        return;
+      }
+      bucket.count -= 1;
+      if (bucket.count <= 0) {
+        this.buckets.delete(key);
+      }
+      return;
+    }
+    await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE "rate_limit_buckets"
+      SET "count" = GREATEST("count" - 1, 0),
+          "updated_at" = CURRENT_TIMESTAMP
+      WHERE "key_hash" = ${this.hashKey(key)}
+        AND "reset_at" > CURRENT_TIMESTAMP
+        AND "count" > 0
+    `);
   }
 
   assertAllowed(key: string, limit: number, windowMs: number) {
@@ -155,6 +269,24 @@ export class RateLimitService {
       return createHash('sha256').update(value).digest('hex');
     }
     return normalized;
+  }
+
+  private hashKey(key: string) {
+    return createHash('sha256').update(key).digest('hex');
+  }
+
+  private async pruneShared() {
+    await this.prisma?.$executeRaw(Prisma.sql`
+      DELETE FROM "rate_limit_buckets"
+      WHERE "reset_at" <= CURRENT_TIMESTAMP
+    `);
+  }
+
+  private throwRateLimited(message: string): never {
+    throw new HttpException(
+      { code: 'RATE_LIMITED', message },
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
   }
 
   private prune(now: number) {

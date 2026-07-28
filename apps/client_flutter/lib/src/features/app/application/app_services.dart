@@ -58,8 +58,10 @@ class AppServices {
         NotificationEndpointsRepository(apiClient);
 
     Future<void> invalidateSession({bool clearCookies = true}) {
-      apiClient.invalidateSession(clearCookies: clearCookies);
-      return notificationService.clearAccountState();
+      return Future.wait<void>([
+        apiClient.invalidateSession(clearCookies: clearCookies),
+        notificationService.clearAccountState(),
+      ]).then<void>((_) {});
     }
 
     final sessionController = AppSessionController(

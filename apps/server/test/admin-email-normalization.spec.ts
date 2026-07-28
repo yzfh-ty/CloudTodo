@@ -1,5 +1,5 @@
 import { AdminService } from '../src/modules/admin/admin.service';
-import { hashPassword } from '../src/common/security/password.util';
+import { scryptSync } from 'node:crypto';
 import type { AuthenticatedAdmin } from '../src/modules/admin/admin-session.service';
 
 const ADMIN: AuthenticatedAdmin = {
@@ -14,6 +14,7 @@ const ADMIN: AuthenticatedAdmin = {
 
 describe('AdminService.login normalizes the account identifier', () => {
   const password = 'CorrectHorse#12345';
+  const salt = '00112233445566778899aabbccddeeff';
   const adminRow = {
     id: 'admin-1',
     email: 'admin@corp.com',
@@ -25,7 +26,7 @@ describe('AdminService.login normalizes the account identifier', () => {
     lastLoginAt: new Date('2026-07-01T00:00:00.000Z'),
     passwordChangedAt: null,
     sessionRevokedAt: null,
-    passwordHash: hashPassword(password),
+    passwordHash: `scrypt$${salt}$${scryptSync(password, salt, 64).toString('hex')}`,
     totpEnabledAt: null,
     totpSecretEncrypted: null,
     receivedPasswordResetTokens: [],
@@ -33,9 +34,8 @@ describe('AdminService.login normalizes the account identifier', () => {
 
   function buildService() {
     const findFirst = jest.fn().mockImplementation(({ where }) => {
-      const [byEmail, byUsername] = where.OR as Array<Record<string, string>>;
       return Promise.resolve(
-        byEmail.email === adminRow.email || byUsername.username === adminRow.username
+        where.email === adminRow.email || where.username === adminRow.username
           ? adminRow
           : null,
       );
@@ -67,7 +67,7 @@ describe('AdminService.login normalizes the account identifier', () => {
     await service.login({ account: 'Admin@Corp.com', password } as never);
     expect(findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { OR: [{ email: 'admin@corp.com' }, { username: 'Admin@Corp.com' }] },
+        where: { email: 'admin@corp.com' },
       }),
     );
   });
@@ -142,7 +142,9 @@ describe('AdminService.updateUser normalizes the email address', () => {
     ).rejects.toMatchObject({ response: { message: 'email is already in use' } });
     expect(findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ email: 'bob@example.com' }),
+        where: expect.objectContaining({
+          OR: [{ email: 'bob@example.com' }, { username: 'bob@example.com' }],
+        }),
       }),
     );
   });

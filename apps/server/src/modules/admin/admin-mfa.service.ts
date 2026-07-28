@@ -96,7 +96,6 @@ export class AdminMfaService {
     // A pending secret may have been created before the current factor was
     // enrolled, so confirmation is re-checked here and not only in start().
     await this.assertActionConfirmation(admin.id, confirmationCode);
-    this.assertMfaAttemptAllowed(admin.id);
     const user = await this.prisma.user.findUnique({
       where: { id: admin.id },
       select: { totpPendingSecretEncrypted: true },
@@ -108,10 +107,10 @@ export class AdminMfaService {
       });
     }
 
+    await this.reserveMfaAttempt(admin.id);
     const secret = decryptSecret(user.totpPendingSecretEncrypted);
     const matchedStep = matchTotpStep(secret, code);
     if (matchedStep === null) {
-      this.registerMfaFailure(admin.id);
       await this.securityAuditService.record({
         action: 'admin_mfa_failure',
         result: 'failure',
@@ -124,6 +123,7 @@ export class AdminMfaService {
         message: 'the provided TOTP code is invalid',
       });
     }
+    await this.releaseMfaAttempt(admin.id);
 
     const recoveryCodes = Array.from({ length: RECOVERY_CODE_COUNT }, () =>
       this.generateRecoveryCode(),
@@ -164,7 +164,6 @@ export class AdminMfaService {
   }
 
   async disable(admin: AuthenticatedAdmin, code: string) {
-    this.assertMfaAttemptAllowed(admin.id);
     const user = await this.prisma.user.findUnique({
       where: { id: admin.id },
       select: { totpSecretEncrypted: true, totpEnabledAt: true },
@@ -176,13 +175,13 @@ export class AdminMfaService {
       });
     }
 
+    await this.reserveMfaAttempt(admin.id);
     const verified = await this.verifyCodeOrRecovery(
       admin.id,
       user.totpSecretEncrypted,
       code,
     );
     if (!verified) {
-      this.registerMfaFailure(admin.id);
       await this.securityAuditService.record({
         action: 'admin_mfa_failure',
         result: 'failure',
@@ -195,6 +194,7 @@ export class AdminMfaService {
         message: 'the provided TOTP or recovery code is invalid',
       });
     }
+    await this.releaseMfaAttempt(admin.id);
 
     await this.prisma.$transaction([
       this.prisma.mfaRecoveryCode.deleteMany({ where: { userId: admin.id } }),
@@ -278,14 +278,13 @@ export class AdminMfaService {
       });
     }
 
-    this.assertMfaAttemptAllowed(user.id);
+    await this.reserveMfaAttempt(user.id);
     const verified = await this.verifyCodeOrRecovery(
       user.id,
       user.totpSecretEncrypted,
       totpCode,
     );
     if (!verified) {
-      this.registerMfaFailure(user.id);
       await this.securityAuditService.record({
         action: 'admin_mfa_failure',
         result: 'failure',
@@ -297,6 +296,7 @@ export class AdminMfaService {
         message: 'the provided TOTP or recovery code is invalid',
       });
     }
+    await this.releaseMfaAttempt(user.id);
   }
 
   /**
@@ -320,14 +320,13 @@ export class AdminMfaService {
       });
     }
 
-    this.assertMfaAttemptAllowed(adminId);
+    await this.reserveMfaAttempt(adminId);
     const verified = await this.verifyCodeOrRecovery(
       adminId,
       user.totpSecretEncrypted,
       code,
     );
     if (!verified) {
-      this.registerMfaFailure(adminId);
       await this.securityAuditService.record({
         action: 'admin_mfa_failure',
         result: 'failure',
@@ -340,6 +339,7 @@ export class AdminMfaService {
         message: 'the provided TOTP or recovery code is invalid',
       });
     }
+    await this.releaseMfaAttempt(adminId);
   }
 
   /**
@@ -348,23 +348,24 @@ export class AdminMfaService {
    * the admin and the client address are counted so neither a single hijacked
    * session nor a single host can grind through the space.
    */
-  private assertMfaAttemptAllowed(userId: string) {
-    for (const key of this.mfaFailureKeys(userId)) {
-      this.rateLimitService.assertNotLocked(
-        key,
-        AdminMfaService.MFA_FAILURE_LIMIT,
-        AdminMfaService.MFA_FAILURE_WINDOW_MS,
-      );
-    }
+  private async reserveMfaAttempt(userId: string) {
+    await Promise.all(
+      this.mfaFailureKeys(userId).map((key) =>
+        this.rateLimitService.assertAllowedShared(
+          key,
+          AdminMfaService.MFA_FAILURE_LIMIT,
+          AdminMfaService.MFA_FAILURE_WINDOW_MS,
+        ),
+      ),
+    );
   }
 
-  private registerMfaFailure(userId: string) {
-    for (const key of this.mfaFailureKeys(userId)) {
-      this.rateLimitService.registerFailure(
-        key,
-        AdminMfaService.MFA_FAILURE_WINDOW_MS,
-      );
-    }
+  private async releaseMfaAttempt(userId: string) {
+    await Promise.all(
+      this.mfaFailureKeys(userId).map((key) =>
+        this.rateLimitService.releaseShared(key),
+      ),
+    );
   }
 
   private mfaFailureKeys(userId: string): string[] {

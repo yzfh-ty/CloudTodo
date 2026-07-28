@@ -2,19 +2,26 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/http/http_client.dart';
 import '../domain/device_item.dart';
+import 'installation_id_store.dart';
 
 class DeviceRepository {
-  DeviceRepository(this._apiClient);
+  DeviceRepository(
+    this._apiClient, {
+    InstallationIdStore? installationIdStore,
+  }) : _installationIdStore =
+            installationIdStore ?? SharedPreferencesInstallationIdStore();
 
   final ApiClient _apiClient;
+  final InstallationIdStore _installationIdStore;
 
-  Future<void> registerCurrentDevice() {
+  Future<void> registerCurrentDevice() async {
+    final installationId = await _installationIdStore.getOrCreate();
     return _apiClient.post(
       '/devices/register',
       body: {
         'platform': _platformType(),
         'device_name': _deviceName(),
-        'device_identifier': _deviceIdentifier(),
+        'device_identifier': installationId,
         'app_version': '0.1.0',
       },
       parser: (_) => null,
@@ -68,16 +75,4 @@ class DeviceRepository {
     };
   }
 
-  String _deviceIdentifier() {
-    if (kIsWeb) {
-      return 'web-client';
-    }
-
-    return switch (defaultTargetPlatform) {
-      TargetPlatform.android => 'android-client',
-      TargetPlatform.windows => 'windows-client',
-      TargetPlatform.linux => 'linux-client',
-      _ => 'flutter-client',
-    };
-  }
 }

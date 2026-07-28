@@ -201,6 +201,7 @@ describeWithPostgres('sync watermark PostgreSQL concurrency', () => {
           todoId: todo.id,
           channel: ReminderChannel.webhook,
           remindAt: new Date(),
+          repeatLocalTime: '00:00:00.000',
           status: ReminderStatus.pending,
         },
       });

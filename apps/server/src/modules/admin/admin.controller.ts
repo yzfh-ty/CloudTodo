@@ -70,7 +70,7 @@ export class AdminController {
     @Res({ passthrough: true }) res: ResponseLike,
   ) {
     this.csrfService.assertTrustedOriginForPublicRequest(req);
-    this.assertRateLimit(req, 'login', dto.account, 8, 15 * 60 * 1000);
+    await this.assertRateLimit(req, 'login', dto.account, 8, 15 * 60 * 1000);
     const result = await this.adminService.login(dto);
     const token = this.adminSessionService.createSessionToken(result.data.admin.id, {
       passwordChangeOnly: result.data.admin.forcePasswordChange,
@@ -308,7 +308,7 @@ export class AdminController {
     return typeof value === 'string' && value.trim() ? value.trim() : undefined;
   }
 
-  private assertRateLimit(
+  private async assertRateLimit(
     request: RequestLike,
     action: string,
     identifier: string | undefined,
@@ -316,14 +316,14 @@ export class AdminController {
     windowMs: number,
   ) {
     const clientKey = this.rateLimitService.clientKey(request);
-    this.rateLimitService.assertAllowed(
+    await this.rateLimitService.assertAllowedShared(
       `admin:${action}:ip:${clientKey}`,
       limit,
       windowMs,
     );
 
     if (identifier?.trim()) {
-      this.rateLimitService.assertAllowed(
+      await this.rateLimitService.assertAllowedShared(
         `admin:${action}:id:${identifier.trim().toLowerCase()}`,
         limit,
         windowMs,

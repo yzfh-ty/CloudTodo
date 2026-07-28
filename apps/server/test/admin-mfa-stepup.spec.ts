@@ -197,6 +197,32 @@ describe('AdminMfaService rate limits MFA verification failures', () => {
     });
   });
 
+  it('admits at most the failure limit when wrong codes arrive concurrently', async () => {
+    const { service } = buildHarness({
+      totpEnabledAt: new Date(),
+      totpSecretEncrypted: currentEncrypted,
+      ipAddress: null,
+    });
+
+    const results = await Promise.allSettled(
+      Array.from({ length: AdminMfaService.MFA_FAILURE_LIMIT * 2 }, () =>
+        service.assertActionConfirmation(ADMIN.id, 'wrong'),
+      ),
+    );
+    const codes = results.map((result) =>
+      result.status === 'rejected'
+        ? (result.reason as { response?: { code?: string } }).response?.code
+        : 'OK',
+    );
+
+    expect(codes.filter((code) => code === 'MFA_CODE_INVALID')).toHaveLength(
+      AdminMfaService.MFA_FAILURE_LIMIT,
+    );
+    expect(codes.filter((code) => code === 'RATE_LIMITED')).toHaveLength(
+      AdminMfaService.MFA_FAILURE_LIMIT,
+    );
+  });
+
   it('locks out enrollment confirmation brute force', async () => {
     const { service } = buildHarness({
       totpPendingSecretEncrypted: encryptSecret(PENDING_SECRET),

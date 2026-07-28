@@ -1,5 +1,5 @@
 import { ReminderChannel, ReminderRepeatType, ReminderStatus } from '@prisma/client';
-import { IsDateString, IsEnum, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsDateString, IsEnum, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class UpdateReminderDto {
   @IsEnum(ReminderChannel)
@@ -20,6 +20,7 @@ export class UpdateReminderDto {
 
   @IsString()
   @IsOptional()
+  @MaxLength(64)
   timezone?: string | null;
 
   @IsEnum(ReminderStatus)

@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 
 import 'http_client.dart';
+import 'native_session_store.dart';
 
 PlatformHttpClient createPlatformHttpClient(
   String baseUrl, {
@@ -19,17 +20,25 @@ class IoPlatformHttpClient
   IoPlatformHttpClient(
     this.baseUrl, {
     this.policy = const HttpClientPolicy(),
-  }) {
+    NativeSessionStore? sessionStore,
+  }) : _sessionStore = sessionStore ?? SecureNativeSessionStore() {
     policy.validate();
     _client = _newClient();
+    _sessionStorageKey = _storageKey(baseUrl);
+    _restoreFuture = _restoreCookies();
   }
 
   final String baseUrl;
   final HttpClientPolicy policy;
+  final NativeSessionStore _sessionStore;
   late HttpClient _client;
+  late final String _sessionStorageKey;
+  late final Future<void> _restoreFuture;
+  Future<void> _storageWrites = Future<void>.value();
   final Map<String, _StoredCookie> _cookies = <String, _StoredCookie>{};
   final Set<_IoRequestState> _pendingRequests = <_IoRequestState>{};
   bool _disposed = false;
+  bool _cookiesLoaded = false;
 
   static const _sessionCookieNames = <String>{
     'cloudtodo_user_session',
@@ -41,6 +50,7 @@ class IoPlatformHttpClient
 
   @override
   bool get hasSessionHint {
+    if (!_cookiesLoaded) return true;
     _purgeExpiredCookies();
     return _cookies.containsKey('cloudtodo_user_csrf_token') ||
         _cookies.containsKey('cloudtodo_admin_csrf_token');
@@ -88,6 +98,11 @@ class IoPlatformHttpClient
     Map<String, String?>? queryParameters,
     Object? body,
   }) async {
+    if (_disposed) {
+      throw StateError('HTTP client is disposed.');
+    }
+    await _restoreFuture;
+    await _storageWrites;
     if (_disposed) {
       throw StateError('HTTP client is disposed.');
     }
@@ -141,8 +156,12 @@ class IoPlatformHttpClient
 
       final response = await request.close().timeout(policy.receiveTimeout);
       final responseBody = await _readResponseBody(response);
+      var cookiesChanged = false;
       for (final cookie in response.cookies) {
-        _storeCookie(cookie, uri);
+        cookiesChanged = _storeCookie(cookie, uri) || cookiesChanged;
+      }
+      if (cookiesChanged) {
+        await _persistCookies();
       }
 
       final responseHeaders = <String, String>{};
@@ -180,8 +199,10 @@ class IoPlatformHttpClient
   }
 
   @override
-  void clearSession() {
+  Future<void> clearSession() async {
+    await _restoreFuture;
     _cookies.clear();
+    await _persistCookies(reportFailure: true);
   }
 
   @override
@@ -263,21 +284,20 @@ class IoPlatformHttpClient
     );
   }
 
-  void _storeCookie(Cookie cookie, Uri requestUri) {
+  bool _storeCookie(Cookie cookie, Uri requestUri) {
     if (!_sessionCookieNames.contains(cookie.name)) {
-      return;
+      return false;
     }
 
     if (cookie.secure && requestUri.scheme != 'https') {
-      return;
+      return false;
     }
 
     final expiredByAge = cookie.maxAge != null && cookie.maxAge! <= 0;
     final expiredByDate =
         cookie.expires != null && !cookie.expires!.isAfter(DateTime.now());
     if (expiredByAge || expiredByDate || cookie.value.isEmpty) {
-      _cookies.remove(cookie.name);
-      return;
+      return _cookies.remove(cookie.name) != null;
     }
 
     DateTime? expiresAt = cookie.expires;
@@ -288,6 +308,7 @@ class IoPlatformHttpClient
       value: cookie.value,
       expiresAt: expiresAt,
     );
+    return true;
   }
 
   void _purgeExpiredCookies() {
@@ -296,6 +317,84 @@ class IoPlatformHttpClient
       (_, cookie) =>
           cookie.expiresAt != null && !cookie.expiresAt!.isAfter(now),
     );
+  }
+
+  Future<void> _restoreCookies() async {
+    try {
+      final encoded = await _sessionStore.read(_sessionStorageKey);
+      if (encoded == null || encoded.isEmpty || _disposed) return;
+      final payload = jsonDecode(encoded);
+      if (payload is! Map<String, dynamic> || payload['version'] != 1) {
+        await _sessionStore.delete(_sessionStorageKey);
+        return;
+      }
+      final storedCookies = payload['cookies'];
+      if (storedCookies is! Map<String, dynamic>) return;
+      final now = DateTime.now();
+      for (final entry in storedCookies.entries) {
+        final cookie = entry.value;
+        if (!_sessionCookieNames.contains(entry.key) ||
+            cookie is! Map<String, dynamic> ||
+            cookie['value'] is! String ||
+            cookie['expires_at'] is! int) {
+          continue;
+        }
+        final expiresAt =
+            DateTime.fromMillisecondsSinceEpoch(cookie['expires_at'] as int);
+        if (expiresAt.isAfter(now)) {
+          _cookies[entry.key] = _StoredCookie(
+            value: cookie['value'] as String,
+            expiresAt: expiresAt,
+          );
+        }
+      }
+    } catch (_) {
+      try {
+        await _sessionStore.delete(_sessionStorageKey);
+      } catch (_) {}
+    } finally {
+      _cookiesLoaded = true;
+    }
+  }
+
+  Future<void> _persistCookies({bool reportFailure = false}) {
+    final persistentCookies = <String, Object>{
+      for (final entry in _cookies.entries)
+        if (entry.value.expiresAt != null)
+          entry.key: <String, Object>{
+            'value': entry.value.value,
+            'expires_at': entry.value.expiresAt!.millisecondsSinceEpoch,
+          },
+    };
+    final encoded = jsonEncode(<String, Object>{
+      'version': 1,
+      'cookies': persistentCookies,
+    });
+    final operation = _storageWrites.then((_) async {
+      if (persistentCookies.isEmpty) {
+        await _sessionStore.delete(_sessionStorageKey);
+      } else {
+        await _sessionStore.write(_sessionStorageKey, encoded);
+      }
+    });
+    // Ordinary response persistence is best effort. Keep the queue usable
+    // after an OS-storage failure, while clearSession returns the unsuppressed
+    // operation so logout cannot appear successful when deletion failed.
+    _storageWrites = operation.catchError((Object _) {});
+    return reportFailure ? operation : _storageWrites;
+  }
+
+  static String _storageKey(String baseUrl) {
+    final uri = Uri.parse(baseUrl.trim());
+    final path = uri.path.replaceFirst(RegExp(r'/+$'), '');
+    final normalized = uri
+        .replace(
+          scheme: uri.scheme.toLowerCase(),
+          host: uri.host.toLowerCase(),
+          path: path,
+        )
+        .toString();
+    return 'cloudtodo_native_session_${base64Url.encode(utf8.encode(normalized))}';
   }
 
   String? _csrfTokenForRequest(String method) {

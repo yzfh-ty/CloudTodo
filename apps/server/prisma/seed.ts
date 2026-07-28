@@ -64,7 +64,7 @@ async function main() {
         timezone,
         role: UserRole.admin,
         status: UserStatus.active,
-        passwordHash: hashPassword(password),
+        passwordHash: await hashPassword(password),
         passwordChangedAt: new Date(),
       },
       select: {
@@ -106,7 +106,7 @@ async function main() {
           timezone: demoTimezone,
           role: UserRole.user,
           status: UserStatus.active,
-          passwordHash: hashPassword(demoPassword),
+          passwordHash: await hashPassword(demoPassword),
           passwordChangedAt: new Date(),
         },
         select: {

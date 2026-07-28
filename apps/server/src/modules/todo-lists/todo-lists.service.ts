@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import type { AuthenticatedUser } from '../auth/user-session.service';
@@ -27,29 +32,31 @@ export class TodoListsService {
   }
 
   async createTodoList(user: AuthenticatedUser, dto: CreateTodoListDto) {
-    const list = await this.prisma.$transaction(async (tx) => {
-      if (dto.is_default) {
-        await tx.todoList.updateMany({
-          where: {
-            userId: user.id,
-            deletedAt: null,
-            isDefault: true,
-          },
-          data: { isDefault: false },
-        });
-      }
+    const list = await this.withDefaultConflictRetry(Boolean(dto.is_default), () =>
+      this.prisma.$transaction(async (tx) => {
+        if (dto.is_default) {
+          await tx.todoList.updateMany({
+            where: {
+              userId: user.id,
+              deletedAt: null,
+              isDefault: true,
+            },
+            data: { isDefault: false },
+          });
+        }
 
-      return tx.todoList.create({
-        data: {
-          userId: user.id,
-          name: dto.name.trim(),
-          color: dto.color?.trim() || null,
-          isDefault: dto.is_default ?? false,
-          sortOrder: dto.sort_order ?? 0,
-        },
-        select: this.todoListSelect(),
-      });
-    });
+        return tx.todoList.create({
+          data: {
+            userId: user.id,
+            name: dto.name.trim(),
+            color: dto.color?.trim() || null,
+            isDefault: dto.is_default ?? false,
+            sortOrder: dto.sort_order ?? 0,
+          },
+          select: this.todoListSelect(),
+        });
+      }),
+    );
 
     return {
       code: 'OK',
@@ -83,25 +90,27 @@ export class TodoListsService {
       });
     }
 
-    const list = await this.prisma.$transaction(async (tx) => {
-      if (dto.is_default) {
-        await tx.todoList.updateMany({
-          where: {
-            userId: user.id,
-            deletedAt: null,
-            isDefault: true,
-            NOT: { id },
-          },
-          data: { isDefault: false },
-        });
-      }
+    const list = await this.withDefaultConflictRetry(Boolean(dto.is_default), () =>
+      this.prisma.$transaction(async (tx) => {
+        if (dto.is_default) {
+          await tx.todoList.updateMany({
+            where: {
+              userId: user.id,
+              deletedAt: null,
+              isDefault: true,
+              NOT: { id },
+            },
+            data: { isDefault: false },
+          });
+        }
 
-      return tx.todoList.update({
-        where: { id },
-        data,
-        select: this.todoListSelect(),
-      });
-    });
+        return tx.todoList.update({
+          where: { id },
+          data,
+          select: this.todoListSelect(),
+        });
+      }),
+    );
 
     return {
       code: 'OK',
@@ -158,6 +167,31 @@ export class TodoListsService {
     }
 
     return list;
+  }
+
+  private async withDefaultConflictRetry<T>(
+    makeDefault: boolean,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      if (!makeDefault || !this.isUniqueConflict(error)) throw error;
+    }
+
+    try {
+      return await operation();
+    } catch (error) {
+      if (!this.isUniqueConflict(error)) throw error;
+      throw new ConflictException({
+        code: 'DEFAULT_TODO_LIST_CONFLICT',
+        message: 'another default todo list was selected concurrently; retry the request',
+      });
+    }
+  }
+
+  private isUniqueConflict(error: unknown): boolean {
+    return Boolean(error && typeof error === 'object' && 'code' in error && error.code === 'P2002');
   }
 
   private todoListSelect() {

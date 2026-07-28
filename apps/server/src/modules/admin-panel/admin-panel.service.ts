@@ -7,11 +7,13 @@ import {
   ADMIN_MFA_SCRIPT,
   ADMIN_MFA_SECTION_HTML,
 } from './admin-panel.mfa';
+import { escapeHtml, renderForcedPasswordChange } from './admin-panel.auth';
 
 @Injectable()
 export class AdminPanelService {
   renderIndex(admin: AuthenticatedAdmin) {
-    const adminDisplay = this.escapeHtml(admin.nickname || admin.email || admin.username);
+    if (admin.forcePasswordChange) return renderForcedPasswordChange(admin);
+    const adminDisplay = escapeHtml(admin.nickname || admin.email || admin.username);
 
     return `<!doctype html>
 <html lang="zh-CN">
@@ -989,12 +991,4 @@ ${ADMIN_MFA_SCRIPT}${ADMIN_AUDIT_SCRIPT}
 </html>`;
   }
 
-  private escapeHtml(value: string): string {
-    return value
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#39;');
-  }
 }

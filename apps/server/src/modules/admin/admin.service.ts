@@ -13,10 +13,16 @@ import {
   UserStatus,
 } from '@prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
-import { hashPassword, verifyPassword } from '../../common/security/password.util';
+import { hashPassword, upgradedPasswordHash, verifyPassword } from '../../common/security/password.util';
 import { hashResetToken } from '../../common/security/token-hash.util';
 import { SecurityAuditService } from '../../common/security/security-audit.service';
 import { SecurityRequestContextService } from '../../common/security/security-request-context.service';
+import {
+  accountLookupWhere,
+  assertUnambiguousUsername,
+  emailConflictWhere,
+  usernameConflictWhere,
+} from '../../common/security/account-identifier.util';
 import type { AuthenticatedAdmin } from './admin-session.service';
 import { AdminMfaService } from './admin-mfa.service';
 import {
@@ -42,6 +48,7 @@ import {
   getAdminUserDevices,
   getAdminUsers,
   requireAdminUser,
+  verifyAdminSecurityAuditChain,
 } from './admin-query.functions';
 
 @Injectable()
@@ -56,11 +63,7 @@ export class AdminService {
   async login(dto: AdminLoginDto) {
     const account = dto.account.trim();
     const admin = await this.prisma.user.findFirst({
-      where: {
-        // Addresses are stored lowercased by every writer, so the email
-        // candidate has to be normalized the same way the user path does.
-        OR: [{ email: account.toLowerCase() }, { username: account }],
-      },
+      where: accountLookupWhere(account),
       select: {
         id: true,
         email: true,
@@ -102,7 +105,7 @@ export class AdminService {
       });
     }
 
-    if (!verifyPassword(dto.password, admin.passwordHash)) {
+    if (!(await verifyPassword(dto.password, admin.passwordHash))) {
       void this.securityAuditService.record({
         action: 'admin_login_failure',
         result: 'failure',
@@ -135,6 +138,8 @@ export class AdminService {
       }
     }
 
+    const upgradedHash = await upgradedPasswordHash(dto.password, admin.passwordHash, admin.forcePasswordChange);
+
     await this.adminMfaService.assertLoginMfa(admin, dto.totp_code);
 
     const loginAt = nextSecurityTimestamp(
@@ -162,7 +167,10 @@ export class AdminService {
             }
           : {}),
       },
-      data: { lastLoginAt: loginAt },
+      data: {
+        lastLoginAt: loginAt,
+        ...(upgradedHash ? { passwordHash: upgradedHash } : {}),
+      },
     });
     if (loginClaim.count !== 1) {
       void this.securityAuditService.record({
@@ -261,14 +269,14 @@ export class AdminService {
       });
     }
 
-    if (!verifyPassword(dto.currentPassword, currentAdmin.passwordHash)) {
+    if (!(await verifyPassword(dto.currentPassword, currentAdmin.passwordHash))) {
       throw new UnauthorizedException({
         code: 'INVALID_PASSWORD',
         message: 'current password is invalid',
       });
     }
 
-    const nextPasswordHash = hashPassword(dto.newPassword);
+    const nextPasswordHash = await hashPassword(dto.newPassword);
     const changedAt = await this.prisma.$transaction(async (tx) => {
       const lockedUser = await lockUser(tx, admin.id);
       const securityChangedAt = nextSecurityTimestamp(
@@ -411,6 +419,7 @@ export class AdminService {
 
   async createUser(admin: AuthenticatedAdmin, dto: AdminCreateUserDto) {
     const username = dto.username.trim();
+    assertUnambiguousUsername(username);
     const email = dto.email.trim().toLowerCase();
     const nickname = dto.nickname?.trim() || username;
     const timezone = dto.timezone?.trim() || 'Asia/Shanghai';
@@ -419,11 +428,11 @@ export class AdminService {
 
     const [emailExists, usernameExists] = await this.prisma.$transaction([
       this.prisma.user.findFirst({
-        where: { email },
+        where: emailConflictWhere(email),
         select: { id: true },
       }),
       this.prisma.user.findFirst({
-        where: { username },
+        where: usernameConflictWhere(username),
         select: { id: true },
       }),
     ]);
@@ -442,7 +451,7 @@ export class AdminService {
       });
     }
 
-    const passwordHash = hashPassword(dto.password);
+    const passwordHash = await hashPassword(dto.password);
     const createdAt = new Date();
     const temporaryToken = generateSecret(24);
     const temporaryTokenHash = hashResetToken(temporaryToken);
@@ -543,9 +552,7 @@ export class AdminService {
     }
 
     const nextUsername = dto.username?.trim();
-    // Without normalization the duplicate check is case-sensitive, so
-    // "A@b.com" and "a@b.com" can coexist and neither owner can log in by
-    // email afterwards.
+    if (nextUsername) assertUnambiguousUsername(nextUsername);
     const nextEmail = dto.email?.trim().toLowerCase();
     const nextNickname = dto.nickname?.trim();
     const nextTimezone = dto.timezone?.trim();
@@ -554,10 +561,7 @@ export class AdminService {
 
     if (nextUsername && nextUsername !== user.username) {
       const existingUsernameUser = await this.prisma.user.findFirst({
-        where: {
-          username: nextUsername,
-          NOT: { id },
-        },
+        where: usernameConflictWhere(nextUsername, id),
         select: { id: true },
       });
 
@@ -573,10 +577,7 @@ export class AdminService {
 
     if (nextEmail && nextEmail !== user.email) {
       const existingEmailUser = await this.prisma.user.findFirst({
-        where: {
-          email: nextEmail,
-          NOT: { id },
-        },
+        where: emailConflictWhere(nextEmail, id),
         select: { id: true },
       });
 
@@ -811,7 +812,7 @@ export class AdminService {
 
     if (dto.mode === PasswordResetMode.temporary_password) {
       const temporaryPassword = generateTemporaryPassword();
-      const temporaryPasswordHash = hashPassword(temporaryPassword);
+      const temporaryPasswordHash = await hashPassword(temporaryPassword);
 
       const resetResult = await this.prisma.$transaction(async (tx) => {
         const lockedUser = await lockUser(tx, id);
@@ -993,36 +994,7 @@ export class AdminService {
     return getAdminSecurityAuditLogs(this.prisma, query);
   }
 
-  /**
-   * Surfaces the audit hash chain verification so the control is observable
-   * rather than a write-only claim. BigInt columns are rendered as strings
-   * because JSON.stringify cannot serialize them.
-   */
   async verifySecurityAuditChain() {
-    const report = await this.securityAuditService.verifyChain();
-    return {
-      code: 'OK',
-      message: 'success',
-      data: {
-        valid: report.valid,
-        checked_entries: report.checked,
-        reason: report.reason ?? null,
-        broken_at_chain_seq:
-          report.brokenAtChainSeq === undefined ? null : String(report.brokenAtChainSeq),
-        head: report.head
-          ? {
-              chain_index: String(report.head.chainIndex),
-              entry_hash: report.head.entryHash,
-            }
-          : null,
-      },
-    };
-  }
-  placeholder(action: string) {
-    return {
-      code: 'NOT_IMPLEMENTED',
-      message: `${action} is scaffolded but not implemented yet`,
-      data: null,
-    };
+    return verifyAdminSecurityAuditChain(this.securityAuditService);
   }
 }

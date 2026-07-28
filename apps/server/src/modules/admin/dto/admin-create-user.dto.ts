@@ -5,15 +5,20 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  MaxLength,
   MinLength,
+  NotContains,
 } from 'class-validator';
 
 export class AdminCreateUserDto {
   @IsString()
   @IsNotEmpty()
+  @NotContains('@')
+  @MaxLength(64)
   username!: string;
 
   @IsEmail()
+  @MaxLength(255)
   email!: string;
 
   @IsString()
@@ -22,10 +27,12 @@ export class AdminCreateUserDto {
 
   @IsString()
   @IsOptional()
+  @MaxLength(64)
   nickname?: string;
 
   @IsString()
   @IsOptional()
+  @MaxLength(64)
   timezone?: string;
 
   @IsEnum(UserRole)
@@ -38,5 +45,6 @@ export class AdminCreateUserDto {
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(255)
   reason!: string;
 }

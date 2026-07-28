@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import { ReminderChannel, ReminderEventStatus } from '@prisma/client';
-import { IsDateString, IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 export class ReminderEventQueryDto {
   @IsEnum(ReminderEventStatus)
@@ -11,7 +11,8 @@ export class ReminderEventQueryDto {
   @IsOptional()
   channel?: ReminderChannel;
 
-  @IsDateString()
+  @IsString()
+  @MaxLength(2048)
   @IsOptional()
   cursor?: string;
 

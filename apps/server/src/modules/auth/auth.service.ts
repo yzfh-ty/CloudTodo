@@ -2,9 +2,19 @@ import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/
 import { PasswordResetMode, Prisma, UserRole, UserStatus } from '@prisma/client';
 import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../../common/database/prisma.service';
-import { hashPassword, verifyPassword } from '../../common/security/password.util';
+import {
+  hashPassword,
+  upgradedPasswordHash,
+  verifyPassword,
+} from '../../common/security/password.util';
 import { hashResetToken } from '../../common/security/token-hash.util';
 import { SecurityAuditService } from '../../common/security/security-audit.service';
+import {
+  accountLookupWhere,
+  assertUnambiguousUsername,
+  emailConflictWhere,
+  usernameConflictWhere,
+} from '../../common/security/account-identifier.util';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -22,14 +32,16 @@ export class AuthService {
   async register(dto: RegisterDto) {
     const email = dto.email.trim().toLowerCase();
     const username = dto.username.trim();
+    assertUnambiguousUsername(username);
+    const passwordHash = await hashPassword(dto.password);
 
     const [emailExists, usernameExists] = await this.prisma.$transaction([
       this.prisma.user.findFirst({
-        where: { email },
+        where: emailConflictWhere(email),
         select: { id: true },
       }),
       this.prisma.user.findFirst({
-        where: { username },
+        where: usernameConflictWhere(username),
         select: { id: true },
       }),
     ]);
@@ -52,7 +64,7 @@ export class AuthService {
       data: {
         email,
         username,
-        passwordHash: hashPassword(dto.password),
+        passwordHash,
         nickname: dto.nickname?.trim() || username,
         role: UserRole.user,
         status: UserStatus.active,
@@ -90,9 +102,7 @@ export class AuthService {
   async login(dto: LoginDto) {
     const account = dto.account.trim();
     const user = await this.prisma.user.findFirst({
-      where: {
-        OR: [{ email: account.toLowerCase() }, { username: account }],
-      },
+      where: accountLookupWhere(account),
       select: {
         id: true,
         email: true,
@@ -133,7 +143,7 @@ export class AuthService {
       });
     }
 
-    if (!verifyPassword(dto.password, user.passwordHash)) {
+    if (!(await verifyPassword(dto.password, user.passwordHash))) {
       void this.securityAuditService.record({
         action: 'user_login_failure',
         result: 'failure',
@@ -166,6 +176,12 @@ export class AuthService {
       }
     }
 
+    const upgradedHash = await upgradedPasswordHash(
+      dto.password,
+      user.passwordHash,
+      user.forcePasswordChange,
+    );
+
     const loginAt = this.nextSecurityTimestamp(
       user.passwordChangedAt,
       user.sessionRevokedAt,
@@ -190,7 +206,10 @@ export class AuthService {
             }
           : {}),
       },
-      data: { lastLoginAt: loginAt },
+      data: {
+        lastLoginAt: loginAt,
+        ...(upgradedHash ? { passwordHash: upgradedHash } : {}),
+      },
     });
 
     if (loginClaim.count !== 1) {
@@ -562,14 +581,17 @@ export class AuthService {
       },
     });
 
-    if (!currentUser || !verifyPassword(dto.current_password, currentUser.passwordHash)) {
+    if (
+      !currentUser ||
+      !(await verifyPassword(dto.current_password, currentUser.passwordHash))
+    ) {
       throw new UnauthorizedException({
         code: 'INVALID_PASSWORD',
         message: 'current password is invalid',
       });
     }
 
-    const nextPasswordHash = hashPassword(dto.new_password);
+    const nextPasswordHash = await hashPassword(dto.new_password);
     const changedAt = await this.prisma.$transaction(async (tx) => {
       const lockedUser = await this.lockUser(tx, user.id);
       const securityChangedAt = this.nextSecurityTimestamp(
@@ -670,6 +692,8 @@ export class AuthService {
       });
     }
 
+    const nextPasswordHash = await hashPassword(dto.new_password);
+
     const resetAt = await this.prisma.$transaction(async (tx) => {
       const lockedUser = await this.lockUser(tx, matchedToken.userId);
       if (!lockedUser) {
@@ -696,7 +720,7 @@ export class AuthService {
       await tx.user.update({
         where: { id: matchedToken.userId },
         data: {
-          passwordHash: hashPassword(dto.new_password),
+          passwordHash: nextPasswordHash,
           passwordChangedAt: confirmedAt,
           sessionRevokedAt: confirmedAt,
           forcePasswordChange: false,

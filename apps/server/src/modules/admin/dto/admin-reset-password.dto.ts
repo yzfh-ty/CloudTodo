@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsString, MaxLength } from 'class-validator';
 
 export enum AdminResetPasswordMode {
   TEMPORARY_PASSWORD = 'temporary_password',
@@ -11,5 +11,6 @@ export class AdminResetPasswordDto {
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(255)
   reason!: string;
 }

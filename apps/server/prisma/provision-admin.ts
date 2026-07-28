@@ -39,7 +39,7 @@ async function main() {
 
   const provisionedAt = new Date();
   const expiresAt = new Date(provisionedAt.getTime() + 2 * 60 * 60 * 1000);
-  const passwordHash = hashPassword(password);
+  const passwordHash = await hashPassword(password);
   const trackingTokenHash = hashResetToken(randomBytes(24).toString('base64url'));
   const admin = await prisma.$transaction(async (tx) => {
     const created = await tx.user.create({

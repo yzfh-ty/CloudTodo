@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { SecurityAuditService } from '../../common/security/security-audit.service';
 import type { AuthenticatedUser } from '../auth/user-session.service';
@@ -127,15 +128,21 @@ export class UsersService {
       });
 
       if (data.timezone !== undefined) {
-        await transaction.reminder.updateMany({
-          where: {
-            userId: user.id,
-            deletedAt: null,
-          },
-          data: {
-            timezone: data.timezone,
-          },
-        });
+        await transaction.$executeRaw(Prisma.sql`
+          UPDATE "reminders"
+          SET "timezone" = ${data.timezone},
+              "repeat_local_time" = TO_CHAR(
+                "remind_at" AT TIME ZONE CASE
+                  WHEN EXISTS (
+                    SELECT 1 FROM pg_timezone_names WHERE "name" = ${data.timezone}
+                  ) THEN ${data.timezone}
+                  ELSE 'UTC'
+                END,
+                'HH24:MI:SS.MS'
+              )
+          WHERE "user_id" = ${user.id}::uuid
+            AND "deleted_at" IS NULL
+        `);
       }
 
       return updated;

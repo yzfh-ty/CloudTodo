@@ -7,6 +7,7 @@ import {
   UserStatus,
 } from '@prisma/client';
 import type { PrismaService } from '../../common/database/prisma.service';
+import type { SecurityAuditService } from '../../common/security/security-audit.service';
 import { AdminOperationLogQueryDto } from './dto/admin-operation-log-query.dto';
 import { AdminSecurityAuditLogQueryDto } from './dto/admin-security-audit-log-query.dto';
 import { AdminUserListQueryDto } from './dto/admin-user-list-query.dto';
@@ -100,6 +101,30 @@ export async function getAdminDashboardSummary(prisma: PrismaService) {
         result: item.result,
         created_at: item.createdAt,
       })),
+    },
+  };
+}
+
+/** Formats BigInt chain fields for JSON responses. */
+export async function verifyAdminSecurityAuditChain(
+  securityAuditService: SecurityAuditService,
+) {
+  const report = await securityAuditService.verifyChain();
+  return {
+    code: 'OK',
+    message: 'success',
+    data: {
+      valid: report.valid,
+      checked_entries: report.checked,
+      reason: report.reason ?? null,
+      broken_at_chain_seq:
+        report.brokenAtChainSeq === undefined ? null : String(report.brokenAtChainSeq),
+      head: report.head
+        ? {
+            chain_index: String(report.head.chainIndex),
+            entry_hash: report.head.entryHash,
+          }
+        : null,
     },
   };
 }

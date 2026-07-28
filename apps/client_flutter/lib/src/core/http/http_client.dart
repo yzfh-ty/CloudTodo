@@ -89,7 +89,7 @@ abstract class ManagedPlatformHttpClient {
 
   /// Removes locally held session material. Browser transports cannot remove
   /// HttpOnly cookies and intentionally only clear script-visible state.
-  void clearSession() {}
+  FutureOr<void> clearSession() {}
 
   void dispose() {}
 }
@@ -129,11 +129,11 @@ class ApiClient {
   /// Invalidates transport work before a session transition. Keeping this
   /// operation on the API client makes logout, account switching, and a
   /// failed refresh use exactly the same cancellation path.
-  void invalidateSession({bool clearCookies = true}) {
+  Future<void> invalidateSession({bool clearCookies = true}) async {
     final managed = _managedClient;
     managed?.cancelPendingRequests();
     if (clearCookies) {
-      managed?.clearSession();
+      await Future<void>.sync(() => managed?.clearSession());
     }
   }
 
