@@ -1,0 +1,84 @@
+name: Client CI
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: client
+
+jobs:
+  linux-checks:
+    runs-on: ubuntu-latest
+    env:
+      # Native release binaries require an explicit HTTPS endpoint at build
+      # time. The reserved .invalid host is compile-time smoke-test data only.
+      CLOUDTODO_API_BASE_URL: https://ci.cloudtodo.invalid/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.6"
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      - run: flutter build web --release --no-web-resources-cdn
+      - run: flutter build linux --release --dart-define=CLOUDTODO_API_BASE_URL=${{ env.CLOUDTODO_API_BASE_URL }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cloudtodo-linux-release
+          path: client/build/linux/*/release/bundle
+          if-no-files-found: error
+      - name: Create temporary Android release key
+        run: >-
+          keytool -genkeypair
+          -keystore "$RUNNER_TEMP/cloudtodo-release-test.jks"
+          -storepass cloudtodo-ci-test
+          -keypass cloudtodo-ci-test
+          -alias cloudtodo-ci-test
+          -dname "CN=CloudTodo CI, O=CloudTodo, C=CN"
+          -keyalg RSA
+          -keysize 2048
+          -validity 1
+          -noprompt
+      - name: Build Android release
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/cloudtodo-release-test.jks
+          ANDROID_KEYSTORE_PASSWORD: cloudtodo-ci-test
+          ANDROID_KEY_ALIAS: cloudtodo-ci-test
+          ANDROID_KEY_PASSWORD: cloudtodo-ci-test
+        run: >-
+          flutter build apk --release
+          --dart-define=CLOUDTODO_API_BASE_URL=${{ env.CLOUDTODO_API_BASE_URL }}
+          --target-platform android-arm,android-arm64,android-x64
+
+  windows-release:
+    runs-on: windows-latest
+    env:
+      CLOUDTODO_API_BASE_URL: https://ci.cloudtodo.invalid/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.6"
+          channel: stable
+          cache: true
+      - run: flutter config --enable-windows-desktop
+      - run: flutter pub get
+      - run: flutter build windows --release --dart-define=CLOUDTODO_API_BASE_URL=${{ env.CLOUDTODO_API_BASE_URL }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cloudtodo-windows-release
+          path: client/build/windows/x64/runner/Release
+          if-no-files-found: error

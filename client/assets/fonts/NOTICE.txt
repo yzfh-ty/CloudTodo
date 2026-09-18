@@ -1,0 +1,11 @@
+Bundled fonts
+
+DroidSansFallbackFull.ttf
+Copyright 2006-2010 Google Corp.
+Licensed under the Apache License, Version 2.0.
+https://www.apache.org/licenses/LICENSE-2.0
+
+DejaVuSans.ttf and DejaVuSans-Bold.ttf
+Copyright Bitstream, Inc.; DejaVu changes are public domain.
+Licensed under the Bitstream Vera font license.
+https://dejavu-fonts.github.io/License.html

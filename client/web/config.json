@@ -1,0 +1,5 @@
+{
+  "appName": "CloudTodo Web",
+  "appEnv": "local",
+  "apiBaseUrl": "/api"
+}

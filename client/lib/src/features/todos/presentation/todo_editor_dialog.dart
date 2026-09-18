@@ -1,0 +1,293 @@
+import 'package:flutter/material.dart';
+
+import '../../../core/utils/date_time_formatter.dart';
+import '../../../core/utils/display_texts.dart';
+import '../../../core/widgets/form_dialog_frame.dart';
+import '../domain/tag_item.dart';
+import '../domain/todo_form_data.dart';
+import '../domain/todo_list_item.dart';
+
+class TodoEditorDialog extends StatefulWidget {
+  const TodoEditorDialog({
+    super.key,
+    required this.initialValue,
+    required this.title,
+    required this.submitLabel,
+    this.todoLists = const [],
+    this.tags = const [],
+  });
+
+  final TodoFormData initialValue;
+  final String title;
+  final String submitLabel;
+  final List<TodoListItem> todoLists;
+  final List<TagItem> tags;
+
+  @override
+  State<TodoEditorDialog> createState() => _TodoEditorDialogState();
+}
+
+class _TodoEditorDialogState extends State<TodoEditorDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _titleController;
+  late final TextEditingController _descriptionController;
+  late String _priority;
+  late bool _isAllDay;
+  late String? _listId;
+  late Set<String> _tagIds;
+  DateTime? _dueAt;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.initialValue.title);
+    _descriptionController =
+        TextEditingController(text: widget.initialValue.description);
+    _priority = widget.initialValue.priority;
+    _isAllDay = widget.initialValue.isAllDay;
+    final listIds = widget.todoLists.map((list) => list.id).toSet();
+    _listId = listIds.contains(widget.initialValue.listId)
+        ? widget.initialValue.listId
+        : null;
+    _tagIds = widget.initialValue.tagIds.toSet();
+    _dueAt = widget.initialValue.dueAt;
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return FormDialogFrame(
+      formKey: _formKey,
+      title: widget.title,
+      description: '填写任务内容，需要时补充清单、标签和截止时间。',
+      maxWidth: 620,
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextFormField(
+            controller: _titleController,
+            decoration: const InputDecoration(labelText: '标题'),
+            maxLength: 200,
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return '请输入标题';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _descriptionController,
+            decoration: const InputDecoration(labelText: '描述'),
+            minLines: 3,
+            maxLines: 5,
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: _listId,
+            decoration: const InputDecoration(labelText: '清单'),
+            items: [
+              const DropdownMenuItem<String>(
+                value: '',
+                child: Text('不指定清单'),
+              ),
+              ...widget.todoLists.map(
+                (list) => DropdownMenuItem<String>(
+                  value: list.id,
+                  child: Text(list.name),
+                ),
+              ),
+            ],
+            onChanged: (value) {
+              setState(() {
+                _listId = value == null || value.isEmpty ? null : value;
+              });
+            },
+          ),
+          if (widget.tags.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: widget.tags.map((tag) {
+                final selected = _tagIds.contains(tag.id);
+                return FilterChip(
+                  label: Text(tag.name),
+                  selected: selected,
+                  onSelected: (value) {
+                    setState(() {
+                      if (value) {
+                        _tagIds.add(tag.id);
+                      } else {
+                        _tagIds.remove(tag.id);
+                      }
+                    });
+                  },
+                );
+              }).toList(growable: false),
+            ),
+          ],
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: _priority,
+            decoration: const InputDecoration(labelText: '优先级'),
+            items: [
+              DropdownMenuItem(
+                  value: 'low', child: Text(todoPriorityText('low'))),
+              DropdownMenuItem(
+                  value: 'medium', child: Text(todoPriorityText('medium'))),
+              DropdownMenuItem(
+                  value: 'high', child: Text(todoPriorityText('high'))),
+            ],
+            onChanged: (value) {
+              if (value == null) {
+                return;
+              }
+
+              setState(() {
+                _priority = value;
+              });
+            },
+          ),
+          const SizedBox(height: 12),
+          SwitchListTile.adaptive(
+            value: _isAllDay,
+            contentPadding: EdgeInsets.zero,
+            title: const Text('全天事项'),
+            subtitle: const Text('开启后只选日期，不再追加具体时间'),
+            onChanged: (value) {
+              setState(() {
+                _isAllDay = value;
+                if (_dueAt != null && value) {
+                  _dueAt = DateTime(_dueAt!.year, _dueAt!.month, _dueAt!.day);
+                }
+              });
+            },
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '截止时间：${formatDateTime(_dueAt)}',
+                  style: theme.textTheme.bodyLarge,
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    FilledButton.tonal(
+                      onPressed: _pickDueAt,
+                      child: Text(_dueAt == null ? '选择时间' : '修改时间'),
+                    ),
+                    TextButton(
+                      onPressed: _dueAt == null
+                          ? null
+                          : () {
+                              setState(() {
+                                _dueAt = null;
+                              });
+                            },
+                      child: const Text('清空'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: Text(widget.submitLabel),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _pickDueAt() async {
+    final now = DateTime.now();
+    final initialDate = _dueAt ?? now;
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 10),
+    );
+
+    if (!mounted || pickedDate == null) {
+      return;
+    }
+
+    if (_isAllDay) {
+      setState(() {
+        _dueAt = DateTime(pickedDate.year, pickedDate.month, pickedDate.day);
+      });
+      return;
+    }
+
+    final initialTime = TimeOfDay.fromDateTime(_dueAt ?? now);
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: initialTime,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (pickedTime == null) {
+      return;
+    }
+
+    setState(() {
+      _dueAt = DateTime(
+        pickedDate.year,
+        pickedDate.month,
+        pickedDate.day,
+        pickedTime.hour,
+        pickedTime.minute,
+      );
+    });
+  }
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    Navigator.of(context).pop(
+      TodoFormData(
+        title: _titleController.text.trim(),
+        description: _descriptionController.text.trim(),
+        priority: _priority,
+        dueAt: _dueAt,
+        isAllDay: _isAllDay,
+        listId: _listId,
+        tagIds: _tagIds.toList(growable: false),
+      ),
+    );
+  }
+}

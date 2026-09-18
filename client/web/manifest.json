@@ -1,0 +1,9 @@
+{
+  "name": "CloudTodo Web",
+  "short_name": "CloudTodo",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#F5EFE2",
+  "theme_color": "#A2471E",
+  "description": "CloudTodo Flutter Web client"
+}
