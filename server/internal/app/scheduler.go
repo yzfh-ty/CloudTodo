@@ -22,8 +22,11 @@ func (a *App) RunScheduler(ctx context.Context) {
 }
 
 func (a *App) scanDueReminders() {
-	rows, err := a.DB.Query(`SELECT id,user_id,todo_id,channels_json,remind_at,repeat_type,COALESCE(repeat_rule,'') FROM reminders WHERE status='pending' AND deleted_at IS NULL AND remind_at<=? ORDER BY remind_at LIMIT 100`, time.Now().UTC().Format(time.RFC3339Nano))
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	_, _ = a.DB.Exec(`INSERT INTO app_settings(key,value,updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at`, "scheduler_last_run_at", now, now)
+	rows, err := a.DB.Query(`SELECT id,user_id,todo_id,channels_json,remind_at,repeat_type,COALESCE(repeat_rule,'') FROM reminders WHERE status='pending' AND deleted_at IS NULL AND remind_at<=? ORDER BY remind_at LIMIT 100`, now)
 	if err != nil {
+		_, _ = a.DB.Exec(`INSERT INTO app_settings(key,value,updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at`, "scheduler_last_error", err.Error(), now)
 		return
 	}
 	defer rows.Close()
@@ -33,8 +36,15 @@ func (a *App) scanDueReminders() {
 			a.claimReminder(reminderID, userID, todoID, channelsJSON, scheduledFor, repeatType, repeatRule)
 		}
 	}
+	_, _ = a.DB.Exec(`DELETE FROM app_settings WHERE key='scheduler_last_error'`)
 }
 
+func (a *App) schedulerStatus() map[string]any {
+	var lastRun, lastError string
+	_ = a.DB.QueryRow(`SELECT value FROM app_settings WHERE key='scheduler_last_run_at'`).Scan(&lastRun)
+	_ = a.DB.QueryRow(`SELECT value FROM app_settings WHERE key='scheduler_last_error'`).Scan(&lastError)
+	return map[string]any{"enabled": true, "last_run_at": nullIfEmpty(lastRun), "last_error": nullIfEmpty(lastError)}
+}
 func (a *App) claimReminder(reminderID, userID, todoID, channelsJSON, scheduledFor, repeatType, repeatRule string) {
 	tx, err := a.DB.Begin()
 	if err != nil {

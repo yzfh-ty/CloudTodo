@@ -58,7 +58,8 @@ void main() {
   test('changes sends an opaque cursor and documented limit', () async {
     final transport = _SyncTransport([
       {
-        'cursor': 'cursor-2',
+        'next_cursor': 'cursor-2',
+        'has_more': false,
         'items': const [
           {
             'collection': 'todos',
@@ -87,7 +88,8 @@ void main() {
   test('changes rejects an invalid event item', () async {
     final transport = _SyncTransport([
       {
-        'cursor': 'cursor-2',
+        'next_cursor': 'cursor-2',
+        'has_more': false,
         'items': const [
           {'collection': 'todos'},
         ],
@@ -105,6 +107,50 @@ void main() {
         'INVALID_SYNC_RESPONSE',
       )),
     );
+  });
+
+  test('changes consumes every documented cursor page', () async {
+    final transport = _SyncTransport([
+      {
+        'next_cursor': 'cursor-2',
+        'has_more': true,
+        'items': const [
+          {
+            'collection': 'todos',
+            'operation': 'upsert',
+            'id': 'todo-1',
+            'version': 2,
+            'updated_at': '2026-07-23T10:05:00.000Z',
+          },
+        ],
+      },
+      {
+        'next_cursor': 'cursor-3',
+        'has_more': false,
+        'items': const [
+          {
+            'collection': 'todos',
+            'operation': 'delete',
+            'id': 'todo-2',
+            'version': 3,
+            'updated_at': '2026-07-23T10:06:00.000Z',
+          },
+        ],
+      },
+    ]);
+    final apiClient = ApiClient(transport);
+    final repository = SyncRepository(apiClient);
+    addTearDown(apiClient.dispose);
+
+    final snapshot = await repository.changes(cursor: 'cursor-1');
+
+    expect(snapshot.cursor, 'cursor-3');
+    expect((snapshot.raw['items'] as List).length, 2);
+    expect(snapshot.raw['has_more'], false);
+    expect(transport.requests.map((request) => request.query), [
+      {'cursor': 'cursor-1', 'limit': '100'},
+      {'cursor': 'cursor-2', 'limit': '100'},
+    ]);
   });
 }
 

@@ -16,7 +16,7 @@ PlatformHttpClient createPlatformHttpClient(
 }
 
 class WebPlatformHttpClient
-    implements PlatformHttpClient, ManagedPlatformHttpClient {
+    implements PlatformHttpClient, BearerTokenPlatformHttpClient, ManagedPlatformHttpClient {
   WebPlatformHttpClient(
     this.baseUrl, {
     this.policy = const HttpClientPolicy(),
@@ -31,7 +31,9 @@ class WebPlatformHttpClient
   // A browser cannot inspect an HttpOnly refresh cookie. Start with a
   // conservative hint so a fresh app can ask the server whether a session
   // exists, and only clear the local hint on an explicit local logout.
-  bool _sessionHint = true;
+  bool _sessionHint = false;
+  String? _accessToken;
+  String? _refreshToken;
   bool _disposed = false;
 
   @override
@@ -41,6 +43,30 @@ class WebPlatformHttpClient
       _readCookie('cloudtodo_admin_csrf_token') != null;
 
   @override
+  @override
+  bool get supportsBearerTokens => true;
+
+  @override
+  String? get accessToken => _accessToken;
+
+  @override
+  String? get refreshToken => _refreshToken;
+
+  @override
+  void setSessionTokens({required String accessToken, required String refreshToken}) {
+    _accessToken = accessToken;
+    _refreshToken = refreshToken;
+    _sessionHint = true;
+  }
+
+  @override
+  void clearSessionTokens() {
+    _accessToken = null;
+    _refreshToken = null;
+    _sessionHint = false;
+    _accessToken = null;
+    _refreshToken = null;
+  }
   Future<RawHttpResponse> request({
     required String method,
     required String path,
@@ -126,6 +152,8 @@ class WebPlatformHttpClient
                 statusCode >= 200 &&
                 statusCode < 300) {
               _sessionHint = false;
+    _accessToken = null;
+    _refreshToken = null;
             }
 
             Map<String, String> responseHeaders;
@@ -178,6 +206,8 @@ class WebPlatformHttpClient
   @override
   void clearSession() {
     _sessionHint = false;
+    _accessToken = null;
+    _refreshToken = null;
     // The refresh/session cookies are HttpOnly and intentionally cannot be
     // accessed here. Only remove the script-visible CSRF hints.
     for (final name in const [

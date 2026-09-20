@@ -26,9 +26,9 @@
     }
     const response = await fetch(path, Object.assign({}, options, { headers }));
     const body = await response.json().catch(() => ({}));
-    if (response.status === 401 && location.pathname !== '/admin/login') {
+    if (response.status === 401 && location.pathname !== '/login') {
       saveToken(null);
-      location.href = '/admin/login';
+      location.href = '/login';
       throw new Error('登录已失效');
     }
     if (!response.ok || (body.code && body.code !== 'OK')) throw new Error(body.message || body.code || '请求失败');
@@ -84,21 +84,21 @@
   function showLogin() {
     const form = $('login-form');
     if (!form) return;
-    if (token()) location.href = '/admin/';
+    if (token()) location.href = '/';
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       $('login-error').textContent = '';
       try {
         const result = await api('/api/admin/auth/login', { method: 'POST', body: { account: $('account').value.trim(), password: $('password').value } });
         saveToken(result.data.session.access_token);
-        location.href = '/admin/';
+        location.href = '/';
       } catch (error) { $('login-error').textContent = error.message; }
     });
   }
 
   function showAdmin() {
     if (!$('users-body')) return;
-    if (!token()) { location.href = '/admin/login'; return; }
+    if (!token()) { location.href = '/login'; return; }
     document.querySelectorAll('[data-theme-choice]').forEach((button) => {
       button.addEventListener('click', () => applyTheme(button.dataset.themeChoice));
     });
@@ -111,7 +111,7 @@
       if (button.dataset.section === 'providers') loadProviders();
       if (button.dataset.section === 'user-notifications') loadUserNotifications();
     }));
-    $('logout-button').addEventListener('click', async () => { try { await api('/api/admin/auth/logout', { method: 'POST' }); } catch (_) {} saveToken(null); location.href='/admin/login'; });
+    $('logout-button').addEventListener('click', async () => { try { await api('/api/admin/auth/logout', { method: 'POST' }); } catch (_) {} saveToken(null); location.href='/login'; });
     const adminMenuButton = $('admin-menu-button');
     const adminMenuPanel = $('admin-menu-panel');
     const closeAdminMenu = () => { if (!adminMenuPanel) return; adminMenuPanel.hidden = true; adminMenuButton.setAttribute('aria-expanded', 'false'); };

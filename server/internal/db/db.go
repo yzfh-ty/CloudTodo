@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS devices (
   is_online INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
+  deleted_at TEXT,
   UNIQUE(user_id, identifier)
 );
 CREATE TABLE IF NOT EXISTS sessions (
@@ -171,7 +172,16 @@ CREATE TABLE IF NOT EXISTS notification_deliveries (
   created_at TEXT NOT NULL,
   completed_at TEXT
 );
-CREATE TABLE IF NOT EXISTS audit_logs (
+CREATE TABLE IF NOT EXISTS idempotency_keys (
+  scope TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  path TEXT NOT NULL,
+  response_status INTEGER NOT NULL,
+  response_body TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  PRIMARY KEY(scope, idempotency_key, path)
+);CREATE TABLE IF NOT EXISTS audit_logs (
   id TEXT PRIMARY KEY,
   actor_user_id TEXT,
   target_user_id TEXT,
@@ -194,7 +204,16 @@ CREATE INDEX IF NOT EXISTS idx_events_user ON reminder_events(user_id, created_a
 CREATE INDEX IF NOT EXISTS idx_deliveries_user ON notification_deliveries(user_id, created_at, id);
 `
 	_, err := database.Exec(schema)
-	return err
+	if err != nil {
+		return err
+	}
+	if err := ensureColumn(database, "reminder_events", "channel", "TEXT NOT NULL DEFAULT 'local'"); err != nil {
+		return err
+	}
+	if err := ensureColumn(database, "devices", "deleted_at", "TEXT"); err != nil {
+		return err
+	}
+	return ensureColumn(database, "notification_subscriptions", "deleted_at", "TEXT")
 }
 
 func ensureColumn(database *sql.DB, table, column, definition string) error {

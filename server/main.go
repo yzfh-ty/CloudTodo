@@ -28,8 +28,8 @@ func main() {
 	log.Printf("CloudTodo server listening on :%s", port)
 	go server.RunScheduler(context.Background())
 	root := http.NewServeMux()
-	root.Handle("/admin", adminHandler())
-	root.Handle("/admin/", adminHandler())
-	root.Handle("/", server.Handler())
+	root.Handle("/api/", server.Handler())
+	root.Handle("/health", server.Handler())
+	root.Handle("/", adminHandler())
 	log.Fatal(http.ListenAndServe(":"+port, root))
 }

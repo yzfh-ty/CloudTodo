@@ -48,7 +48,8 @@ class AuthRepository {
 
   Future<SessionUser> refresh() async {
     final refreshToken = _apiClient.refreshToken;
-    if (refreshToken == null || refreshToken.isEmpty) {
+    if ((refreshToken == null || refreshToken.isEmpty) &&
+        !_apiClient.hasSessionHint) {
       throw const AppException(
         message: 'refresh token is missing',
         code: 'SESSION_EXPIRED',
@@ -57,7 +58,9 @@ class AuthRepository {
 
     final session = await _apiClient.post<Map<String, dynamic>>(
       '/auth/refresh',
-      body: {'refresh_token': refreshToken},
+      body: refreshToken == null || refreshToken.isEmpty
+          ? const <String, dynamic>{}
+          : {'refresh_token': refreshToken},
       parser: (data) => _asMap(data, 'session'),
       allowRefresh: false,
     );

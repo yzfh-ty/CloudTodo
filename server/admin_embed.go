@@ -14,15 +14,16 @@ func adminHandler() http.Handler {
 	root, _ := fs.Sub(adminAssets, "admin")
 	files := http.FileServer(http.FS(root))
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /admin", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/admin/", http.StatusFound) })
-	mux.HandleFunc("GET /admin/login", func(w http.ResponseWriter, r *http.Request) { serveAdminFile(w, r, root, "login.html") })
-	mux.HandleFunc("GET /admin/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/admin/" {
+	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/":
 			serveAdminFile(w, r, root, "index.html")
-			return
+		case "/login":
+			serveAdminFile(w, r, root, "login.html")
+		default:
+			r.URL.Path = strings.TrimPrefix(r.URL.Path, "/")
+			files.ServeHTTP(w, r)
 		}
-		r.URL.Path = strings.TrimPrefix(r.URL.Path, "/admin")
-		files.ServeHTTP(w, r)
 	})
 	return mux
 }

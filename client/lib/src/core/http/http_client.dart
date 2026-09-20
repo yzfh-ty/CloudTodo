@@ -240,17 +240,12 @@ class ApiClient {
 
   Future<T> delete<T>(
     String path, {
+    Object? body,
     required T Function(Object? data) parser,
     bool allowRefresh = true,
   }) {
-    return _request(
-      method: 'DELETE',
-      path: path,
-      parser: parser,
-      allowRefresh: allowRefresh,
-    );
+    return _request(method: 'DELETE', path: path, body: body, parser: parser, allowRefresh: allowRefresh);
   }
-
   Future<T> _request<T>({
     required String method,
     required String path,

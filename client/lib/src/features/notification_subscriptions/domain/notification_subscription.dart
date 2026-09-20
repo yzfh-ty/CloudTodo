@@ -1,49 +1,47 @@
 class NotificationSubscription {
   const NotificationSubscription({
     required this.id,
-    required this.type,
-    required this.provider,
-    required this.name,
+    required this.channel,
+    required this.enabled,
+    required this.email,
     required this.targetUrl,
-    required this.payloadTemplate,
-    required this.isEnabled,
-    required this.secretExists,
+    required this.chatId,
+    required this.secretConfigured,
+    required this.lastDeliveryAt,
+    required this.lastErrorCode,
+    required this.version,
     required this.createdAt,
-    this.version = 1,
-    this.lastResponseCode,
-    this.lastResponseSummary,
-    this.lastSuccessAt,
-    this.lastFailureAt,
+    required this.updatedAt,
   });
 
   final String id;
-  final String type;
-  final String provider;
-  final String name;
-  final String targetUrl;
-  final String? payloadTemplate;
-  final bool isEnabled;
-  final bool secretExists;
-  final DateTime createdAt;
+  final String channel;
+  final bool enabled;
+  final String? email;
+  final String? targetUrl;
+  final String? chatId;
+  final bool secretConfigured;
+  final DateTime? lastDeliveryAt;
+  final String? lastErrorCode;
   final int version;
-  final int? lastResponseCode;
-  final String? lastResponseSummary;
-  final DateTime? lastSuccessAt;
-  final DateTime? lastFailureAt;
+  final DateTime createdAt;
+  final DateTime updatedAt;
 
   factory NotificationSubscription.fromJson(Map<String, dynamic> json) {
-    final channel = json['channel'] as String? ?? 'webhook';
+    DateTime? date(Object? value) => value is String && value.isNotEmpty ? DateTime.tryParse(value) : null;
     return NotificationSubscription(
       id: json['id'] as String,
-      type: channel,
-      provider: channel,
-      name: json['name'] as String? ?? channel,
-      targetUrl: json['target_url'] as String? ?? '',
-      payloadTemplate: null,
-      isEnabled: json['enabled'] as bool? ?? false,
-      secretExists: json['secret_configured'] as bool? ?? false,
+      channel: json['channel'] as String? ?? 'webhook',
+      enabled: json['enabled'] as bool? ?? false,
+      email: json['email'] as String?,
+      targetUrl: json['target_url'] as String?,
+      chatId: json['chat_id'] as String?,
+      secretConfigured: json['secret_configured'] as bool? ?? false,
+      lastDeliveryAt: date(json['last_delivery_at']),
+      lastErrorCode: json['last_error_code'] as String?,
+      version: (json['version'] as num?)?.toInt() ?? 1,
       createdAt: DateTime.parse(json['created_at'] as String),
-      version: json['version'] as int? ?? 1,
+      updatedAt: DateTime.parse(json['updated_at'] as String),
     );
   }
 }

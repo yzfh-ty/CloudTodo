@@ -17,15 +17,20 @@ import (
 )
 
 type providerConfig struct {
-	Enabled   bool   `json:"enabled"`
-	SMTPHost  string `json:"smtp_host,omitempty"`
-	SMTPPort  string `json:"smtp_port,omitempty"`
-	SMTPUser  string `json:"smtp_username,omitempty"`
-	SMTPPass  string `json:"smtp_password,omitempty"`
-	SMTPFrom  string `json:"smtp_from,omitempty"`
-	BotToken  string `json:"bot_token,omitempty"`
-	BotName   string `json:"bot_name,omitempty"`
-	UpdatedAt string `json:"updated_at,omitempty"`
+	Enabled     bool   `json:"enabled"`
+	SMTPHost    string `json:"smtp_host,omitempty"`
+	SMTPPort    string `json:"smtp_port,omitempty"`
+	SMTPUser    string `json:"smtp_username,omitempty"`
+	SMTPPass    string `json:"smtp_password,omitempty"`
+	SMTPFrom    string `json:"smtp_from,omitempty"`
+	Security    string `json:"security,omitempty"`
+	FromName    string `json:"from_name,omitempty"`
+	Username    string `json:"username,omitempty"`
+	Password    string `json:"password,omitempty"`
+	FromAddress string `json:"from_address,omitempty"`
+	BotToken    string `json:"bot_token,omitempty"`
+	BotName     string `json:"bot_name,omitempty"`
+	UpdatedAt   string `json:"updated_at,omitempty"`
 }
 
 func (a *App) provider(w http.ResponseWriter, r *http.Request, id identity) {
@@ -45,11 +50,21 @@ func (a *App) provider(w http.ResponseWriter, r *http.Request, id identity) {
 			errorJSON(w, 400, "VALIDATION_ERROR", "invalid provider configuration", nil)
 			return
 		}
+		if cfg.SMTPUser == "" {
+			cfg.SMTPUser = cfg.Username
+		}
+		if cfg.SMTPPass == "" {
+			cfg.SMTPPass = cfg.Password
+		}
+		if cfg.SMTPFrom == "" {
+			cfg.SMTPFrom = cfg.FromAddress
+		}
 		cfg.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
 		if err := a.saveProvider(channel, cfg); err != nil {
 			errorJSON(w, 400, "PROVIDER_CONFIG_NOT_SAVED", err.Error(), nil)
 			return
 		}
+		a.recordAudit(id.ID, "", "admin.update_notification_provider", map[string]any{"channel": channel})
 		writeJSON(w, 200, providerPublic(channel, cfg))
 		return
 	}
@@ -64,17 +79,31 @@ func (a *App) providerTest(w http.ResponseWriter, r *http.Request, id identity) 
 		return
 	}
 	if channel == "email" {
-		if a.deliverEmailWithConfig(cfg, "test@example.invalid", reminderPayload{EventID: newID(), EventType: "notification.test", TriggeredAt: time.Now().UTC().Format(time.RFC3339Nano), UserID: id.ID, TodoTitle: "CloudTodo provider test"}) != "" {
+		if a.deliverEmailWithConfig(cfg, cfg.SMTPFrom, reminderPayload{EventID: newID(), EventType: "notification.test", TriggeredAt: time.Now().UTC().Format(time.RFC3339Nano), UserID: id.ID, TodoTitle: "CloudTodo provider test"}) != "" {
 			errorJSON(w, 502, "EMAIL_DELIVERY_FAILED", "email provider test failed", nil)
 			return
 		}
 	}
 	if channel == "telegram" {
-		if a.deliverTelegramWithConfig(cfg, "", reminderPayload{EventID: newID(), EventType: "notification.test", TriggeredAt: time.Now().UTC().Format(time.RFC3339Nano), UserID: id.ID, TodoTitle: "CloudTodo provider test"}) != "" {
+		req, requestErr := http.NewRequest(http.MethodGet, "https://api.telegram.org/bot"+cfg.BotToken+"/getMe", nil)
+		if requestErr != nil {
+			errorJSON(w, 502, "TELEGRAM_DELIVERY_FAILED", "telegram provider test failed", nil)
+			return
+		}
+		resp, requestErr := (&http.Client{Timeout: 10 * time.Second}).Do(req)
+		if requestErr != nil {
+			errorJSON(w, 502, "TELEGRAM_DELIVERY_FAILED", "telegram provider test failed", nil)
+			return
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			errorJSON(w, 502, "TELEGRAM_DELIVERY_FAILED", "telegram provider test failed", nil)
 			return
 		}
 	}
+	testAt := time.Now().UTC().Format(time.RFC3339Nano)
+	_, _ = a.DB.Exec(`INSERT INTO app_settings(key,value,updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at`, "provider_test_at:"+channel, testAt, testAt)
+	a.recordAudit(id.ID, "", "admin.test_notification_provider", map[string]any{"channel": channel})
 	writeJSON(w, 200, map[string]any{"tested": true, "channel": channel})
 }
 
@@ -120,12 +149,21 @@ func providerFromEnv(channel string) providerConfig {
 	return providerConfig{Enabled: os.Getenv("CLOUDTODO_TELEGRAM_BOT_TOKEN") != "", BotToken: os.Getenv("CLOUDTODO_TELEGRAM_BOT_TOKEN"), BotName: os.Getenv("CLOUDTODO_TELEGRAM_BOT_NAME")}
 }
 
+func (a *App) providerTestAt(channel string) any {
+	var value string
+	if err := a.DB.QueryRow(`SELECT value FROM app_settings WHERE key=?`, "provider_test_at:"+channel).Scan(&value); err != nil {
+		return nil
+	}
+	return value
+}
 func providerPublic(channel string, cfg providerConfig) map[string]any {
 	result := map[string]any{"channel": channel, "enabled": cfg.Enabled, "configured": cfg.Enabled, "updated_at": cfg.UpdatedAt}
 	if channel == "email" {
 		result["smtp_host"] = cfg.SMTPHost
 		result["smtp_port"] = cfg.SMTPPort
 		result["from_address"] = cfg.SMTPFrom
+		result["from_name"] = cfg.FromName
+		result["security"] = cfg.Security
 		result["password_configured"] = cfg.SMTPPass != ""
 	} else {
 		result["bot_name"] = cfg.BotName

@@ -317,6 +317,10 @@ class _TodoPageState extends State<TodoPage> {
                       ],
                     ),
                     const SizedBox(height: 10),
+                    if (_controller.selectedTodoIds.isNotEmpty) ...[
+                      _buildBatchToolbar(isMobile),
+                      const SizedBox(height: 10),
+                    ],
                     if (_controller.isLoading)
                       const Card(
                         child: Padding(
@@ -345,6 +349,10 @@ class _TodoPageState extends State<TodoPage> {
                           padding: const EdgeInsets.only(bottom: 10),
                           child: _TodoCard(
                             item: item,
+                            selected:
+                                _controller.selectedTodoIds.contains(item.id),
+                            onToggleSelection: () =>
+                                _controller.toggleTodoSelection(item.id),
                             onViewDetail: () => _openTodoDetail(item),
                             onEdit: () => _openEditDialog(item),
                             onManageReminder: () =>
@@ -369,6 +377,138 @@ class _TodoPageState extends State<TodoPage> {
           },
         );
       },
+    );
+  }
+
+  Widget _buildBatchToolbar(bool isMobile) {
+    final theme = Theme.of(context);
+    final allSelected = _controller.items.isNotEmpty &&
+        _controller.selectedTodoIds.length == _controller.items.length &&
+        _controller.items.every(
+          (item) => _controller.selectedTodoIds.contains(item.id),
+        );
+
+    Future<void> runBatch(
+      Future<bool> Function() action,
+      String successMessage,
+      String failureMessage,
+    ) async {
+      final success = await action();
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            success
+                ? successMessage
+                : (_controller.errorMessage ?? failureMessage),
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      color: theme.colorScheme.primaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(
+              '已选择 ${_controller.selectedTodoIds.length} 项',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            TextButton.icon(
+              onPressed: _controller.isSubmitting
+                  ? null
+                  : _controller.toggleSelectAllVisible,
+              icon: Icon(
+                allSelected ? Icons.deselect_rounded : Icons.select_all_rounded,
+              ),
+              label: Text(allSelected ? '取消全选' : '全选当前页'),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: _controller.isSubmitting
+                  ? null
+                  : () => runBatch(
+                        _controller.batchComplete,
+                        '选中待办已完成',
+                        '批量完成失败',
+                      ),
+              icon: const Icon(Icons.check_rounded),
+              label: const Text('完成'),
+            ),
+            OutlinedButton.icon(
+              onPressed: _controller.isSubmitting
+                  ? null
+                  : () => runBatch(
+                        _controller.batchArchive,
+                        '选中待办已归档',
+                        '批量归档失败',
+                      ),
+              icon: const Icon(Icons.archive_outlined),
+              label: const Text('归档'),
+            ),
+            OutlinedButton.icon(
+              onPressed: _controller.isSubmitting ? null : _confirmBatchDelete,
+              icon: const Icon(Icons.delete_outline_rounded),
+              label: const Text('删除'),
+            ),
+            TextButton(
+              onPressed: _controller.isSubmitting
+                  ? null
+                  : _controller.clearTodoSelection,
+              child: const Text('取消选择'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmBatchDelete() async {
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('批量删除任务'),
+            content: Text(
+                '确认删除已选择的 ${_controller.selectedTodoIds.length} 项任务？该操作会把记录标记为已删除。'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                  foregroundColor: Theme.of(context).colorScheme.onError,
+                ),
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('删除'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!mounted || !confirmed) {
+      return;
+    }
+
+    final success = await _controller.batchDelete();
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          success ? '选中待办已删除' : (_controller.errorMessage ?? '批量删除失败'),
+        ),
+      ),
     );
   }
 

@@ -3,7 +3,7 @@
   "short_name": "CloudTodo",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#F5EFE2",
-  "theme_color": "#A2471E",
+  "background_color": "#FFFFFF",
+  "theme_color": "#111111",
   "description": "CloudTodo Flutter Web client"
 }

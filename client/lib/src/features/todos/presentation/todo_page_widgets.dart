@@ -55,13 +55,17 @@ class _TodoCard extends StatelessWidget {
     required this.onEdit,
     required this.onManageReminder,
     required this.onDelete,
+    required this.onToggleSelection,
+    this.selected = false,
     this.onComplete,
     this.onReopen,
     this.onArchive,
   });
 
   final TodoItem item;
+  final bool selected;
   final VoidCallback onViewDetail;
+  final VoidCallback onToggleSelection;
   final VoidCallback onEdit;
   final VoidCallback onManageReminder;
   final VoidCallback? onComplete;
@@ -108,6 +112,12 @@ class _TodoCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Checkbox(
+              value: selected,
+              onChanged: (_) => onToggleSelection(),
+              visualDensity: VisualDensity.compact,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
             IconButton(
               tooltip: item.status == 'pending' ? '完成待办' : '重新打开',
               visualDensity: VisualDensity.compact,

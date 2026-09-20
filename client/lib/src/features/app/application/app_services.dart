@@ -4,6 +4,8 @@ import '../../../core/notifications/local_notification_service.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../devices/data/device_repository.dart';
 import '../../notification_subscriptions/data/notification_subscriptions_repository.dart';
+import '../../notification_subscriptions/data/notification_deliveries_repository.dart';
+import '../../notification_subscriptions/data/server_capabilities_repository.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../reminders/data/reminders_repository.dart';
 import '../../sync/data/sync_repository.dart';
@@ -23,6 +25,8 @@ class AppServices {
     required this.remindersRepository,
     required this.syncRepository,
     required this.notificationSubscriptionsRepository,
+    required this.notificationDeliveriesRepository,
+    required this.serverCapabilitiesRepository,
     required this.localNotificationService,
     required this.sessionController,
   });
@@ -37,6 +41,8 @@ class AppServices {
   final RemindersRepository remindersRepository;
   final SyncRepository syncRepository;
   final NotificationSubscriptionsRepository notificationSubscriptionsRepository;
+  final NotificationDeliveriesRepository notificationDeliveriesRepository;
+  final ServerCapabilitiesRepository serverCapabilitiesRepository;
   final LocalNotificationService localNotificationService;
   final AppSessionController sessionController;
 
@@ -56,6 +62,8 @@ class AppServices {
     final syncRepository = SyncRepository(apiClient);
     final notificationSubscriptionsRepository =
         NotificationSubscriptionsRepository(apiClient);
+    final notificationDeliveriesRepository = NotificationDeliveriesRepository(apiClient);
+    final serverCapabilitiesRepository = ServerCapabilitiesRepository(apiClient);
 
     Future<void> invalidateSession({bool clearCookies = true}) {
       apiClient.invalidateSession(clearCookies: clearCookies);
@@ -91,6 +99,8 @@ class AppServices {
       remindersRepository: remindersRepository,
       syncRepository: syncRepository,
       notificationSubscriptionsRepository: notificationSubscriptionsRepository,
+      notificationDeliveriesRepository: notificationDeliveriesRepository,
+      serverCapabilitiesRepository: serverCapabilitiesRepository,
       localNotificationService: notificationService,
       sessionController: sessionController,
     );

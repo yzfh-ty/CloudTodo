@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -14,6 +16,7 @@ import '../../notification_subscriptions/application/notification_subscriptions_
 import '../../notification_subscriptions/domain/notification_subscription.dart';
 import '../../notification_subscriptions/domain/notification_subscription_form_data.dart';
 import '../../notification_subscriptions/presentation/notification_subscription_editor_dialog.dart';
+import '../../notification_subscriptions/presentation/notification_deliveries_panel.dart';
 import '../../profile/application/profile_controller.dart';
 import '../../profile/domain/profile_user.dart';
 import '../../sync/data/sync_repository.dart';
@@ -627,6 +630,11 @@ class _SettingsPageState extends State<SettingsPage> {
                                           : '保存资料'),
                                     ),
                                   ),
+                                  const SizedBox(height: 12),
+                                  Wrap(spacing: 12, children: [
+                                    OutlinedButton(onPressed: _exportAccountData, child: const Text('导出我的数据')),
+                                    TextButton(onPressed: _deleteAccount, child: const Text('删除账号')),
+                                  ]),
                                 ],
                               ),
                             ),
@@ -665,7 +673,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                 ),
                                 const SizedBox(height: 12),
                                 Text(
-                                  '如果你希望把提醒推送到企业微信机器人或自己的服务，可以在这里配置通知方式。',
+                                  '可以配置 Webhook、Email 或 Telegram 通知渠道。',
                                   style: theme.textTheme.bodyMedium,
                                 ),
                                 const SizedBox(height: 16),
@@ -745,7 +753,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                       icon: Icons.notifications_off_rounded,
                                       title: '当前还没有通知方式',
                                       description:
-                                          '如果你希望把提醒推送到企业微信机器人或自己的服务，可以先新增一种通知方式。',
+                                          '可以配置 Webhook、Email 或 Telegram 三种通知渠道。',
                                       action: FilledButton.tonal(
                                         onPressed:
                                             _subscriptionsController.isLoading
@@ -781,6 +789,8 @@ class _SettingsPageState extends State<SettingsPage> {
                             ),
                           ),
                         ),
+                        const SizedBox(height: 16),
+                        NotificationDeliveriesPanel(repository: appScope.services.notificationDeliveriesRepository),
                     ],
                   ),
                 ),

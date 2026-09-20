@@ -8,7 +8,24 @@ import (
 
 func (a *App) adminNotificationSubscriptions(w http.ResponseWriter, r *http.Request, actor identity) {
 	userID := r.PathValue("id")
-	rows, err := a.DB.Query(`SELECT id,channel,enabled,COALESCE(email,''),COALESCE(target_url,''),COALESCE(chat_id,''),version,created_at,updated_at FROM notification_subscriptions WHERE user_id=? ORDER BY channel`, userID)
+	limit, err := parseLimit(r)
+	if err != nil {
+		errorJSON(w, 400, "VALIDATION_ERROR", err.Error(), nil)
+		return
+	}
+	where := "user_id=?"
+	args := []any{userID}
+	if value := r.URL.Query().Get("cursor"); value != "" {
+		cursor, err := decodePageCursor(value)
+		if err != nil {
+			errorJSON(w, 400, "INVALID_CURSOR", "cursor is invalid", nil)
+			return
+		}
+		where += " AND (updated_at<? OR (updated_at=? AND id<?))"
+		args = append(args, cursor.Time, cursor.Time, cursor.ID)
+	}
+	args = append(args, limit+1)
+	rows, err := a.DB.Query(`SELECT id,channel,enabled,COALESCE(email,''),COALESCE(target_url,''),COALESCE(chat_id,''),version,created_at,updated_at FROM notification_subscriptions WHERE deleted_at IS NULL AND `+where+` ORDER BY updated_at DESC,id DESC LIMIT ?`, args...)
 	if err != nil {
 		errorJSON(w, 500, "INTERNAL_ERROR", "could not list user notifications", nil)
 		return
@@ -16,20 +33,24 @@ func (a *App) adminNotificationSubscriptions(w http.ResponseWriter, r *http.Requ
 	defer rows.Close()
 	items := []map[string]any{}
 	for rows.Next() {
-		var id, channel, email, targetURL, chatID, created, updated string
+		var subscriptionID, channel, email, targetURL, chatID, created, updated string
 		var enabled bool
 		var version int
-		_ = rows.Scan(&id, &channel, &enabled, &email, &targetURL, &chatID, &version, &created, &updated)
-		items = append(items, map[string]any{"id": id, "channel": channel, "enabled": enabled, "email": maskValue(email), "target_url": maskURL(targetURL), "chat_id": maskValue(chatID), "version": version, "created_at": created, "updated_at": updated})
+		if err := rows.Scan(&subscriptionID, &channel, &enabled, &email, &targetURL, &chatID, &version, &created, &updated); err != nil {
+			errorJSON(w, 500, "INTERNAL_ERROR", "could not decode user notifications", nil)
+			return
+		}
+		items = append(items, map[string]any{"id": subscriptionID, "channel": channel, "enabled": enabled, "email": maskValue(email), "target_url": maskURL(targetURL), "chat_id": maskValue(chatID), "version": version, "created_at": created, "updated_at": updated})
 	}
-	writeJSON(w, 200, map[string]any{"items": items, "next_cursor": nil, "has_more": false})
+	items, next, more := finishPage(items, limit, "updated_at")
+	writeJSON(w, 200, map[string]any{"items": items, "next_cursor": next, "has_more": more})
 }
-
 func (a *App) adminNotificationSubscription(w http.ResponseWriter, r *http.Request, actor identity) {
 	userID := r.PathValue("id")
 	subscriptionID := r.PathValue("subscription_id")
 	if r.Method == http.MethodDelete {
-		res, err := a.DB.Exec(`DELETE FROM notification_subscriptions WHERE id=? AND user_id=?`, subscriptionID, userID)
+		now := time.Now().UTC().Format(time.RFC3339Nano)
+		res, err := a.DB.Exec(`UPDATE notification_subscriptions SET deleted_at=?,version=version+1,updated_at=? WHERE id=? AND user_id=? AND deleted_at IS NULL`, now, now, subscriptionID, userID)
 		if err != nil {
 			errorJSON(w, 500, "INTERNAL_ERROR", "could not delete notification subscription", nil)
 			return
@@ -47,16 +68,19 @@ func (a *App) adminNotificationSubscription(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	var in struct {
-		Enabled                          *bool
-		Email, TargetURL, Secret, ChatID string
-		Version                          int
+		Enabled   *bool  `json:"enabled"`
+		Email     string `json:"email"`
+		TargetURL string `json:"target_url"`
+		Secret    string `json:"secret"`
+		ChatID    string `json:"chat_id"`
+		Version   int    `json:"version"`
 	}
 	if !decode(r, &in) {
 		errorJSON(w, 400, "VALIDATION_ERROR", "invalid notification subscription", nil)
 		return
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	res, err := a.DB.Exec(`UPDATE notification_subscriptions SET enabled=COALESCE(?,enabled),email=COALESCE(NULLIF(?,''),email),target_url=COALESCE(NULLIF(?,''),target_url),secret=COALESCE(NULLIF(?,''),secret),chat_id=COALESCE(NULLIF(?,''),chat_id),version=version+1,updated_at=? WHERE id=? AND user_id=?`, in.Enabled, strings.TrimSpace(in.Email), strings.TrimSpace(in.TargetURL), strings.TrimSpace(in.Secret), strings.TrimSpace(in.ChatID), now, subscriptionID, userID)
+	res, err := a.DB.Exec(`UPDATE notification_subscriptions SET enabled=COALESCE(?,enabled),email=COALESCE(NULLIF(?,''),email),target_url=COALESCE(NULLIF(?,''),target_url),secret=COALESCE(NULLIF(?,''),secret),chat_id=COALESCE(NULLIF(?,''),chat_id),version=version+1,updated_at=? WHERE id=? AND user_id=? AND deleted_at IS NULL`, in.Enabled, strings.TrimSpace(in.Email), strings.TrimSpace(in.TargetURL), strings.TrimSpace(in.Secret), strings.TrimSpace(in.ChatID), now, subscriptionID, userID)
 	if err != nil {
 		errorJSON(w, 400, "VALIDATION_ERROR", "could not update notification subscription", nil)
 		return
@@ -73,7 +97,7 @@ func (a *App) adminNotificationSubscriptionStatus(w http.ResponseWriter, r *http
 	userID := r.PathValue("id")
 	subscriptionID := r.PathValue("subscription_id")
 	enabled := strings.HasSuffix(r.URL.Path, "/enable")
-	res, err := a.DB.Exec(`UPDATE notification_subscriptions SET enabled=?,version=version+1,updated_at=? WHERE id=? AND user_id=?`, enabled, time.Now().UTC().Format(time.RFC3339Nano), subscriptionID, userID)
+	res, err := a.DB.Exec(`UPDATE notification_subscriptions SET enabled=?,version=version+1,updated_at=? WHERE id=? AND user_id=? AND deleted_at IS NULL`, enabled, time.Now().UTC().Format(time.RFC3339Nano), subscriptionID, userID)
 	if err != nil {
 		errorJSON(w, 500, "INTERNAL_ERROR", "could not update notification subscription", nil)
 		return
@@ -88,7 +112,24 @@ func (a *App) adminNotificationSubscriptionStatus(w http.ResponseWriter, r *http
 
 func (a *App) adminNotificationDeliveries(w http.ResponseWriter, r *http.Request, actor identity) {
 	userID := r.PathValue("id")
-	rows, err := a.DB.Query(`SELECT id,event_id,subscription_id,channel,status,attempt_count,COALESCE(response_code,0),COALESCE(error_code,''),created_at,COALESCE(completed_at,'') FROM notification_deliveries WHERE user_id=? ORDER BY created_at DESC LIMIT 100`, userID)
+	limit, err := parseLimit(r)
+	if err != nil {
+		errorJSON(w, 400, "VALIDATION_ERROR", err.Error(), nil)
+		return
+	}
+	where := "user_id=?"
+	args := []any{userID}
+	if value := r.URL.Query().Get("cursor"); value != "" {
+		cursor, err := decodePageCursor(value)
+		if err != nil {
+			errorJSON(w, 400, "INVALID_CURSOR", "cursor is invalid", nil)
+			return
+		}
+		where += " AND (created_at<? OR (created_at=? AND id<?))"
+		args = append(args, cursor.Time, cursor.Time, cursor.ID)
+	}
+	args = append(args, limit+1)
+	rows, err := a.DB.Query(`SELECT id,event_id,subscription_id,channel,status,attempt_count,COALESCE(response_code,0),COALESCE(error_code,''),created_at,COALESCE(completed_at,'') FROM notification_deliveries WHERE `+where+` ORDER BY created_at DESC,id DESC LIMIT ?`, args...)
 	if err != nil {
 		errorJSON(w, 500, "INTERNAL_ERROR", "could not list notification deliveries", nil)
 		return
@@ -98,12 +139,15 @@ func (a *App) adminNotificationDeliveries(w http.ResponseWriter, r *http.Request
 	for rows.Next() {
 		var did, eid, sid, channel, status, errorCode, created, completed string
 		var attempts, response int
-		_ = rows.Scan(&did, &eid, &sid, &channel, &status, &attempts, &response, &errorCode, &created, &completed)
-		items = append(items, map[string]any{"id": did, "event_id": eid, "subscription_id": sid, "channel": channel, "status": status, "attempt_count": attempts, "response_code": response, "error_code": nullIfEmpty(errorCode), "created_at": created, "completed_at": nullIfEmpty(completed)})
+		if err := rows.Scan(&did, &eid, &sid, &channel, &status, &attempts, &response, &errorCode, &created, &completed); err != nil {
+			errorJSON(w, 500, "INTERNAL_ERROR", "could not decode notification deliveries", nil)
+			return
+		}
+		items = append(items, map[string]any{"id": did, "event_id": eid, "subscription_id": sid, "channel": channel, "status": status, "attempt_count": attempts, "response_code": nullIfZero(response), "error_code": nullIfEmpty(errorCode), "created_at": created, "completed_at": nullIfEmpty(completed)})
 	}
-	writeJSON(w, 200, map[string]any{"items": items, "next_cursor": nil, "has_more": false})
+	items, next, more := finishPage(items, limit, "created_at")
+	writeJSON(w, 200, map[string]any{"items": items, "next_cursor": next, "has_more": more})
 }
-
 func maskValue(value string) string {
 	if value == "" {
 		return ""

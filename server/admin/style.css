@@ -210,3 +210,4 @@ html[data-theme="dark"] .status-box { background: #0b0b0b; color: #f1f1f1; borde
 .compact-status { min-height: 0; width: 100%; max-height: 260px; }
 html[data-theme="dark"] .inline-controls select { background: #0d0d0d; border-color: #444; color: #fff; }
 @media (max-width: 720px) { .inline-controls { width: 100%; flex-wrap: wrap; } .inline-controls select { max-width: none; flex: 1 1 100%; } }
+.brand-icon { object-fit: cover; padding: 0; }

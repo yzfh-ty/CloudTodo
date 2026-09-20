@@ -80,6 +80,12 @@ class AppController extends ChangeNotifier {
     oldServices.dispose();
 
     _config = nextConfig;
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setString('cloudtodo_api_base_url', normalized);
+    } catch (_) {
+      // Keep the address for the current session when storage is unavailable.
+    }
     _services = nextServices;
     nextServices.sessionController.forceLogout();
     notifyListeners();

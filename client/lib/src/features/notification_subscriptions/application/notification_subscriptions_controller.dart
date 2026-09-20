@@ -35,35 +35,17 @@ class NotificationSubscriptionsController extends ChangeNotifier {
 
   Future<bool> createSubscription(NotificationSubscriptionFormData draft) {
     return _runMutation('creating', () async {
-      await _repository.createSubscription(
-        name: draft.name,
-        targetUrl: draft.targetUrl,
-        payloadTemplate: draft.payloadTemplate,
-        isEnabled: draft.isEnabled,
-        secret: draft.secret,
-      );
+      await _repository.upsertSubscription(channel: draft.channel, targetValue: draft.targetValue, enabled: draft.enabled, secret: draft.secret);
       await load();
     });
   }
 
-  Future<bool> updateSubscription(
-      String id, NotificationSubscriptionFormData draft) {
+  Future<bool> updateSubscription(String id, NotificationSubscriptionFormData draft) {
     return _runMutation(id, () async {
-      final existing = items.firstWhere((item) => item.id == id);
-      await _repository.updateSubscription(
-        id: id,
-        name: draft.name,
-        targetUrl: draft.targetUrl,
-        payloadTemplate: draft.payloadTemplate,
-        isEnabled: draft.isEnabled,
-        secret: draft.secret,
-        clearSecret: draft.clearSecret,
-        version: existing.version,
-      );
+      await _repository.upsertSubscription(channel: draft.channel, targetValue: draft.targetValue, enabled: draft.enabled, secret: draft.secret);
       await load();
     });
   }
-
   Future<bool> deleteSubscription(String id) {
     return _runMutation(id, () async {
       await _repository.deleteSubscription(id);

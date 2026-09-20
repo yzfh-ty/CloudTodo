@@ -59,7 +59,7 @@ class _SubscriptionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.sizeOf(context).width < 600;
     final title = Text(
-      item.name,
+      item.channel == 'email' ? 'Email' : item.channel == 'telegram' ? 'Telegram' : 'Webhook',
       style: Theme.of(context).textTheme.titleMedium,
     );
     final actions = Wrap(
@@ -110,7 +110,7 @@ class _SubscriptionCard extends StatelessWidget {
               ],
             ),
           const SizedBox(height: 8),
-          SelectableText(item.targetUrl),
+          SelectableText(item.email ?? item.chatId ?? item.targetUrl ?? ''),
           const SizedBox(height: 12),
           Wrap(
             spacing: 12,
@@ -119,41 +119,27 @@ class _SubscriptionCard extends StatelessWidget {
               _MetaChip(
                 label: '方式',
                 value:
-                    item.provider == 'wecom_robot' ? '企业微信机器人' : '标准 Webhook',
+                    switch (item.channel) { 'email' => 'Email', 'telegram' => 'Telegram', _ => 'Webhook' },
               ),
-              _MetaChip(label: '状态', value: enabledStatusText(item.isEnabled)),
+              _MetaChip(label: '状态', value: enabledStatusText(item.enabled)),
               _MetaChip(label: '最近结果', value: _latestResultText(item)),
               _MetaChip(label: '上次测试', value: _latestTestedAtText(item)),
               _MetaChip(
-                label: '最近响应码',
-                value: item.lastResponseCode?.toString() ?? '无',
+                label: '最近错误',
+                value: item.lastErrorCode ?? '无',
               ),
               _MetaChip(label: '创建时间', value: formatDateTime(item.createdAt)),
               _MetaChip(
                 label: '最近成功',
-                value: formatDateTime(item.lastSuccessAt),
+                value: formatDateTime(item.lastDeliveryAt),
               ),
               _MetaChip(
                 label: '最近失败',
-                value: formatDateTime(item.lastFailureAt),
+                value: formatDateTime(item.lastDeliveryAt),
               ),
             ],
           ),
-          if (item.lastResponseSummary?.trim().isNotEmpty == true) ...[
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                '最近返回摘要：${item.lastResponseSummary}',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ),
-          ],
+
         ],
       ),
     );
@@ -239,31 +225,6 @@ class _DeviceCard extends StatelessWidget {
   }
 }
 
-String _latestResultText(NotificationSubscription item) {
-  if (item.lastSuccessAt == null && item.lastFailureAt == null) {
-    return '未测试';
-  }
-  if (item.lastSuccessAt != null && item.lastFailureAt == null) {
-    return '最近成功';
-  }
-  if (item.lastSuccessAt == null && item.lastFailureAt != null) {
-    return '最近失败';
-  }
-  return item.lastSuccessAt!.isAfter(item.lastFailureAt!) ? '最近成功' : '最近失败';
-}
+String _latestResultText(NotificationSubscription item) => item.lastErrorCode == null ? (item.lastDeliveryAt == null ? '未投递' : '最近成功') : '最近失败';
 
-String _latestTestedAtText(NotificationSubscription item) {
-  if (item.lastSuccessAt == null && item.lastFailureAt == null) {
-    return '未测试';
-  }
-  if (item.lastSuccessAt == null) {
-    return formatDateTime(item.lastFailureAt);
-  }
-  if (item.lastFailureAt == null) {
-    return formatDateTime(item.lastSuccessAt);
-  }
-  final latest = item.lastSuccessAt!.isAfter(item.lastFailureAt!)
-      ? item.lastSuccessAt
-      : item.lastFailureAt;
-  return formatDateTime(latest);
-}
+String _latestTestedAtText(NotificationSubscription item) => formatDateTime(item.lastDeliveryAt);

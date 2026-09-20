@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../core/errors/app_exception.dart';
-import '../../../core/models/paged_response.dart';
 import '../../reminders/data/reminders_repository.dart';
 import '../../reminders/domain/reminder_form_data.dart';
 import '../../reminders/domain/reminder_item.dart';
@@ -37,6 +36,7 @@ class TodoListController extends ChangeNotifier {
   String? tagFilter;
   String keyword = '';
   int total = 0;
+  final Set<String> selectedTodoIds = <String>{};
   Map<String, int> statusSummary = const {
     'total': 0,
     'pending': 0,
@@ -61,7 +61,7 @@ class TodoListController extends ChangeNotifier {
 
     try {
       final results = await Future.wait<Object>([
-        _todoRepository.getTodos(
+        _todoRepository.getAllTodos(
           status: statusFilter,
           keyword: keyword.isEmpty ? null : keyword,
           listId: listFilter,
@@ -73,14 +73,17 @@ class TodoListController extends ChangeNotifier {
         _todoRepository.getSummary(),
       ]);
 
-      final todosPage = results[0] as PagedResponse<TodoItem>;
+      final loadedTodos = results[0] as List<TodoItem>;
       final reminders = results[1] as List<ReminderItem>;
       final lists = results[2] as List<TodoListItem>;
       final loadedTags = results[3] as List<TagItem>;
       final loadedSummary = results[4] as Map<String, int>;
 
-      items = todosPage.items;
-      total = todosPage.total;
+      items = loadedTodos;
+      selectedTodoIds.removeWhere(
+        (id) => !items.any((item) => item.id == id),
+      );
+      total = loadedTodos.length;
       upcomingReminders = reminders;
       todoLists = lists;
       tags = loadedTags;
@@ -181,6 +184,58 @@ class TodoListController extends ChangeNotifier {
       await _todoRepository.deleteTodo(id);
       await refresh();
     });
+  }
+
+  void toggleTodoSelection(String id) {
+    if (selectedTodoIds.contains(id)) {
+      selectedTodoIds.remove(id);
+    } else {
+      selectedTodoIds.add(id);
+    }
+    notifyListeners();
+  }
+
+  void toggleSelectAllVisible() {
+    final visibleIds = items.map((item) => item.id).toSet();
+    if (visibleIds.isNotEmpty && selectedTodoIds.containsAll(visibleIds)) {
+      selectedTodoIds.removeAll(visibleIds);
+    } else {
+      selectedTodoIds.addAll(visibleIds);
+    }
+    notifyListeners();
+  }
+
+  void clearTodoSelection() {
+    if (selectedTodoIds.isEmpty) {
+      return;
+    }
+    selectedTodoIds.clear();
+    notifyListeners();
+  }
+
+  Future<bool> batchComplete() {
+    return _runBatchMutation(
+      '完成待办',
+      (item) => item.status == 'pending'
+          ? _todoRepository.completeTodo(item.id, version: item.version)
+          : null,
+    );
+  }
+
+  Future<bool> batchArchive() {
+    return _runBatchMutation(
+      '归档待办',
+      (item) => item.status == 'archived'
+          ? null
+          : _todoRepository.archiveTodo(item.id, version: item.version),
+    );
+  }
+
+  Future<bool> batchDelete() {
+    return _runBatchMutation(
+      '删除待办',
+      (item) => _todoRepository.deleteTodo(item.id),
+    );
   }
 
   Future<bool> createReminder(String todoId, ReminderFormData draft) {
@@ -301,6 +356,56 @@ class TodoListController extends ChangeNotifier {
     try {
       await action();
       return true;
+    } catch (error) {
+      errorMessage = AppException.describe(error);
+      notifyListeners();
+      return false;
+    } finally {
+      isSubmitting = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> _runBatchMutation(
+    String actionName,
+    Future<void>? Function(TodoItem item) action,
+  ) async {
+    final selectedItems = items
+        .where((item) => selectedTodoIds.contains(item.id))
+        .toList(growable: false);
+    if (selectedItems.isEmpty) {
+      return false;
+    }
+
+    isSubmitting = true;
+    errorMessage = null;
+    notifyListeners();
+
+    var successCount = 0;
+    final errors = <Object>[];
+    try {
+      for (final item in selectedItems) {
+        final request = action(item);
+        if (request == null) {
+          continue;
+        }
+        try {
+          await request;
+          successCount++;
+        } catch (error) {
+          errors.add(error);
+        }
+      }
+
+      selectedTodoIds.clear();
+      await refresh();
+      if (errors.isNotEmpty) {
+        errorMessage =
+            '\$actionName完成：\$successCount 项成功，${errors.length} 项失败：${AppException.describe(errors.first)}';
+        notifyListeners();
+        return false;
+      }
+      return successCount > 0;
     } catch (error) {
       errorMessage = AppException.describe(error);
       notifyListeners();

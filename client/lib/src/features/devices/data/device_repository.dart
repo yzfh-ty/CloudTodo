@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../core/http/http_client.dart';
+import '../../../core/models/paged_response.dart';
 import '../domain/device_item.dart';
 
 Map<String, dynamic> currentDevicePayload() {
@@ -26,18 +27,26 @@ class DeviceRepository {
     );
   }
 
-  Future<List<DeviceItem>> getDevices() {
-    return _apiClient.get(
-      '/devices',
-      parser: (data) {
-        final payload = data as Map<String, dynamic>;
-        final items = payload['items'] as List<dynamic>? ?? const [];
-        return items
-            .whereType<Map<String, dynamic>>()
-            .map(DeviceItem.fromJson)
-            .toList(growable: false);
-      },
-    );
+  Future<List<DeviceItem>> getDevices() async {
+    final result = <DeviceItem>[];
+    String? cursor;
+    while (true) {
+      final page = await _apiClient.get(
+        '/devices',
+        queryParameters: {'cursor': cursor, 'limit': '100'},
+        parser: (data) => PagedResponse.fromJson(
+          data as Map<String, dynamic>,
+          DeviceItem.fromJson,
+        ),
+      );
+      result.addAll(page.items);
+      final nextCursor = page.nextCursor;
+      if (!page.hasMore || nextCursor == null || nextCursor == cursor) {
+        break;
+      }
+      cursor = nextCursor;
+    }
+    return result;
   }
 
   Future<void> deleteDevice(String id) {

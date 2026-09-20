@@ -35,6 +35,13 @@ class ProfileController extends ChangeNotifier {
     }
   }
 
+  Future<Map<String, dynamic>?> exportData() async {
+    try { return await _repository.exportMe(); } catch (error) { errorMessage = AppException.describe(error); notifyListeners(); return null; }
+  }
+
+  Future<bool> deleteAccount({required String password}) async {
+    try { await _repository.deleteMe(password: password, confirmation: 'DELETE'); _sessionController.forceLogout(); return true; } catch (error) { errorMessage = AppException.describe(error); notifyListeners(); return false; }
+  }
   Future<bool> save({
     required String nickname,
     required String email,

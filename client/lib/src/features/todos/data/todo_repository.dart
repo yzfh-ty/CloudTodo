@@ -8,31 +8,56 @@ class TodoRepository {
   final ApiClient _apiClient;
 
   Future<Map<String, int>> getSummary() async {
-    final pages = await Future.wait([
-      getTodos(status: 'pending', limit: 100),
-      getTodos(status: 'completed', limit: 100),
-      getTodos(status: 'archived', limit: 100),
-      getTodos(status: 'deleted', limit: 100),
+    final lists = await Future.wait([
+      getAllTodos(status: 'pending'),
+      getAllTodos(status: 'completed'),
+      getAllTodos(status: 'archived'),
+      getAllTodos(status: 'deleted'),
     ]);
     return {
-      'total': pages.fold<int>(0, (sum, page) => sum + page.items.length),
-      'pending': pages[0].items.length,
-      'completed': pages[1].items.length,
-      'archived': pages[2].items.length,
+      'total': lists.fold<int>(0, (sum, items) => sum + items.length),
+      'pending': lists[0].length,
+      'completed': lists[1].length,
+      'archived': lists[2].length,
     };
   }
 
-  Future<PagedResponse<TodoItem>> getTodos({
+  Future<List<TodoItem>> getAllTodos({
+    String? status,
+    String? keyword,
+    String? listId,
+    String? tagId,
+  }) async {
+    final result = <TodoItem>[];
+    String? cursor;
+    while (true) {
+      final page = await _getTodosPage(
+        status: status,
+        keyword: keyword,
+        listId: listId,
+        tagId: tagId,
+        cursor: cursor,
+        limit: 100,
+      );
+      result.addAll(page.items);
+      final nextCursor = page.nextCursor;
+      if (!page.hasMore || nextCursor == null || nextCursor == cursor) {
+        break;
+      }
+      cursor = nextCursor;
+    }
+    return result;
+  }
+
+  Future<PagedResponse<TodoItem>> _getTodosPage({
     String? status,
     String? keyword,
     String? listId,
     String? tagId,
     String? cursor,
     int limit = 50,
-    @Deprecated('The API uses cursor/limit; this is retained for UI callers.')
-    int? pageSize,
   }) {
-    final effectiveLimit = pageSize ?? limit;
+    final effectiveLimit = limit;
     return _apiClient.get(
       '/todos',
       queryParameters: {

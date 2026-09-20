@@ -1,7 +1,16 @@
 part of 'settings_page.dart';
 
 extension _SettingsPageSubscriptionActions on _SettingsPageState {
+  Future<Set<String>> _availableNotificationChannels() async {
+    try {
+      final capabilities = await AppScope.of(context).services.serverCapabilitiesRepository.getCapabilities();
+      return {'webhook', 'email', 'telegram'}.where(capabilities.channelEnabled).toSet();
+    } catch (_) {
+      return {'webhook', 'email', 'telegram'};
+    }
+  }
   Future<void> _createSubscription() async {
+    final availableChannels = await _availableNotificationChannels();
     final draft = await showDialog<NotificationSubscriptionFormData>(
       context: context,
       builder: (context) {
@@ -10,6 +19,7 @@ extension _SettingsPageSubscriptionActions on _SettingsPageState {
           title: '添加通知方式',
           submitLabel: '保存',
           isEditing: false,
+          availableChannels: availableChannels,
         );
       },
     );
@@ -33,52 +43,21 @@ extension _SettingsPageSubscriptionActions on _SettingsPageState {
   }
 
   Future<void> _editSubscription(NotificationSubscription item) async {
-    final draft = await showDialog<NotificationSubscriptionFormData>(
-      context: context,
-      builder: (context) {
-        return NotificationSubscriptionEditorDialog(
-          initialValue: NotificationSubscriptionFormData(
-            deliveryKind: item.provider,
-            name: item.name,
-            targetUrl: item.targetUrl,
-            payloadTemplate: item.payloadTemplate ?? '',
-            isEnabled: item.isEnabled,
-            secret: '',
-            clearSecret: false,
-          ),
-          title: '编辑通知方式',
-          submitLabel: '更新',
-          isEditing: true,
-        );
-      },
-    );
-
-    if (!mounted || draft == null) {
-      return;
-    }
-
-    final updated =
-        await _subscriptionsController.updateSubscription(item.id, draft);
-    if (!mounted) {
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(updated
-            ? '通知方式已更新'
-            : (_subscriptionsController.errorMessage ?? '通知方式更新失败')),
-      ),
-    );
+    final availableChannels = await _availableNotificationChannels();
+    final target = item.channel == 'email' ? item.email : item.channel == 'telegram' ? item.chatId : item.targetUrl;
+    final draft = await showDialog<NotificationSubscriptionFormData>(context: context, builder: (context) => NotificationSubscriptionEditorDialog(initialValue: NotificationSubscriptionFormData(channel: item.channel, targetValue: target ?? '', enabled: item.enabled, secret: '', clearSecret: false), title: '编辑通知渠道', submitLabel: '更新', isEditing: true, availableChannels: availableChannels));
+    if (!mounted || draft == null) return;
+    final updated = await _subscriptionsController.updateSubscription(item.id, draft);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(updated ? '通知渠道已更新' : (_subscriptionsController.errorMessage ?? '通知渠道更新失败'))));
   }
-
   Future<void> _deleteSubscription(NotificationSubscription item) async {
     final confirmed = await showDialog<bool>(
           context: context,
           builder: (context) {
             return AlertDialog(
               title: const Text('删除通知方式'),
-              content: Text('确认删除通知方式“${item.name}”？'),
+              content: Text('确认删除通知方式“${item.channel}”？'),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(false),
@@ -118,104 +97,27 @@ extension _SettingsPageSubscriptionActions on _SettingsPageState {
 
   Future<void> _testSubscription(NotificationSubscription item) async {
     final payload = await _subscriptionsController.testSubscription(item.id);
-    if (!mounted || payload == null) {
-      return;
-    }
-
+    if (!mounted || payload == null) return;
+    final channel = payload['channel'] as String? ?? item.channel;
+    final tested = payload['tested'] == true;
     await showDialog<void>(
       context: context,
-      builder: (context) {
-        final provider = payload['provider'] as String?;
-        final providerText = switch (provider) {
-          'wecom_robot' => '企业微信机器人',
-          'standard_webhook' => '标准 Webhook',
-          _ => '未识别方式',
-        };
-        final responseCode = payload['response_code']?.toString() ?? '-';
-        final responseBody = payload['response_body']?.toString() ?? '无返回内容';
-        final renderedBody = payload['rendered_body']?.toString() ?? '无请求体预览';
-        final testedAt = payload['tested_at']?.toString();
-
-        return AlertDialog(
-          title: const Text('测试结果'),
-          content: SizedBox(
-            width: 560,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('通知方式：${item.name}'),
-                  Text('类型：$providerText'),
-                  Text(
-                      '状态：${notificationTestStatusText(payload['status']?.toString() ?? '-')}'),
-                  Text('响应码：$responseCode'),
-                  Text(
-                      '测试时间：${testedAt == null ? '-' : formatDateTime(DateTime.tryParse(testedAt))}'),
-                  const SizedBox(height: 12),
-                  const Text(
-                    '返回内容',
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 8),
-                  _PayloadPreview(value: responseBody),
-                  const SizedBox(height: 12),
-                  const Text(
-                    '本次请求体',
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 8),
-                  _PayloadPreview(value: renderedBody),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('知道了'),
-            ),
-          ],
-        );
-      },
+      builder: (context) => AlertDialog(
+        title: const Text('测试结果'),
+        content: Text('通知渠道：$channel\n状态：${tested ? '成功' : '失败'}'),
+        actions: [FilledButton(onPressed: () => Navigator.of(context).pop(), child: const Text('知道了'))],
+      ),
     );
   }
-
   Future<void> _copySubscriptionUrl(NotificationSubscription item) async {
-    await Clipboard.setData(ClipboardData(text: item.targetUrl));
+    final value = item.channel == 'email' ? item.email : item.channel == 'telegram' ? item.chatId : item.targetUrl;
+    await Clipboard.setData(ClipboardData(text: value ?? ''));
     if (!mounted) {
       return;
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('通知方式地址已复制')),
-    );
-  }
-}
-
-class _PayloadPreview extends StatelessWidget {
-  const _PayloadPreview({required this.value});
-
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: SelectableText(
-        value,
-        style: const TextStyle(
-          fontFamily: 'DejaVuSans',
-          fontFamilyFallback: ['DroidSansFallback'],
-          fontSize: 12,
-          height: 1.5,
-        ),
-      ),
     );
   }
 }

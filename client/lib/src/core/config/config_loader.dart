@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
 import '../http/http_client.dart';
 import 'app_config.dart';
 
@@ -39,8 +40,21 @@ Future<AppConfig> loadAppConfig() async {
     }
   }
 
-  final config =
-      loadedConfig ?? AppConfig.defaults().alignLoopbackHost(Uri.base);
+  var config = loadedConfig ?? AppConfig.defaults().alignLoopbackHost(Uri.base);
+  const overrideApiBaseUrl = String.fromEnvironment('CLOUDTODO_API_BASE_URL');
+  if (overrideApiBaseUrl.trim().isNotEmpty) {
+    config = config.copyWith(apiBaseUrl: overrideApiBaseUrl.trim()).alignLoopbackHost(Uri.base);
+  } else {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final savedApiBaseUrl = preferences.getString('cloudtodo_api_base_url');
+      if (savedApiBaseUrl != null && savedApiBaseUrl.trim().isNotEmpty) {
+        config = config.copyWith(apiBaseUrl: savedApiBaseUrl.trim()).alignLoopbackHost(Uri.base);
+      }
+    } catch (_) {
+      // Fall back to config.json when local storage is unavailable.
+    }
+  }
   config.validateApiBaseUrl(pageUri: Uri.base);
   return config;
 }

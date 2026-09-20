@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CloudTodo 管理后台</title>
-  <link rel="stylesheet" href="/admin/style.css">
+  <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <div class="shell">
     <aside class="sidebar">
-      <div class="brand"><span class="brand-mark small">CT</span><span class="brand-name">CloudTodo</span><button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="折叠侧边栏" aria-expanded="true">‹</button></div>
+      <div class="brand"><img class="brand-mark small brand-icon" src="/cloudtodo-icon.png" alt="CloudTodo"><span class="brand-name">CloudTodo</span><button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="折叠侧边栏" aria-expanded="true">‹</button></div>
       <nav>
         <button class="nav-item active" data-section="overview" aria-label="概览"><svg class="nav-icon nav-svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg><span class="nav-label">概览</span></button>
         <button class="nav-item" data-section="users" aria-label="用户管理"><svg class="nav-icon nav-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"></circle><path d="M4.5 20c.8-3.2 3.3-5 7.5-5s6.7 1.8 7.5 5"></path></svg><span class="nav-label">用户管理</span></button><button class="nav-item" data-section="user-notifications" aria-label="用户通知"><svg class="nav-icon nav-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path><path d="M10 21h4"></path></svg><span class="nav-label">用户通知</span></button>
@@ -87,6 +87,6 @@
       <p id="user-form-error" class="error"></p>
     </form>
   </dialog>
-  <script src="/admin/app.js"></script>
+  <script src="/app.js"></script>
 </body>
 </html>

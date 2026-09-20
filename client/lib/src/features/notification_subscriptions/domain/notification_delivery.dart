@@ -1,0 +1,5 @@
+class NotificationDelivery {
+  const NotificationDelivery({required this.id, required this.eventId, required this.subscriptionId, required this.channel, required this.status, required this.attemptCount, required this.responseCode, required this.errorCode, required this.createdAt, required this.completedAt});
+  final String id; final String eventId; final String subscriptionId; final String channel; final String status; final int attemptCount; final int? responseCode; final String? errorCode; final DateTime createdAt; final DateTime? completedAt;
+  factory NotificationDelivery.fromJson(Map<String, dynamic> json) => NotificationDelivery(id: json['id'] as String, eventId: json['event_id'] as String, subscriptionId: json['subscription_id'] as String, channel: json['channel'] as String? ?? 'webhook', status: json['status'] as String? ?? 'unknown', attemptCount: (json['attempt_count'] as num?)?.toInt() ?? 0, responseCode: (json['response_code'] as num?)?.toInt(), errorCode: json['error_code'] as String?, createdAt: DateTime.parse(json['created_at'] as String), completedAt: json['completed_at'] is String ? DateTime.tryParse(json['completed_at'] as String) : null);
+}

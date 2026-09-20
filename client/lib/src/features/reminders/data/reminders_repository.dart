@@ -1,4 +1,5 @@
 import '../../../core/http/http_client.dart';
+import '../../../core/models/paged_response.dart';
 import '../../../core/notifications/local_notification_service.dart';
 import '../domain/reminder_event_item.dart';
 import '../domain/reminder_item.dart';
@@ -17,11 +18,21 @@ class RemindersRepository {
 
   Future<List<ReminderItem>> getUpcomingReminders() async {
     final generation = _sessionGeneration?.call();
-    final reminders = await _apiClient.get(
-      '/reminders/upcoming',
-      queryParameters: {'limit': '50'},
-      parser: (data) => _parseItems(data),
-    );
+    final reminders = <ReminderItem>[];
+    String? cursor;
+    while (true) {
+      final page = await _apiClient.get(
+        '/reminders/upcoming',
+        queryParameters: {'cursor': cursor, 'limit': '100'},
+        parser: (data) => _parseReminderPage(data),
+      );
+      reminders.addAll(page.items);
+      final nextCursor = page.nextCursor;
+      if (!page.hasMore || nextCursor == null || nextCursor == cursor) {
+        break;
+      }
+      cursor = nextCursor;
+    }
     _ensureSession(generation);
     await _localNotificationService.syncReminders(
       reminders,
@@ -41,7 +52,7 @@ class RemindersRepository {
     final reminder = await _apiClient.post(
       '/todos/$todoId/reminders',
       body: {
-        'channels': [channel],
+        'channels': _channelsForSelection(channel),
         'remind_at': remindAt.toUtc().toIso8601String(),
         'repeat': {'type': repeatType, 'rule': repeatRule},
       },
@@ -67,7 +78,7 @@ class RemindersRepository {
     final reminder = await _apiClient.patch(
       '/reminders/$reminderId',
       body: {
-        'channels': [channel],
+        'channels': _channelsForSelection(channel),
         'remind_at': remindAt.toUtc().toIso8601String(),
         'repeat': {'type': repeatType, 'rule': repeatRule},
         'version': version,
@@ -89,37 +100,44 @@ class RemindersRepository {
     await _localNotificationService.cancelReminder(reminderId);
   }
 
-  Future<List<ReminderEventItem>> getPendingLocalEvents() {
-    return _apiClient.get(
-      '/reminder-events',
-      queryParameters: {'limit': '50'},
-      parser: (data) {
-        final payload = data as Map<String, dynamic>;
-        final items = payload['items'] as List<dynamic>? ?? const [];
-        return items
-            .whereType<Map<String, dynamic>>()
-            .map(ReminderEventItem.fromJson)
-            .toList(growable: false);
-      },
-    );
+  Future<List<ReminderEventItem>> getPendingLocalEvents() async {
+    final result = <ReminderEventItem>[];
+    String? cursor;
+    while (true) {
+      final page = await _apiClient.get(
+        '/reminder-events',
+        queryParameters: {'cursor': cursor, 'limit': '100'},
+        parser: (data) => PagedResponse.fromJson(
+          data as Map<String, dynamic>,
+          ReminderEventItem.fromJson,
+        ),
+      );
+      result.addAll(page.items);
+      final nextCursor = page.nextCursor;
+      if (!page.hasMore || nextCursor == null || nextCursor == cursor) {
+        break;
+      }
+      cursor = nextCursor;
+    }
+    return result;
   }
 
-  Future<ReminderEventItem> ackReminderEvent(String id) {
-    return _apiClient.post(
-      '/reminder-events/$id/ack',
-      parser: (data) => ReminderEventItem.fromJson(
-        data as Map<String, dynamic>,
-      ),
-    );
+  Future<void> ackReminderEvent(String id) {
+    return _apiClient.post('/reminder-events/$id/ack', parser: (_) => null);
   }
 
-  List<ReminderItem> _parseItems(Object? data) {
-    final payload = data as Map<String, dynamic>;
-    final items = payload['items'] as List<dynamic>? ?? const [];
-    return items
-        .whereType<Map<String, dynamic>>()
-        .map(ReminderItem.fromJson)
-        .toList(growable: false);
+  List<String> _channelsForSelection(String selection) {
+    if (selection == 'both') return const ['webhook', 'local'];
+    if (selection == 'android_local' || selection == 'windows_local')
+      return const ['local'];
+    return [selection];
+  }
+
+  PagedResponse<ReminderItem> _parseReminderPage(Object? data) {
+    return PagedResponse.fromJson(
+      data as Map<String, dynamic>,
+      ReminderItem.fromJson,
+    );
   }
 
   bool _isSessionCurrent(int? generation) =>

@@ -1,4 +1,5 @@
 import '../../../core/http/http_client.dart';
+import '../../../core/models/paged_response.dart';
 import '../domain/tag_item.dart';
 import '../domain/todo_list_item.dart';
 
@@ -8,10 +9,7 @@ class TodoMetadataRepository {
   final ApiClient _apiClient;
 
   Future<List<TodoListItem>> getTodoLists() {
-    return _apiClient.get(
-      '/lists',
-      parser: (data) => _parseList(data, TodoListItem.fromJson),
-    );
+    return _getAllPages('/lists', TodoListItem.fromJson);
   }
 
   Future<TodoListItem> createTodoList({
@@ -52,10 +50,7 @@ class TodoMetadataRepository {
   }
 
   Future<List<TagItem>> getTags() {
-    return _apiClient.get(
-      '/tags',
-      parser: (data) => _parseList(data, TagItem.fromJson),
-    );
+    return _getAllPages('/tags', TagItem.fromJson);
   }
 
   Future<TagItem> createTag({
@@ -93,12 +88,28 @@ class TodoMetadataRepository {
     return _apiClient.delete('/tags/$id', parser: (_) => null);
   }
 
-  List<T> _parseList<T>(Object? data, T Function(Map<String, dynamic>) parse) {
-    final payload = data as Map<String, dynamic>;
-    final items = payload['items'] as List<dynamic>? ?? const [];
-    return items
-        .whereType<Map<String, dynamic>>()
-        .map(parse)
-        .toList(growable: false);
+  Future<List<T>> _getAllPages<T>(
+    String path,
+    T Function(Map<String, dynamic>) parse,
+  ) async {
+    final result = <T>[];
+    String? cursor;
+    while (true) {
+      final page = await _apiClient.get(
+        path,
+        queryParameters: {'cursor': cursor, 'limit': '100'},
+        parser: (data) => PagedResponse.fromJson(
+          data as Map<String, dynamic>,
+          parse,
+        ),
+      );
+      result.addAll(page.items);
+      final nextCursor = page.nextCursor;
+      if (!page.hasMore || nextCursor == null || nextCursor == cursor) {
+        break;
+      }
+      cursor = nextCursor;
+    }
+    return result;
   }
 }

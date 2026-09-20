@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../core/errors/app_exception.dart';
-import '../../../core/models/paged_response.dart';
 import '../../todos/data/todo_repository.dart';
 import '../../todos/domain/todo_item.dart';
 import '../data/reminders_repository.dart';
@@ -33,14 +32,14 @@ class RemindersController extends ChangeNotifier {
     try {
       final results = await Future.wait<Object>([
         _remindersRepository.getUpcomingReminders(),
-        _todoRepository.getTodos(pageSize: 100),
+        _todoRepository.getAllTodos(),
       ]);
 
       final remindersResult = results[0] as List<ReminderItem>;
-      final todosPage = results[1] as PagedResponse<TodoItem>;
+      final loadedTodos = results[1] as List<TodoItem>;
 
       reminders = remindersResult;
-      todos = todosPage.items;
+      todos = loadedTodos;
       selectedTodoId ??= todos.isNotEmpty ? todos.first.id : null;
     } catch (error) {
       errorMessage = AppException.describe(error);
