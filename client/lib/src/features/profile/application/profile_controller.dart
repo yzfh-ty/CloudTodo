@@ -36,15 +36,29 @@ class ProfileController extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>?> exportData() async {
-    try { return await _repository.exportMe(); } catch (error) { errorMessage = AppException.describe(error); notifyListeners(); return null; }
+    try {
+      return await _repository.exportMe();
+    } catch (error) {
+      errorMessage = AppException.describe(error);
+      notifyListeners();
+      return null;
+    }
   }
 
   Future<bool> deleteAccount({required String password}) async {
-    try { await _repository.deleteMe(password: password, confirmation: 'DELETE'); _sessionController.forceLogout(); return true; } catch (error) { errorMessage = AppException.describe(error); notifyListeners(); return false; }
+    try {
+      await _repository.deleteMe(password: password, confirmation: 'DELETE');
+      _sessionController.forceLogout();
+      return true;
+    } catch (error) {
+      errorMessage = AppException.describe(error);
+      notifyListeners();
+      return false;
+    }
   }
+
   Future<bool> save({
     required String nickname,
-    required String email,
     required String timezone,
   }) async {
     isSaving = true;
@@ -54,7 +68,6 @@ class ProfileController extends ChangeNotifier {
     try {
       final updated = await _repository.updateMe(
         nickname: nickname,
-        email: email,
         timezone: timezone,
       );
       profile = updated;

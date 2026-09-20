@@ -7,7 +7,6 @@ extension _SettingsPageActions on _SettingsPageState {
     }
     final updated = await _profileController.save(
       nickname: _nicknameController.text,
-      email: _emailController.text,
       timezone: _timezoneController.text,
     );
     if (!mounted) {
@@ -256,16 +255,52 @@ extension _SettingsPageActions on _SettingsPageState {
   Future<void> _exportAccountData() async {
     final data = await _profileController.exportData();
     if (!mounted || data == null) return;
-    await showDialog<void>(context: context, builder: (context) => AlertDialog(title: const Text('数据导出'), content: SizedBox(width: 600, child: SingleChildScrollView(child: SelectableText(const JsonEncoder.withIndent('  ').convert(data)))), actions: [FilledButton(onPressed: () => Navigator.of(context).pop(), child: const Text('关闭'))]));
+    await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+                title: const Text('数据导出'),
+                content: SizedBox(
+                    width: 600,
+                    child: SingleChildScrollView(
+                        child: SelectableText(
+                            const JsonEncoder.withIndent('  ').convert(data)))),
+                actions: [
+                  FilledButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('关闭'))
+                ]));
   }
 
   Future<void> _deleteAccount() async {
     final controller = TextEditingController();
-    final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(title: const Text('删除账号'), content: TextField(controller: controller, obscureText: true, decoration: const InputDecoration(labelText: '当前密码')), actions: [TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('取消')), FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('确认删除'))]));
-    final password = controller.text; controller.dispose(); if (!mounted || confirmed != true || password.isEmpty) return;
-    final deleted = await _profileController.deleteAccount(password: password); if (!mounted) return;
-    if (deleted) await widget.onLogout(); else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_profileController.errorMessage ?? '账号删除失败')));
+    final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+                title: const Text('删除账号'),
+                content: TextField(
+                    controller: controller,
+                    obscureText: true,
+                    decoration: const InputDecoration(labelText: '当前密码')),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: const Text('取消')),
+                  FilledButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child: const Text('确认删除'))
+                ]));
+    final password = controller.text;
+    controller.dispose();
+    if (!mounted || confirmed != true || password.isEmpty) return;
+    final deleted = await _profileController.deleteAccount(password: password);
+    if (!mounted) return;
+    if (deleted)
+      await widget.onLogout();
+    else
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_profileController.errorMessage ?? '账号删除失败')));
   }
+
   Future<void> _applyBackendUrl(AppScope appScope) async {
     final validation =
         appScope.controller.validateApiBaseUrl(_backendUrlController.text);

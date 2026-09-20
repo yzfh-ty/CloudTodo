@@ -568,16 +568,11 @@ class _SettingsPageState extends State<SettingsPage> {
                                   const SizedBox(height: 12),
                                   TextFormField(
                                     controller: _emailController,
-                                    decoration:
-                                        const InputDecoration(labelText: '邮箱'),
-                                    validator: (value) {
-                                      if (value == null ||
-                                          value.trim().isEmpty ||
-                                          !value.contains('@')) {
-                                        return '请输入合法邮箱';
-                                      }
-                                      return null;
-                                    },
+                                    readOnly: true,
+                                    decoration: const InputDecoration(
+                                      labelText: '邮箱',
+                                      helperText: '邮箱暂不支持在客户端修改',
+                                    ),
                                   ),
                                   const SizedBox(height: 12),
                                   DropdownButtonFormField<String>(
@@ -632,8 +627,12 @@ class _SettingsPageState extends State<SettingsPage> {
                                   ),
                                   const SizedBox(height: 12),
                                   Wrap(spacing: 12, children: [
-                                    OutlinedButton(onPressed: _exportAccountData, child: const Text('导出我的数据')),
-                                    TextButton(onPressed: _deleteAccount, child: const Text('删除账号')),
+                                    OutlinedButton(
+                                        onPressed: _exportAccountData,
+                                        child: const Text('导出我的数据')),
+                                    TextButton(
+                                        onPressed: _deleteAccount,
+                                        child: const Text('删除账号')),
                                   ]),
                                 ],
                               ),
@@ -789,8 +788,14 @@ class _SettingsPageState extends State<SettingsPage> {
                             ),
                           ),
                         ),
+                      if (_selectedSettingsSection ==
+                          SettingsSection.notifications) ...[
                         const SizedBox(height: 16),
-                        NotificationDeliveriesPanel(repository: appScope.services.notificationDeliveriesRepository),
+                        NotificationDeliveriesPanel(
+                          repository: appScope
+                              .services.notificationDeliveriesRepository,
+                        ),
+                      ],
                     ],
                   ),
                 ),
