@@ -8,7 +8,7 @@ class ProfileRepository {
 
   Future<ProfileUser> getMe() {
     return _apiClient.get(
-      '/users/me',
+      '/me',
       parser: (data) => ProfileUser.fromJson(data as Map<String, dynamic>),
     );
   }
@@ -19,10 +19,9 @@ class ProfileRepository {
     required String timezone,
   }) {
     return _apiClient.patch(
-      '/users/me',
+      '/me',
       body: {
         'nickname': nickname.trim(),
-        'email': email.trim(),
         'timezone': timezone.trim(),
       },
       parser: (data) => ProfileUser.fromJson(data as Map<String, dynamic>),

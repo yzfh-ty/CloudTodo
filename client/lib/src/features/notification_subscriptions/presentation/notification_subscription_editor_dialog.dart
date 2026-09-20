@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/form_dialog_frame.dart';
-import '../domain/notification_endpoint_form_data.dart';
+import '../domain/notification_subscription_form_data.dart';
 
-class NotificationEndpointEditorDialog extends StatefulWidget {
-  const NotificationEndpointEditorDialog({
+class NotificationSubscriptionEditorDialog extends StatefulWidget {
+  const NotificationSubscriptionEditorDialog({
     super.key,
     required this.initialValue,
     required this.title,
@@ -12,18 +12,18 @@ class NotificationEndpointEditorDialog extends StatefulWidget {
     required this.isEditing,
   });
 
-  final NotificationEndpointFormData initialValue;
+  final NotificationSubscriptionFormData initialValue;
   final String title;
   final String submitLabel;
   final bool isEditing;
 
   @override
-  State<NotificationEndpointEditorDialog> createState() =>
-      _NotificationEndpointEditorDialogState();
+  State<NotificationSubscriptionEditorDialog> createState() =>
+      _NotificationSubscriptionEditorDialogState();
 }
 
-class _NotificationEndpointEditorDialogState
-    extends State<NotificationEndpointEditorDialog> {
+class _NotificationSubscriptionEditorDialogState
+    extends State<NotificationSubscriptionEditorDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
   late final TextEditingController _targetUrlController;
@@ -291,7 +291,7 @@ class _NotificationEndpointEditorDialogState
     }
 
     Navigator.of(context).pop(
-      NotificationEndpointFormData(
+      NotificationSubscriptionFormData(
         deliveryKind: _deliveryKind,
         name: _nameController.text.trim(),
         targetUrl: _targetUrlController.text.trim(),

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CloudTodo 管理后台</title>
+  <link rel="stylesheet" href="/admin/style.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark small">CT</span><span class="brand-name">CloudTodo</span><button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="折叠侧边栏" aria-expanded="true">‹</button></div>
+      <nav>
+        <button class="nav-item active" data-section="overview" aria-label="概览"><svg class="nav-icon nav-svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg><span class="nav-label">概览</span></button>
+        <button class="nav-item" data-section="users" aria-label="用户管理"><svg class="nav-icon nav-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"></circle><path d="M4.5 20c.8-3.2 3.3-5 7.5-5s6.7 1.8 7.5 5"></path></svg><span class="nav-label">用户管理</span></button><button class="nav-item" data-section="user-notifications" aria-label="用户通知"><svg class="nav-icon nav-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path><path d="M10 21h4"></path></svg><span class="nav-label">用户通知</span></button>
+        <button class="nav-item" data-section="providers" aria-label="通知服务"><svg class="nav-icon nav-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path><path d="M10 21h4"></path></svg><span class="nav-label">通知服务</span></button>
+      </nav>
+
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <div><span class="eyebrow">ADMIN CONSOLE</span><h1 id="page-title">概览</h1></div>
+        <div class="topbar-actions"><div class="theme-switch" role="group" aria-label="主题选择"><button type="button" data-theme-choice="light">浅色</button><button type="button" data-theme-choice="dark">深色</button></div><div class="admin-menu"><button id="admin-menu-button" class="user-pill" type="button" aria-expanded="false"><span id="admin-name">管理员</span><span class="menu-caret">⌄</span></button><div id="admin-menu-panel" class="admin-menu-panel" hidden><button id="logout-button" type="button">退出登录</button></div></div></div>
+      </header>
+
+      <section id="section-overview" class="section active">
+        <div class="cards">
+          <article class="stat-card"><span>服务状态</span><strong id="service-status">检查中</strong></article>
+          <article class="stat-card"><span>数据库</span><strong id="database-status">检查中</strong></article>
+          <article class="stat-card"><span>邮件服务</span><strong id="email-status">检查中</strong></article>
+          <article class="stat-card"><span>Telegram</span><strong id="telegram-status">检查中</strong></article>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><div><h2>系统信息</h2><p class="muted">当前服务端运行状态</p></div><button id="refresh-status" class="secondary">刷新</button></div>
+          <pre id="system-details" class="status-box">正在读取...</pre>
+        </div>
+      </section>
+
+      <section id="section-users" class="section">
+        <div class="panel">
+          <div class="panel-header"><div><h2>用户管理</h2><p class="muted">管理独立的个人账号和设备</p></div><button id="create-user" class="primary">新增用户</button></div>
+          <div id="users-error" class="error"></div>
+          <div class="table-wrap"><table><thead><tr><th>用户名</th><th>邮箱</th><th>昵称</th><th>状态</th><th>注册时间</th><th>操作</th></tr></thead><tbody id="users-body"></tbody></table></div>
+        </div>
+      </section>
+
+      <section id="section-user-notifications" class="section">
+        <div class="panel">
+          <div class="panel-header"><div><h2>用户通知</h2><p class="muted">管理用户的 Webhook、Email 和 Telegram 订阅</p></div><div class="inline-controls"><select id="notification-user-select" aria-label="选择用户"></select><button id="refresh-user-notifications" class="secondary">刷新</button></div></div>
+          <div id="user-notifications-error" class="error"></div>
+          <div class="table-wrap"><table><thead><tr><th>渠道</th><th>状态</th><th>配置</th><th>更新时间</th><th>操作</th></tr></thead><tbody id="user-notifications-body"></tbody></table></div>
+          <div class="panel-footer"><button id="view-user-deliveries" class="secondary">查看最近投递记录</button><pre id="user-deliveries" class="status-box compact-status" hidden></pre></div>
+        </div>
+      </section>      <section id="section-providers" class="section">
+        <div class="provider-grid">
+          <form id="email-form" class="panel provider-form">
+            <div class="panel-header"><div><h2>Email</h2><p class="muted">服务端 SMTP 配置</p></div><span id="email-badge" class="badge">未配置</span></div>
+            <label>SMTP 主机<input id="smtp-host"></label>
+            <label>SMTP 端口<input id="smtp-port" value="587"></label>
+            <label>SMTP 用户名<input id="smtp-username"></label>
+            <label>SMTP 密码<input id="smtp-password" type="password" placeholder="留空表示不修改"></label>
+            <label>发件地址<input id="smtp-from"></label>
+            <div class="form-actions"><button type="button" id="test-email" class="secondary">测试</button><button class="primary" type="submit">保存</button></div>
+            <p id="email-message" class="form-message"></p>
+          </form>
+          <form id="telegram-form" class="panel provider-form">
+            <div class="panel-header"><div><h2>Telegram</h2><p class="muted">服务端机器人配置</p></div><span id="telegram-badge" class="badge">未配置</span></div>
+            <label>Bot Token<input id="telegram-token" type="password" placeholder="留空表示不修改"></label>
+            <label>Bot 名称<input id="telegram-name"></label>
+            <div class="form-actions"><button type="button" id="test-telegram" class="secondary">测试</button><button class="primary" type="submit">保存</button></div>
+            <p id="telegram-message" class="form-message"></p>
+          </form>
+        </div>
+      </section>
+    </main>
+  </div>
+  <dialog id="user-dialog">
+    <form id="user-form" method="dialog" class="dialog-card">
+      <h2 id="user-dialog-title">新增用户</h2>
+      <input id="editing-user-id" type="hidden">
+      <label>用户名<input id="user-username" required></label>
+      <label>邮箱<input id="user-email" type="email" required></label>
+      <label>昵称<input id="user-nickname"></label>
+      <label>时区<input id="user-timezone" value="Asia/Shanghai"></label>
+      <label id="user-password-label">初始密码<input id="user-password" type="password" minlength="8"></label>
+      <div class="form-actions"><button type="button" id="cancel-user" class="secondary">取消</button><button class="primary" type="submit">保存</button></div>
+      <p id="user-form-error" class="error"></p>
+    </form>
+  </dialog>
+  <script src="/admin/app.js"></script>
+</body>
+</html>

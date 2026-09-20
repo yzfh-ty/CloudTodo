@@ -29,11 +29,11 @@ class SessionUser {
       nickname: json['nickname'] as String? ?? '',
       role: json['role'] as String? ?? 'user',
       status: json['status'] as String? ?? 'active',
-      timezone: json['timezone'] as String? ?? 'Asia/Shanghai',
-      forcePasswordChange: json['forcePasswordChange'] as bool? ?? false,
-      lastLoginAt: json['lastLoginAt'] == null
+      timezone: json['timezone'] as String? ?? 'UTC',
+      forcePasswordChange: json['force_password_change'] as bool? ?? false,
+      lastLoginAt: json['last_login_at'] == null
           ? null
-          : DateTime.parse(json['lastLoginAt'] as String),
+          : DateTime.parse(json['last_login_at'] as String),
     );
   }
 }

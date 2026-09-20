@@ -3,7 +3,7 @@ import '../../../core/http/http_client.dart';
 import '../../../core/notifications/local_notification_service.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../devices/data/device_repository.dart';
-import '../../notification_endpoints/data/notification_endpoints_repository.dart';
+import '../../notification_subscriptions/data/notification_subscriptions_repository.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../reminders/data/reminders_repository.dart';
 import '../../sync/data/sync_repository.dart';
@@ -22,7 +22,7 @@ class AppServices {
     required this.todoMetadataRepository,
     required this.remindersRepository,
     required this.syncRepository,
-    required this.notificationEndpointsRepository,
+    required this.notificationSubscriptionsRepository,
     required this.localNotificationService,
     required this.sessionController,
   });
@@ -36,7 +36,7 @@ class AppServices {
   final TodoMetadataRepository todoMetadataRepository;
   final RemindersRepository remindersRepository;
   final SyncRepository syncRepository;
-  final NotificationEndpointsRepository notificationEndpointsRepository;
+  final NotificationSubscriptionsRepository notificationSubscriptionsRepository;
   final LocalNotificationService localNotificationService;
   final AppSessionController sessionController;
 
@@ -54,8 +54,8 @@ class AppServices {
     final todoRepository = TodoRepository(apiClient);
     final todoMetadataRepository = TodoMetadataRepository(apiClient);
     final syncRepository = SyncRepository(apiClient);
-    final notificationEndpointsRepository =
-        NotificationEndpointsRepository(apiClient);
+    final notificationSubscriptionsRepository =
+        NotificationSubscriptionsRepository(apiClient);
 
     Future<void> invalidateSession({bool clearCookies = true}) {
       apiClient.invalidateSession(clearCookies: clearCookies);
@@ -90,7 +90,7 @@ class AppServices {
       todoMetadataRepository: todoMetadataRepository,
       remindersRepository: remindersRepository,
       syncRepository: syncRepository,
-      notificationEndpointsRepository: notificationEndpointsRepository,
+      notificationSubscriptionsRepository: notificationSubscriptionsRepository,
       localNotificationService: notificationService,
       sessionController: sessionController,
     );

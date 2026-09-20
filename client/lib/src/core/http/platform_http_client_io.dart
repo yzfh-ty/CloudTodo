@@ -15,7 +15,10 @@ PlatformHttpClient createPlatformHttpClient(
 }
 
 class IoPlatformHttpClient
-    implements PlatformHttpClient, ManagedPlatformHttpClient {
+    implements
+        PlatformHttpClient,
+        BearerTokenPlatformHttpClient,
+        ManagedPlatformHttpClient {
   IoPlatformHttpClient(
     this.baseUrl, {
     this.policy = const HttpClientPolicy(),
@@ -30,6 +33,8 @@ class IoPlatformHttpClient
   final Map<String, _StoredCookie> _cookies = <String, _StoredCookie>{};
   final Set<_IoRequestState> _pendingRequests = <_IoRequestState>{};
   bool _disposed = false;
+  String? _accessToken;
+  String? _refreshToken;
 
   static const _sessionCookieNames = <String>{
     'cloudtodo_user_session',
@@ -40,9 +45,35 @@ class IoPlatformHttpClient
   };
 
   @override
+  bool get supportsBearerTokens => true;
+
+  @override
+  String? get accessToken => _accessToken;
+
+  @override
+  String? get refreshToken => _refreshToken;
+
+  @override
+  void setSessionTokens({
+    required String accessToken,
+    required String refreshToken,
+  }) {
+    _accessToken = accessToken;
+    _refreshToken = refreshToken;
+  }
+
+  @override
+  void clearSessionTokens() {
+    _accessToken = null;
+    _refreshToken = null;
+  }
+
+  @override
   bool get hasSessionHint {
     _purgeExpiredCookies();
-    return _cookies.containsKey('cloudtodo_user_csrf_token') ||
+    return _accessToken != null ||
+        _refreshToken != null ||
+        _cookies.containsKey('cloudtodo_user_csrf_token') ||
         _cookies.containsKey('cloudtodo_admin_csrf_token');
   }
 

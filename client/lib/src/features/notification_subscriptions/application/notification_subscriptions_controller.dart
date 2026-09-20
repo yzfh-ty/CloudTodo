@@ -1,18 +1,18 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../core/errors/app_exception.dart';
-import '../data/notification_endpoints_repository.dart';
-import '../domain/notification_endpoint.dart';
-import '../domain/notification_endpoint_form_data.dart';
+import '../data/notification_subscriptions_repository.dart';
+import '../domain/notification_subscription.dart';
+import '../domain/notification_subscription_form_data.dart';
 
-class NotificationEndpointsController extends ChangeNotifier {
-  NotificationEndpointsController({
-    required NotificationEndpointsRepository repository,
+class NotificationSubscriptionsController extends ChangeNotifier {
+  NotificationSubscriptionsController({
+    required NotificationSubscriptionsRepository repository,
   }) : _repository = repository;
 
-  final NotificationEndpointsRepository _repository;
+  final NotificationSubscriptionsRepository _repository;
 
-  List<NotificationEndpoint> items = const [];
+  List<NotificationSubscription> items = const [];
   bool isLoading = true;
   String? errorMessage;
   String? testingId;
@@ -24,7 +24,7 @@ class NotificationEndpointsController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      items = await _repository.getEndpoints();
+      items = await _repository.getSubscriptions();
     } catch (error) {
       errorMessage = AppException.describe(error);
     } finally {
@@ -33,9 +33,9 @@ class NotificationEndpointsController extends ChangeNotifier {
     }
   }
 
-  Future<bool> createEndpoint(NotificationEndpointFormData draft) {
+  Future<bool> createSubscription(NotificationSubscriptionFormData draft) {
     return _runMutation('creating', () async {
-      await _repository.createEndpoint(
+      await _repository.createSubscription(
         name: draft.name,
         targetUrl: draft.targetUrl,
         payloadTemplate: draft.payloadTemplate,
@@ -46,9 +46,11 @@ class NotificationEndpointsController extends ChangeNotifier {
     });
   }
 
-  Future<bool> updateEndpoint(String id, NotificationEndpointFormData draft) {
+  Future<bool> updateSubscription(
+      String id, NotificationSubscriptionFormData draft) {
     return _runMutation(id, () async {
-      await _repository.updateEndpoint(
+      final existing = items.firstWhere((item) => item.id == id);
+      await _repository.updateSubscription(
         id: id,
         name: draft.name,
         targetUrl: draft.targetUrl,
@@ -56,25 +58,26 @@ class NotificationEndpointsController extends ChangeNotifier {
         isEnabled: draft.isEnabled,
         secret: draft.secret,
         clearSecret: draft.clearSecret,
+        version: existing.version,
       );
       await load();
     });
   }
 
-  Future<bool> deleteEndpoint(String id) {
+  Future<bool> deleteSubscription(String id) {
     return _runMutation(id, () async {
-      await _repository.deleteEndpoint(id);
+      await _repository.deleteSubscription(id);
       await load();
     });
   }
 
-  Future<Map<String, dynamic>?> testEndpoint(String id) async {
+  Future<Map<String, dynamic>?> testSubscription(String id) async {
     testingId = id;
     errorMessage = null;
     notifyListeners();
 
     try {
-      return await _repository.testEndpoint(id);
+      return await _repository.testSubscription(id);
     } catch (error) {
       errorMessage = AppException.describe(error);
       notifyListeners();

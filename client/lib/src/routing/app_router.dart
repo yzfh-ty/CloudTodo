@@ -39,7 +39,9 @@ class AppRouteInformationParser extends RouteInformationParser<AppRoutePath> {
         return const AppRoutePath.app(AppSection.settings);
       }
 
-      final section = AppSection.values.where((value) => value.name == sectionName).firstOrNull;
+      final section = AppSection.values
+          .where((value) => value.name == sectionName)
+          .firstOrNull;
       return AppRoutePath.app(section ?? AppSection.todos);
     }
 
@@ -77,7 +79,8 @@ class AppRouterDelegate extends RouterDelegate<AppRoutePath>
     }
 
     if (session.isAuthenticated &&
-        (_path.location == AppLocation.login || _path.location == AppLocation.register)) {
+        (_path.location == AppLocation.login ||
+            _path.location == AppLocation.register)) {
       return const AppRoutePath.app();
     }
 

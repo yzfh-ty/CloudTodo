@@ -73,3 +73,8 @@ temp/
 android-sdk/
 flutter-sdk/
 
+
+# SQLite runtime data
+server/data/
+*.db-wal
+*.db-shm

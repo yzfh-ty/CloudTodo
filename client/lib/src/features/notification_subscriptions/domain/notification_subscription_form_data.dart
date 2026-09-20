@@ -1,5 +1,5 @@
-class NotificationEndpointFormData {
-  const NotificationEndpointFormData({
+class NotificationSubscriptionFormData {
+  const NotificationSubscriptionFormData({
     required this.deliveryKind,
     required this.name,
     required this.targetUrl,
@@ -17,8 +17,8 @@ class NotificationEndpointFormData {
   final String secret;
   final bool clearSecret;
 
-  factory NotificationEndpointFormData.createDraft() {
-    return NotificationEndpointFormData(
+  factory NotificationSubscriptionFormData.createDraft() {
+    return NotificationSubscriptionFormData(
       deliveryKind: 'standard_webhook',
       name: '',
       targetUrl: '',
@@ -29,7 +29,7 @@ class NotificationEndpointFormData {
     );
   }
 
-  NotificationEndpointFormData copyWith({
+  NotificationSubscriptionFormData copyWith({
     String? deliveryKind,
     String? name,
     String? targetUrl,
@@ -38,7 +38,7 @@ class NotificationEndpointFormData {
     String? secret,
     bool? clearSecret,
   }) {
-    return NotificationEndpointFormData(
+    return NotificationSubscriptionFormData(
       deliveryKind: deliveryKind ?? this.deliveryKind,
       name: name ?? this.name,
       targetUrl: targetUrl ?? this.targetUrl,

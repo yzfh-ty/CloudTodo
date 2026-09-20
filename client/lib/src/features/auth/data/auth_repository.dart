@@ -1,4 +1,6 @@
+import '../../../core/errors/app_exception.dart';
 import '../../../core/http/http_client.dart';
+import '../../devices/data/device_repository.dart';
 import '../domain/session_user.dart';
 
 class AuthRepository {
@@ -17,11 +19,9 @@ class AuthRepository {
       body: {
         'account': account.trim(),
         'password': password,
+        'device': currentDevicePayload(),
       },
-      parser: (data) {
-        final payload = data as Map<String, dynamic>;
-        return SessionUser.fromJson(payload['user'] as Map<String, dynamic>);
-      },
+      parser: _parseAuthenticatedUser,
       allowRefresh: false,
     );
   }
@@ -39,29 +39,50 @@ class AuthRepository {
         'username': username.trim(),
         'password': password,
         'nickname': nickname.trim().isEmpty ? null : nickname.trim(),
+        'device': currentDevicePayload(),
       },
-      parser: (data) {
-        final payload = data as Map<String, dynamic>;
-        return SessionUser.fromJson(payload['user'] as Map<String, dynamic>);
-      },
+      parser: _parseAuthenticatedUser,
       allowRefresh: false,
     );
   }
 
-  Future<SessionUser> refresh() {
-    return _apiClient.post(
+  Future<SessionUser> refresh() async {
+    final refreshToken = _apiClient.refreshToken;
+    if (refreshToken == null || refreshToken.isEmpty) {
+      throw const AppException(
+        message: 'refresh token is missing',
+        code: 'SESSION_EXPIRED',
+      );
+    }
+
+    final session = await _apiClient.post<Map<String, dynamic>>(
       '/auth/refresh',
-      parser: (data) {
-        final payload = data as Map<String, dynamic>;
-        return SessionUser.fromJson(payload['user'] as Map<String, dynamic>);
-      },
+      body: {'refresh_token': refreshToken},
+      parser: (data) => _asMap(data, 'session'),
+      allowRefresh: false,
+    );
+    _storeSession(session);
+
+    return _apiClient.get(
+      '/me',
+      parser: (data) => SessionUser.fromJson(_asMap(data, 'user')),
       allowRefresh: false,
     );
   }
 
   Future<void> logout() {
+    final refreshToken = _apiClient.refreshToken;
     return _apiClient.post(
       '/auth/logout',
+      body: {'refresh_token': refreshToken},
+      parser: (_) => null,
+      allowRefresh: false,
+    );
+  }
+
+  Future<void> logoutAll() {
+    return _apiClient.post(
+      '/auth/logout-all',
       parser: (_) => null,
       allowRefresh: false,
     );
@@ -73,30 +94,46 @@ class AuthRepository {
     required String confirmPassword,
   }) {
     return _apiClient.post(
-      '/auth/change-password',
+      '/me/change-password',
       body: {
         'current_password': currentPassword,
         'new_password': newPassword,
-        'confirm_password': confirmPassword,
       },
       parser: (_) => null,
     );
   }
 
-  Future<void> confirmPasswordReset({
-    required String token,
-    required String newPassword,
-    required String confirmPassword,
-  }) {
-    return _apiClient.post(
-      '/auth/password-reset/confirm',
-      body: {
-        'token': token.trim(),
-        'new_password': newPassword,
-        'confirm_password': confirmPassword,
-      },
-      parser: (_) => null,
-      allowRefresh: false,
+  SessionUser _parseAuthenticatedUser(Object? data) {
+    final payload = _asMap(data, 'authentication response');
+    _storeSession(_asMap(payload['session'], 'session'));
+    return SessionUser.fromJson(_asMap(payload['user'], 'user'));
+  }
+
+  void _storeSession(Map<String, dynamic> session) {
+    final accessToken = session['access_token'];
+    final refreshToken = session['refresh_token'];
+    if (accessToken is! String ||
+        accessToken.isEmpty ||
+        refreshToken is! String ||
+        refreshToken.isEmpty) {
+      throw const AppException(
+        message: 'invalid session response',
+        code: 'INVALID_SESSION_RESPONSE',
+      );
+    }
+    _apiClient.setSessionTokens(
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+    );
+  }
+
+  Map<String, dynamic> _asMap(Object? value, String field) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+    throw AppException(
+      message: 'invalid $field response',
+      code: 'INVALID_API_RESPONSE',
     );
   }
 }

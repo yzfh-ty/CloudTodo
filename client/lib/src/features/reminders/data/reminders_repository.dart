@@ -19,14 +19,8 @@ class RemindersRepository {
     final generation = _sessionGeneration?.call();
     final reminders = await _apiClient.get(
       '/reminders/upcoming',
-      parser: (data) {
-        final payload = data as Map<String, dynamic>;
-        final items = payload['items'] as List<dynamic>? ?? const [];
-        return items
-            .whereType<Map<String, dynamic>>()
-            .map(ReminderItem.fromJson)
-            .toList(growable: false);
-      },
+      queryParameters: {'limit': '50'},
+      parser: (data) => _parseItems(data),
     );
     _ensureSession(generation);
     await _localNotificationService.syncReminders(
@@ -47,10 +41,9 @@ class RemindersRepository {
     final reminder = await _apiClient.post(
       '/todos/$todoId/reminders',
       body: {
-        'channel': channel,
+        'channels': [channel],
         'remind_at': remindAt.toUtc().toIso8601String(),
-        'repeat_type': repeatType,
-        'repeat_rule': repeatRule,
+        'repeat': {'type': repeatType, 'rule': repeatRule},
       },
       parser: (data) => ReminderItem.fromJson(data as Map<String, dynamic>),
     );
@@ -68,15 +61,16 @@ class RemindersRepository {
     required DateTime remindAt,
     required String repeatType,
     Map<String, dynamic>? repeatRule,
+    int version = 1,
   }) async {
     final generation = _sessionGeneration?.call();
     final reminder = await _apiClient.patch(
       '/reminders/$reminderId',
       body: {
-        'channel': channel,
+        'channels': [channel],
         'remind_at': remindAt.toUtc().toIso8601String(),
-        'repeat_type': repeatType,
-        'repeat_rule': repeatRule,
+        'repeat': {'type': repeatType, 'rule': repeatRule},
+        'version': version,
       },
       parser: (data) => ReminderItem.fromJson(data as Map<String, dynamic>),
     );
@@ -88,33 +82,23 @@ class RemindersRepository {
     return reminder;
   }
 
-  Future<ReminderItem> deleteReminder(String reminderId) async {
+  Future<void> deleteReminder(String reminderId) async {
     final generation = _sessionGeneration?.call();
-    final reminder = await _apiClient.delete(
-      '/reminders/$reminderId',
-      parser: (data) => ReminderItem.fromJson(data as Map<String, dynamic>),
-    );
+    await _apiClient.delete('/reminders/$reminderId', parser: (_) => null);
     _ensureSession(generation);
     await _localNotificationService.cancelReminder(reminderId);
-    return reminder;
   }
 
   Future<List<ReminderEventItem>> getPendingLocalEvents() {
     return _apiClient.get(
       '/reminder-events',
-      queryParameters: {
-        'status': 'pending',
-      },
+      queryParameters: {'limit': '50'},
       parser: (data) {
         final payload = data as Map<String, dynamic>;
         final items = payload['items'] as List<dynamic>? ?? const [];
         return items
             .whereType<Map<String, dynamic>>()
             .map(ReminderEventItem.fromJson)
-            .where((item) =>
-                item.channel == 'android_local' ||
-                item.channel == 'windows_local' ||
-                item.channel == 'both')
             .toList(growable: false);
       },
     );
@@ -123,9 +107,19 @@ class RemindersRepository {
   Future<ReminderEventItem> ackReminderEvent(String id) {
     return _apiClient.post(
       '/reminder-events/$id/ack',
-      parser: (data) =>
-          ReminderEventItem.fromJson(data as Map<String, dynamic>),
+      parser: (data) => ReminderEventItem.fromJson(
+        data as Map<String, dynamic>,
+      ),
     );
+  }
+
+  List<ReminderItem> _parseItems(Object? data) {
+    final payload = data as Map<String, dynamic>;
+    final items = payload['items'] as List<dynamic>? ?? const [];
+    return items
+        .whereType<Map<String, dynamic>>()
+        .map(ReminderItem.fromJson)
+        .toList(growable: false);
   }
 
   bool _isSessionCurrent(int? generation) =>

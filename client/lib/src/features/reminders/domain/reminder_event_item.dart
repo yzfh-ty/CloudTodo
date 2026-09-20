@@ -22,19 +22,24 @@ class ReminderEventItem {
   final String? todoDescription;
 
   factory ReminderEventItem.fromJson(Map<String, dynamic> json) {
+    final todo = json['todo'] as Map<String, dynamic>?;
+    final reminder = json['reminder'] as Map<String, dynamic>?;
     return ReminderEventItem(
-      id: json['id'] as String,
-      reminderId: json['reminderId'] as String,
-      todoId: json['todoId'] as String,
-      channel: json['channel'] as String? ?? 'webhook',
-      scheduledFor: DateTime.parse(json['scheduledFor'] as String),
-      triggeredAt: DateTime.parse(json['triggeredAt'] as String),
+      id: json['event_id'] as String? ?? json['id'] as String,
+      reminderId:
+          reminder?['id'] as String? ?? json['reminder_id'] as String? ?? '',
+      todoId: todo?['id'] as String? ?? json['todo_id'] as String? ?? '',
+      channel: json['channel'] as String? ?? 'local',
+      scheduledFor: DateTime.parse(
+        reminder?['scheduled_for'] as String? ??
+            json['scheduled_for'] as String,
+      ),
+      triggeredAt: DateTime.parse(
+        json['triggered_at'] as String? ?? json['created_at'] as String,
+      ),
       status: json['status'] as String? ?? 'pending',
-      todoTitle: (json['payload'] as Map<String, dynamic>?)?['todo_title']
-              as String? ??
-          '待办提醒',
-      todoDescription: (json['payload']
-          as Map<String, dynamic>?)?['todo_description'] as String?,
+      todoTitle: todo?['title'] as String? ?? '待办提醒',
+      todoDescription: todo?['description'] as String?,
     );
   }
 }

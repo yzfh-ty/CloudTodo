@@ -73,7 +73,7 @@ String reminderStatusText(String value) {
   }
 }
 
-String endpointTypeText(String value) {
+String notificationChannelText(String value) {
   switch (value) {
     case 'webhook':
       return 'Webhook';
@@ -86,7 +86,7 @@ String enabledStatusText(bool value) {
   return value ? '已启用' : '已停用';
 }
 
-String endpointTestStatusText(String value) {
+String notificationTestStatusText(String value) {
   switch (value) {
     case 'success':
       return '成功';

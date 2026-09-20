@@ -8,6 +8,7 @@ class TodoItem {
     required this.createdAt,
     required this.updatedAt,
     required this.tagIds,
+    this.version = 1,
     this.description,
     this.listId,
     this.dueAt,
@@ -23,6 +24,7 @@ class TodoItem {
   final bool isAllDay;
   final String? listId;
   final List<String> tagIds;
+  final int version;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? dueAt;
@@ -36,30 +38,23 @@ class TodoItem {
       description: json['description'] as String?,
       status: json['status'] as String? ?? 'pending',
       priority: json['priority'] as String? ?? 'medium',
-      isAllDay: json['isAllDay'] as bool? ?? false,
-      listId: json['listId'] as String?,
-      tagIds: _parseTagIds(json['tags']),
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
-      dueAt: json['dueAt'] == null ? null : DateTime.parse(json['dueAt'] as String),
-      completedAt: json['completedAt'] == null
+      isAllDay: json['is_all_day'] as bool? ?? false,
+      listId: json['list_id'] as String?,
+      tagIds: (json['tag_ids'] as List<dynamic>? ?? const [])
+          .whereType<String>()
+          .toList(growable: false),
+      version: json['version'] as int? ?? 1,
+      createdAt: DateTime.parse(json['created_at'] as String),
+      updatedAt: DateTime.parse(json['updated_at'] as String),
+      dueAt: json['due_at'] == null
           ? null
-          : DateTime.parse(json['completedAt'] as String),
-      archivedAt: json['archivedAt'] == null
+          : DateTime.parse(json['due_at'] as String),
+      completedAt: json['completed_at'] == null
           ? null
-          : DateTime.parse(json['archivedAt'] as String),
+          : DateTime.parse(json['completed_at'] as String),
+      archivedAt: json['archived_at'] == null
+          ? null
+          : DateTime.parse(json['archived_at'] as String),
     );
-  }
-
-  static List<String> _parseTagIds(Object? raw) {
-    if (raw is! List) {
-      return const [];
-    }
-
-    return raw
-        .whereType<Map<String, dynamic>>()
-        .map((item) => item['tagId'] as String?)
-        .whereType<String>()
-        .toList(growable: false);
   }
 }

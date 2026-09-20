@@ -38,8 +38,8 @@ class _MetaChip extends StatelessWidget {
   }
 }
 
-class _EndpointCard extends StatelessWidget {
-  const _EndpointCard({
+class _SubscriptionCard extends StatelessWidget {
+  const _SubscriptionCard({
     required this.item,
     required this.busy,
     required this.onCopyUrl,
@@ -48,7 +48,7 @@ class _EndpointCard extends StatelessWidget {
     required this.onDelete,
   });
 
-  final NotificationEndpoint item;
+  final NotificationSubscription item;
   final bool busy;
   final VoidCallback onCopyUrl;
   final VoidCallback onTest;
@@ -239,7 +239,7 @@ class _DeviceCard extends StatelessWidget {
   }
 }
 
-String _latestResultText(NotificationEndpoint item) {
+String _latestResultText(NotificationSubscription item) {
   if (item.lastSuccessAt == null && item.lastFailureAt == null) {
     return '未测试';
   }
@@ -252,7 +252,7 @@ String _latestResultText(NotificationEndpoint item) {
   return item.lastSuccessAt!.isAfter(item.lastFailureAt!) ? '最近成功' : '最近失败';
 }
 
-String _latestTestedAtText(NotificationEndpoint item) {
+String _latestTestedAtText(NotificationSubscription item) {
   if (item.lastSuccessAt == null && item.lastFailureAt == null) {
     return '未测试';
   }

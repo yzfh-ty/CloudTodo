@@ -238,15 +238,12 @@ extension _SettingsPageActions on _SettingsPageState {
 
   String _buildSyncSummary(Map<String, dynamic> raw) {
     final names = {
-      'todo_lists': '清单',
+      'lists': '清单',
       'tags': '标签',
-      'todo_tags': '任务标签关系',
       'todos': '任务',
       'reminders': '提醒',
-      'reminder_events': '提醒事件',
-      'notification_endpoints': '通知方式',
-      'notification_deliveries': '通知投递',
-      'devices': '设备',
+      'notification_subscriptions': '通知订阅',
+      'items': '增量变化',
     };
 
     return names.entries.map((entry) {

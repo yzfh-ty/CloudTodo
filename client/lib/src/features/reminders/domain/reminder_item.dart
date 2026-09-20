@@ -10,6 +10,7 @@ class ReminderItem {
     required this.status,
     required this.todoTitle,
     required this.todoDescription,
+    this.version = 1,
   });
 
   final String id;
@@ -22,23 +23,29 @@ class ReminderItem {
   final String status;
   final String todoTitle;
   final String? todoDescription;
+  final int version;
+
+  List<String> get channels => [channel];
 
   factory ReminderItem.fromJson(Map<String, dynamic> json) {
+    final channels = (json['channels'] as List<dynamic>? ?? const [])
+        .whereType<String>()
+        .toList(growable: false);
+    final repeat = json['repeat'] as Map<String, dynamic>?;
     return ReminderItem(
       id: json['id'] as String,
-      todoId: json['todoId'] as String,
-      channel: json['channel'] as String? ?? 'webhook',
-      repeatType: json['repeatType'] as String? ?? 'none',
-      repeatRule: json['repeatRule'] is Map<String, dynamic>
-          ? json['repeatRule'] as Map<String, dynamic>
-          : null,
-      remindAt: DateTime.parse(json['remindAt'] as String),
+      todoId: json['todo_id'] as String,
+      channel: channels.isEmpty ? 'local' : channels.first,
+      repeatType: repeat?['type'] as String? ?? 'none',
+      repeatRule: repeat?['rule'] as Map<String, dynamic>?,
+      remindAt: DateTime.parse(json['remind_at'] as String),
       timezone: json['timezone'] as String? ?? 'UTC',
       status: json['status'] as String? ?? 'pending',
       todoTitle: (json['todo'] as Map<String, dynamic>?)?['title'] as String? ??
           '待办提醒',
       todoDescription:
           (json['todo'] as Map<String, dynamic>?)?['description'] as String?,
+      version: json['version'] as int? ?? 1,
     );
   }
 }

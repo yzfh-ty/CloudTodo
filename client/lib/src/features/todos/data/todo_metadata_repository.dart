@@ -9,27 +9,22 @@ class TodoMetadataRepository {
 
   Future<List<TodoListItem>> getTodoLists() {
     return _apiClient.get(
-      '/todo-lists',
-      parser: (data) {
-        final payload = data as Map<String, dynamic>;
-        final items = payload['items'] as List<dynamic>? ?? const [];
-        return items
-            .whereType<Map<String, dynamic>>()
-            .map(TodoListItem.fromJson)
-            .toList(growable: false);
-      },
+      '/lists',
+      parser: (data) => _parseList(data, TodoListItem.fromJson),
     );
   }
 
   Future<TodoListItem> createTodoList({
     required String name,
     String? color,
+    int sortOrder = 0,
   }) {
     return _apiClient.post(
-      '/todo-lists',
+      '/lists',
       body: {
         'name': name.trim(),
         'color': color?.trim().isEmpty ?? true ? null : color?.trim(),
+        'sort_order': sortOrder,
       },
       parser: (data) => TodoListItem.fromJson(data as Map<String, dynamic>),
     );
@@ -39,35 +34,27 @@ class TodoMetadataRepository {
     required String id,
     required String name,
     String? color,
+    int version = 1,
   }) {
     return _apiClient.patch(
-      '/todo-lists/$id',
+      '/lists/$id',
       body: {
         'name': name.trim(),
         'color': color?.trim().isEmpty ?? true ? null : color?.trim(),
+        'version': version,
       },
       parser: (data) => TodoListItem.fromJson(data as Map<String, dynamic>),
     );
   }
 
-  Future<TodoListItem> deleteTodoList(String id) {
-    return _apiClient.delete(
-      '/todo-lists/$id',
-      parser: (data) => TodoListItem.fromJson(data as Map<String, dynamic>),
-    );
+  Future<void> deleteTodoList(String id) {
+    return _apiClient.delete('/lists/$id', parser: (_) => null);
   }
 
   Future<List<TagItem>> getTags() {
     return _apiClient.get(
       '/tags',
-      parser: (data) {
-        final payload = data as Map<String, dynamic>;
-        final items = payload['items'] as List<dynamic>? ?? const [];
-        return items
-            .whereType<Map<String, dynamic>>()
-            .map(TagItem.fromJson)
-            .toList(growable: false);
-      },
+      parser: (data) => _parseList(data, TagItem.fromJson),
     );
   }
 
@@ -89,21 +76,29 @@ class TodoMetadataRepository {
     required String id,
     required String name,
     String? color,
+    int version = 1,
   }) {
     return _apiClient.patch(
       '/tags/$id',
       body: {
         'name': name.trim(),
         'color': color?.trim().isEmpty ?? true ? null : color?.trim(),
+        'version': version,
       },
       parser: (data) => TagItem.fromJson(data as Map<String, dynamic>),
     );
   }
 
-  Future<TagItem> deleteTag(String id) {
-    return _apiClient.delete(
-      '/tags/$id',
-      parser: (data) => TagItem.fromJson(data as Map<String, dynamic>),
-    );
+  Future<void> deleteTag(String id) {
+    return _apiClient.delete('/tags/$id', parser: (_) => null);
+  }
+
+  List<T> _parseList<T>(Object? data, T Function(Map<String, dynamic>) parse) {
+    final payload = data as Map<String, dynamic>;
+    final items = payload['items'] as List<dynamic>? ?? const [];
+    return items
+        .whereType<Map<String, dynamic>>()
+        .map(parse)
+        .toList(growable: false);
   }
 }

@@ -1,12 +1,12 @@
 part of 'settings_page.dart';
 
-extension _SettingsPageEndpointActions on _SettingsPageState {
-  Future<void> _createEndpoint() async {
-    final draft = await showDialog<NotificationEndpointFormData>(
+extension _SettingsPageSubscriptionActions on _SettingsPageState {
+  Future<void> _createSubscription() async {
+    final draft = await showDialog<NotificationSubscriptionFormData>(
       context: context,
       builder: (context) {
-        return NotificationEndpointEditorDialog(
-          initialValue: NotificationEndpointFormData.createDraft(),
+        return NotificationSubscriptionEditorDialog(
+          initialValue: NotificationSubscriptionFormData.createDraft(),
           title: '添加通知方式',
           submitLabel: '保存',
           isEditing: false,
@@ -18,7 +18,7 @@ extension _SettingsPageEndpointActions on _SettingsPageState {
       return;
     }
 
-    final created = await _endpointsController.createEndpoint(draft);
+    final created = await _subscriptionsController.createSubscription(draft);
     if (!mounted) {
       return;
     }
@@ -27,17 +27,17 @@ extension _SettingsPageEndpointActions on _SettingsPageState {
       SnackBar(
         content: Text(created
             ? '通知方式已创建'
-            : (_endpointsController.errorMessage ?? '通知方式创建失败')),
+            : (_subscriptionsController.errorMessage ?? '通知方式创建失败')),
       ),
     );
   }
 
-  Future<void> _editEndpoint(NotificationEndpoint item) async {
-    final draft = await showDialog<NotificationEndpointFormData>(
+  Future<void> _editSubscription(NotificationSubscription item) async {
+    final draft = await showDialog<NotificationSubscriptionFormData>(
       context: context,
       builder: (context) {
-        return NotificationEndpointEditorDialog(
-          initialValue: NotificationEndpointFormData(
+        return NotificationSubscriptionEditorDialog(
+          initialValue: NotificationSubscriptionFormData(
             deliveryKind: item.provider,
             name: item.name,
             targetUrl: item.targetUrl,
@@ -57,7 +57,8 @@ extension _SettingsPageEndpointActions on _SettingsPageState {
       return;
     }
 
-    final updated = await _endpointsController.updateEndpoint(item.id, draft);
+    final updated =
+        await _subscriptionsController.updateSubscription(item.id, draft);
     if (!mounted) {
       return;
     }
@@ -66,12 +67,12 @@ extension _SettingsPageEndpointActions on _SettingsPageState {
       SnackBar(
         content: Text(updated
             ? '通知方式已更新'
-            : (_endpointsController.errorMessage ?? '通知方式更新失败')),
+            : (_subscriptionsController.errorMessage ?? '通知方式更新失败')),
       ),
     );
   }
 
-  Future<void> _deleteEndpoint(NotificationEndpoint item) async {
+  Future<void> _deleteSubscription(NotificationSubscription item) async {
     final confirmed = await showDialog<bool>(
           context: context,
           builder: (context) {
@@ -101,7 +102,7 @@ extension _SettingsPageEndpointActions on _SettingsPageState {
       return;
     }
 
-    final deleted = await _endpointsController.deleteEndpoint(item.id);
+    final deleted = await _subscriptionsController.deleteSubscription(item.id);
     if (!mounted) {
       return;
     }
@@ -110,13 +111,13 @@ extension _SettingsPageEndpointActions on _SettingsPageState {
       SnackBar(
         content: Text(deleted
             ? '通知方式已删除'
-            : (_endpointsController.errorMessage ?? '通知方式删除失败')),
+            : (_subscriptionsController.errorMessage ?? '通知方式删除失败')),
       ),
     );
   }
 
-  Future<void> _testEndpoint(NotificationEndpoint item) async {
-    final payload = await _endpointsController.testEndpoint(item.id);
+  Future<void> _testSubscription(NotificationSubscription item) async {
+    final payload = await _subscriptionsController.testSubscription(item.id);
     if (!mounted || payload == null) {
       return;
     }
@@ -147,7 +148,7 @@ extension _SettingsPageEndpointActions on _SettingsPageState {
                   Text('通知方式：${item.name}'),
                   Text('类型：$providerText'),
                   Text(
-                      '状态：${endpointTestStatusText(payload['status']?.toString() ?? '-')}'),
+                      '状态：${notificationTestStatusText(payload['status']?.toString() ?? '-')}'),
                   Text('响应码：$responseCode'),
                   Text(
                       '测试时间：${testedAt == null ? '-' : formatDateTime(DateTime.tryParse(testedAt))}'),
@@ -180,7 +181,7 @@ extension _SettingsPageEndpointActions on _SettingsPageState {
     );
   }
 
-  Future<void> _copyEndpointUrl(NotificationEndpoint item) async {
+  Future<void> _copySubscriptionUrl(NotificationSubscription item) async {
     await Clipboard.setData(ClipboardData(text: item.targetUrl));
     if (!mounted) {
       return;

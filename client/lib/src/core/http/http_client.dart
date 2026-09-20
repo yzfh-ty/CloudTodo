@@ -81,6 +81,19 @@ abstract class PlatformHttpClient {
   });
 }
 
+abstract class BearerTokenPlatformHttpClient {
+  bool get supportsBearerTokens;
+  String? get accessToken;
+  String? get refreshToken;
+
+  void setSessionTokens({
+    required String accessToken,
+    required String refreshToken,
+  });
+
+  void clearSessionTokens();
+}
+
 /// Optional lifecycle controls implemented by transports that can cancel and
 /// dispose their underlying sockets/XHRs. Keeping this separate preserves the
 /// small PlatformHttpClient contract for test doubles and future adapters.
@@ -112,7 +125,25 @@ class ApiClient {
   _RefreshOperation? _refreshOperation;
   bool _disposed = false;
 
-  bool get hasSessionHint => _httpClient.hasSessionHint;
+  BearerTokenPlatformHttpClient? get _bearerClient =>
+      _httpClient is BearerTokenPlatformHttpClient
+          ? _httpClient as BearerTokenPlatformHttpClient
+          : null;
+
+  bool get hasSessionHint =>
+      _httpClient.hasSessionHint || _bearerClient?.refreshToken != null;
+
+  String? get refreshToken => _bearerClient?.refreshToken;
+
+  void setSessionTokens({
+    required String accessToken,
+    required String refreshToken,
+  }) {
+    _bearerClient?.setSessionTokens(
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+    );
+  }
 
   void registerSessionHooks({
     required Future<bool> Function() refreshSession,
@@ -134,6 +165,7 @@ class ApiClient {
     managed?.cancelPendingRequests();
     if (clearCookies) {
       managed?.clearSession();
+      _bearerClient?.clearSessionTokens();
     }
   }
 
@@ -169,6 +201,21 @@ class ApiClient {
   }) {
     return _request(
       method: 'POST',
+      path: path,
+      body: body,
+      parser: parser,
+      allowRefresh: allowRefresh,
+    );
+  }
+
+  Future<T> put<T>(
+    String path, {
+    Object? body,
+    required T Function(Object? data) parser,
+    bool allowRefresh = true,
+  }) {
+    return _request(
+      method: 'PUT',
       path: path,
       body: body,
       parser: parser,
@@ -248,6 +295,12 @@ class ApiClient {
       final response = await _httpClient.request(
         method: method,
         path: path,
+        headers: _bearerClient?.supportsBearerTokens == true &&
+                _bearerClient?.accessToken != null
+            ? <String, String>{
+                'Authorization': 'Bearer ' + _bearerClient!.accessToken!,
+              }
+            : null,
         queryParameters: queryParameters,
         body: body,
       );

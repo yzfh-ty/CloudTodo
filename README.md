@@ -7,15 +7,16 @@ CloudTodo 是面向朋友、家人小范围自部署的个人 Todo 与提醒服�
 ## 当前状态
 
 - Flutter 客户端：保留 Web、Android、Windows、Linux 工程
-- 后端实现：已删除，等待按照新接口规范重新实现
+- 后端实现：Go + SQLite 服务端开发中
 - 数据库方案：目标使用 SQLite 单实例部署
-- API 规范：[CloudTodo API v1 设计规范](docs/api/v1-interface-design.md)
+- API 规范：[CloudTodo API 设计规范](docs/api/api-interface-design.md)
 
 ## 目录
 
 ```text
 CloudTodo/
 ├─ client/          Flutter 客户端
+├─ server/          Go + SQLite 服务端
 ├─ docs/            API 文档
 ├─ scripts/         客户端启动与工具脚本
 ├─ .github/         客户端 CI
@@ -54,7 +55,7 @@ flutter build web --release
 
 ## 新后端实现原则
 
-- API 根路径使用 `/api/v1`
+- API 根路径使用 `/api`
 - SQLite 单实例运行
 - 多用户仅用于朋友或家人之间的账号隔离
 - 每个用户可以多端登录

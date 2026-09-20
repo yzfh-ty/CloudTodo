@@ -6,24 +6,20 @@ import 'package:client_flutter/src/features/sync/data/sync_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('bootstrap downloads and merges every page from one snapshot', () async {
+  test('bootstrap reads the documented snapshot shape', () async {
     final transport = _SyncTransport([
-      _page(
-        cursor: '2026-07-23T10:00:00.000Z',
-        page: 1,
-        hasMore: true,
-        todos: const [
+      {
+        'snapshot_at': '2026-07-23T10:00:00.000Z',
+        'cursor': 'cursor-1',
+        'lists': const [],
+        'tags': const [],
+        'todos': const [
           {'id': 'todo-1'},
-        ],
-      ),
-      _page(
-        cursor: '2026-07-23T10:00:00.000Z',
-        page: 2,
-        hasMore: false,
-        todos: const [
           {'id': 'todo-2'},
         ],
-      ),
+        'reminders': const [],
+        'notification_subscriptions': const [],
+      },
     ]);
     final apiClient = ApiClient(transport);
     final repository = SyncRepository(apiClient);
@@ -31,39 +27,19 @@ void main() {
 
     final snapshot = await repository.bootstrap();
 
-    expect(snapshot.cursor, '2026-07-23T10:00:00.000Z');
-    expect(
-      (snapshot.raw['todos'] as List)
-          .map((item) => (item as Map<String, dynamic>)['id']),
-      ['todo-1', 'todo-2'],
-    );
-    expect(snapshot.raw['page'], 2);
-    expect(snapshot.raw['has_more'], isFalse);
-    expect(transport.queries, [
-      {
-        'page': '1',
-        'page_size': '50',
-      },
-      {
-        'page': '2',
-        'page_size': '50',
-        'snapshot_at': '2026-07-23T10:00:00.000Z',
-      },
-    ]);
+    expect(snapshot.cursor, 'cursor-1');
+    expect((snapshot.raw['todos'] as List).length, 2);
+    expect(transport.requests.single.path, '/sync/bootstrap');
+    expect(transport.requests.single.query, isEmpty);
   });
 
-  test('bootstrap rejects a page from a different snapshot', () async {
+  test('bootstrap rejects a response missing documented collections', () async {
     final transport = _SyncTransport([
-      _page(
-        cursor: '2026-07-23T10:00:00.000Z',
-        page: 1,
-        hasMore: true,
-      ),
-      _page(
-        cursor: '2026-07-23T10:01:00.000Z',
-        page: 2,
-        hasMore: false,
-      ),
+      {
+        'snapshot_at': '2026-07-23T10:00:00.000Z',
+        'cursor': 'cursor-1',
+        'lists': const [],
+      },
     ]);
     final apiClient = ApiClient(transport);
     final repository = SyncRepository(apiClient);
@@ -71,122 +47,72 @@ void main() {
 
     await expectLater(
       repository.bootstrap(),
-      throwsA(
-        isA<AppException>().having(
-          (error) => error.code,
-          'code',
-          'INVALID_SYNC_RESPONSE',
-        ),
-      ),
+      throwsA(isA<AppException>().having(
+        (error) => error.code,
+        'code',
+        'INVALID_SYNC_RESPONSE',
+      )),
     );
   });
 
-  test('changes drains every page before advancing the saved cursor', () async {
+  test('changes sends an opaque cursor and documented limit', () async {
     final transport = _SyncTransport([
-      _page(
-        cursor: 'opaque-next-page-cursor',
-        page: 1,
-        hasMore: true,
-        todos: const [
-          {'id': 'todo-1'},
+      {
+        'cursor': 'cursor-2',
+        'items': const [
+          {
+            'collection': 'todos',
+            'operation': 'upsert',
+            'id': 'todo-1',
+            'version': 2,
+            'updated_at': '2026-07-23T10:05:00.000Z',
+          },
         ],
-      ),
-      _page(
-        cursor: '2026-07-23T10:05:00.000Z',
-        page: 2,
-        hasMore: false,
-        todos: const [
-          {'id': 'todo-2'},
-        ],
-      ),
+      },
     ]);
     final apiClient = ApiClient(transport);
     final repository = SyncRepository(apiClient);
     addTearDown(apiClient.dispose);
 
-    final snapshot = await repository.changes(
-      cursor: '2026-07-23T10:00:00.000Z',
-    );
+    final snapshot = await repository.changes(cursor: 'cursor-1');
 
-    expect(snapshot.cursor, '2026-07-23T10:05:00.000Z');
-    expect(
-      (snapshot.raw['todos'] as List)
-          .map((item) => (item as Map<String, dynamic>)['id']),
-      ['todo-1', 'todo-2'],
-    );
-    expect(
-      transport.requests.map((request) => request.path),
-      ['/sync/changes', '/sync/changes'],
-    );
-    expect(transport.queries, [
-      {
-        'cursor': '2026-07-23T10:00:00.000Z',
-        'page_size': '50',
-      },
-      {
-        'cursor': 'opaque-next-page-cursor',
-        'page_size': '50',
-      },
-    ]);
+    expect(snapshot.cursor, 'cursor-2');
+    expect(transport.requests.single.path, '/sync/changes');
+    expect(transport.requests.single.query, {
+      'cursor': 'cursor-1',
+      'limit': '100',
+    });
   });
 
-  test('changes rejects a pagination cursor that does not advance', () async {
+  test('changes rejects an invalid event item', () async {
     final transport = _SyncTransport([
-      _page(
-        cursor: 'same-cursor',
-        page: 1,
-        hasMore: true,
-      ),
+      {
+        'cursor': 'cursor-2',
+        'items': const [
+          {'collection': 'todos'},
+        ],
+      },
     ]);
     final apiClient = ApiClient(transport);
     final repository = SyncRepository(apiClient);
     addTearDown(apiClient.dispose);
 
     await expectLater(
-      repository.changes(cursor: 'same-cursor'),
-      throwsA(
-        isA<AppException>().having(
-          (error) => error.code,
-          'code',
-          'INVALID_SYNC_RESPONSE',
-        ),
-      ),
+      repository.changes(cursor: 'cursor-1'),
+      throwsA(isA<AppException>().having(
+        (error) => error.code,
+        'code',
+        'INVALID_SYNC_RESPONSE',
+      )),
     );
   });
 }
 
-Map<String, dynamic> _page({
-  required String cursor,
-  required int page,
-  required bool hasMore,
-  List<Map<String, dynamic>> todos = const [],
-}) {
-  return {
-    'cursor': cursor,
-    'page': page,
-    'page_size': 50,
-    'has_more': hasMore,
-    'user': const {'id': 'user-1'},
-    'todo_lists': const [],
-    'tags': const [],
-    'todo_tags': const [],
-    'todos': todos,
-    'reminders': const [],
-    'reminder_events': const [],
-    'notification_endpoints': const [],
-    'notification_deliveries': const [],
-    'devices': const [],
-  };
-}
-
 class _SyncTransport implements PlatformHttpClient {
-  _SyncTransport(this._pages);
+  _SyncTransport(this._responses);
 
-  final List<Map<String, dynamic>> _pages;
+  final List<Map<String, dynamic>> _responses;
   final List<({String path, Map<String, String?> query})> requests = [];
-
-  List<Map<String, String?>> get queries =>
-      requests.map((request) => request.query).toList(growable: false);
 
   @override
   bool get hasSessionHint => false;
@@ -204,7 +130,7 @@ class _SyncTransport implements PlatformHttpClient {
       path: path,
       query: Map<String, String?>.from(queryParameters ?? const {}),
     ));
-    if (_pages.isEmpty) {
+    if (_responses.isEmpty) {
       throw StateError('unexpected sync request');
     }
     return RawHttpResponse(
@@ -212,7 +138,7 @@ class _SyncTransport implements PlatformHttpClient {
       body: jsonEncode({
         'code': 'OK',
         'message': 'success',
-        'data': _pages.removeAt(0),
+        'data': _responses.removeAt(0),
       }),
       headers: const {},
     );

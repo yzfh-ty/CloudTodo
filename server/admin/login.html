@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CloudTodo 管理员登录</title>
+  <link rel="stylesheet" href="/admin/style.css">
+</head>
+<body class="login-page">
+  <main class="login-card">
+    <div class="brand-mark">CT</div>
+    <h1>CloudTodo 管理后台</h1>
+    <p class="muted">仅服务部署管理员使用</p>
+    <form id="login-form">
+      <label>账号<input id="account" autocomplete="username" required></label>
+      <label>密码<input id="password" type="password" autocomplete="current-password" required></label>
+      <button class="primary full" type="submit">登录</button>
+      <p id="login-error" class="error"></p>
+    </form>
+  </main>
+  <script src="/admin/app.js"></script>
+</body>
+</html>

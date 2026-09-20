@@ -154,21 +154,24 @@ class TodoListController extends ChangeNotifier {
 
   Future<bool> completeTodo(String id) async {
     return _runMutation(() async {
-      await _todoRepository.completeTodo(id);
+      final item = items.firstWhere((item) => item.id == id);
+      await _todoRepository.completeTodo(id, version: item.version);
       await refresh();
     });
   }
 
   Future<bool> reopenTodo(String id) async {
     return _runMutation(() async {
-      await _todoRepository.reopenTodo(id);
+      final item = items.firstWhere((item) => item.id == id);
+      await _todoRepository.reopenTodo(id, version: item.version);
       await refresh();
     });
   }
 
   Future<bool> archiveTodo(String id) async {
     return _runMutation(() async {
-      await _todoRepository.archiveTodo(id);
+      final item = items.firstWhere((item) => item.id == id);
+      await _todoRepository.archiveTodo(id, version: item.version);
       await refresh();
     });
   }
@@ -201,6 +204,9 @@ class TodoListController extends ChangeNotifier {
         remindAt: draft.remindAt,
         repeatType: draft.repeatType,
         repeatRule: draft.repeatRule,
+        version: upcomingReminders
+            .firstWhere((item) => item.id == reminderId)
+            .version,
       );
       await refresh();
     });
@@ -230,7 +236,12 @@ class TodoListController extends ChangeNotifier {
     }
 
     return _runMutation(() async {
-      await _todoMetadataRepository.updateTodoList(id: id, name: name);
+      final list = todoLists.firstWhere((item) => item.id == id);
+      await _todoMetadataRepository.updateTodoList(
+        id: id,
+        name: name,
+        version: list.version,
+      );
       await refresh();
     });
   }
@@ -262,7 +273,12 @@ class TodoListController extends ChangeNotifier {
     }
 
     return _runMutation(() async {
-      await _todoMetadataRepository.updateTag(id: id, name: name);
+      final tag = tags.firstWhere((item) => item.id == id);
+      await _todoMetadataRepository.updateTag(
+        id: id,
+        name: name,
+        version: tag.version,
+      );
       await refresh();
     });
   }

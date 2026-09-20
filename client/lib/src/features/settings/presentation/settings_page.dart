@@ -10,15 +10,15 @@ import '../../../core/widgets/empty_state_card.dart';
 import '../../../core/widgets/page_header.dart';
 import '../../app/application/app_scope.dart';
 import '../../devices/domain/device_item.dart';
-import '../../notification_endpoints/application/notification_endpoints_controller.dart';
-import '../../notification_endpoints/domain/notification_endpoint.dart';
-import '../../notification_endpoints/domain/notification_endpoint_form_data.dart';
-import '../../notification_endpoints/presentation/notification_endpoint_editor_dialog.dart';
+import '../../notification_subscriptions/application/notification_subscriptions_controller.dart';
+import '../../notification_subscriptions/domain/notification_subscription.dart';
+import '../../notification_subscriptions/domain/notification_subscription_form_data.dart';
+import '../../notification_subscriptions/presentation/notification_subscription_editor_dialog.dart';
 import '../../profile/application/profile_controller.dart';
 import '../../profile/domain/profile_user.dart';
 import '../../sync/data/sync_repository.dart';
 
-part 'settings_page_endpoint_actions.dart';
+part 'settings_page_subscription_actions.dart';
 part 'settings_page_actions.dart';
 part 'settings_page_navigation.dart';
 part 'settings_page_widgets.dart';
@@ -49,7 +49,7 @@ class _SettingsPageState extends State<SettingsPage> {
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   late final ProfileController _profileController;
-  late final NotificationEndpointsController _endpointsController;
+  late final NotificationSubscriptionsController _subscriptionsController;
   bool _initialized = false;
   bool _backendUrlInitialized = false;
   bool _isChangingPassword = false;
@@ -100,8 +100,8 @@ class _SettingsPageState extends State<SettingsPage> {
       repository: services.profileRepository,
       sessionController: services.sessionController,
     )..load();
-    _endpointsController = NotificationEndpointsController(
-      repository: services.notificationEndpointsRepository,
+    _subscriptionsController = NotificationSubscriptionsController(
+      repository: services.notificationSubscriptionsRepository,
     )..load();
     _loadDevices();
     _initialized = true;
@@ -117,7 +117,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
     _profileController.dispose();
-    _endpointsController.dispose();
+    _subscriptionsController.dispose();
     super.dispose();
   }
 
@@ -126,7 +126,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return AnimatedBuilder(
       animation: Listenable.merge([
         _profileController,
-        _endpointsController,
+        _subscriptionsController,
       ]),
       builder: (context, _) {
         final theme = Theme.of(context);
@@ -650,12 +650,13 @@ class _SettingsPageState extends State<SettingsPage> {
                                         style: sectionTitleStyle,
                                       ),
                                     ),
-                                    if (_endpointsController.items.isNotEmpty)
+                                    if (_subscriptionsController
+                                        .items.isNotEmpty)
                                       FilledButton.icon(
                                         onPressed:
-                                            _endpointsController.isLoading
+                                            _subscriptionsController.isLoading
                                                 ? null
-                                                : _createEndpoint,
+                                                : _createSubscription,
                                         icon:
                                             const Icon(Icons.add_link_rounded),
                                         label: const Text('新增方式'),
@@ -721,22 +722,23 @@ class _SettingsPageState extends State<SettingsPage> {
                                   ),
                                   const SizedBox(height: 20),
                                 ],
-                                if (_endpointsController.errorMessage != null)
+                                if (_subscriptionsController.errorMessage !=
+                                    null)
                                   Padding(
                                     padding: const EdgeInsets.only(bottom: 12),
                                     child: Text(
-                                      _endpointsController.errorMessage!,
+                                      _subscriptionsController.errorMessage!,
                                       style: TextStyle(
                                           color: theme.colorScheme.error),
                                     ),
                                   ),
-                                if (_endpointsController.isLoading)
+                                if (_subscriptionsController.isLoading)
                                   const Padding(
                                     padding: EdgeInsets.symmetric(vertical: 24),
                                     child: Center(
                                         child: CircularProgressIndicator()),
                                   )
-                                else if (_endpointsController.items.isEmpty)
+                                else if (_subscriptionsController.items.isEmpty)
                                   _CenteredEmptyState(
                                     child: EmptyStateCard(
                                       framed: false,
@@ -746,29 +748,32 @@ class _SettingsPageState extends State<SettingsPage> {
                                           '如果你希望把提醒推送到企业微信机器人或自己的服务，可以先新增一种通知方式。',
                                       action: FilledButton.tonal(
                                         onPressed:
-                                            _endpointsController.isLoading
+                                            _subscriptionsController.isLoading
                                                 ? null
-                                                : _createEndpoint,
+                                                : _createSubscription,
                                         child: const Text('新增通知方式'),
                                       ),
                                     ),
                                   )
                                 else
-                                  ..._endpointsController.items.map(
+                                  ..._subscriptionsController.items.map(
                                     (item) => Padding(
                                       padding:
                                           const EdgeInsets.only(bottom: 12),
-                                      child: _EndpointCard(
+                                      child: _SubscriptionCard(
                                         item: item,
-                                        busy: _endpointsController
+                                        busy: _subscriptionsController
                                                     .submittingId ==
                                                 item.id ||
-                                            _endpointsController.testingId ==
+                                            _subscriptionsController
+                                                    .testingId ==
                                                 item.id,
-                                        onCopyUrl: () => _copyEndpointUrl(item),
-                                        onTest: () => _testEndpoint(item),
-                                        onEdit: () => _editEndpoint(item),
-                                        onDelete: () => _deleteEndpoint(item),
+                                        onCopyUrl: () =>
+                                            _copySubscriptionUrl(item),
+                                        onTest: () => _testSubscription(item),
+                                        onEdit: () => _editSubscription(item),
+                                        onDelete: () =>
+                                            _deleteSubscription(item),
                                       ),
                                     ),
                                   ),
